@@ -1,54 +1,48 @@
-/* ARM9 Linker Script for Mario & Luigi: Partners in Time
- *
- * Nintendo DS ARM9 Memory Map:
- *   0x02000000 - 0x023FFFFF : Main RAM (4MB)
- *   0x027E0000 - 0x027FFFFF : ARM9 reserved (shared WRAM mapped here sometimes)
- *
- * The ARM9 binary is loaded at 0x02000000 by the NDS firmware.
- * Overlays are loaded into main RAM at various addresses.
- */
+/* ARM9 Linker Script for Mario & Luigi: Partners in Time */
 
 OUTPUT_FORMAT("elf32-littlearm")
 OUTPUT_ARCH(arm)
 
+/* Auto-generated symbol definitions for FUN_/DAT_ references */
+INCLUDE "config/undefined_syms.ld"
+
 MEMORY
 {
-    /* Main RAM - ARM9 loaded at 0x02004000 for this ROM */
     main_ram (rwx) : ORIGIN = 0x02004000, LENGTH = 4M - 0x4000
-
-    /* ITCM - 32KB instruction tightly-coupled memory */
-    itcm (rwx) : ORIGIN = 0x01000000, LENGTH = 32K
-
-    /* DTCM - 16KB data tightly-coupled memory */
-    dtcm (rw) : ORIGIN = 0x027C0000, LENGTH = 16K
+    itcm (rwx)     : ORIGIN = 0x01000000, LENGTH = 32K
+    dtcm (rw)      : ORIGIN = 0x027C0000, LENGTH = 16K
 }
+
+/* CRT0 system symbols */
+__dtcm_top          = ORIGIN(dtcm);
+__itcm_top          = ORIGIN(itcm);
+__itcm_reset        = ORIGIN(itcm);
+__irq_stack_size    = 0x400;
+__irq_handler_ptr   = ORIGIN(dtcm) + 0x3FFC;
+__irq_vector        = ORIGIN(dtcm) + 0x3FFC;
+__reset_vector      = ORIGIN(main_ram);
+__static_init_table = ORIGIN(main_ram);
 
 SECTIONS
 {
-    /* Code and read-only data */
     .text : {
         __text_start = .;
+        *crt0.o(.text)
         *(.text)
         *(.text.*)
         *(.stub)
         *(.gnu.linkonce.t.*)
+        *(.glue_7)
+        *(.glue_7t)
         __text_end = .;
     } > main_ram
 
-    /* ARM/Thumb interworking glue */
-    .glue : {
-        *(.glue_7)
-        *(.glue_7t)
-    } > main_ram
-
-    /* Read-only data */
     .rodata : {
         *(.rodata)
         *(.rodata.*)
         *(.gnu.linkonce.r.*)
     } > main_ram
 
-    /* Initialized data */
     .data : {
         __data_start = .;
         *(.data)
@@ -57,7 +51,6 @@ SECTIONS
         __data_end = .;
     } > main_ram
 
-    /* Uninitialized data (BSS) */
     .bss (NOLOAD) : {
         __bss_start = .;
         *(.bss)
@@ -67,19 +60,16 @@ SECTIONS
         __bss_end = .;
     } > main_ram
 
-    /* ITCM section */
     .itcm : {
         *(.itcm)
         *(.itcm.*)
-    } > itcm
+    } > itcm AT > main_ram
 
-    /* DTCM section */
     .dtcm : {
         *(.dtcm)
         *(.dtcm.*)
-    } > dtcm
+    } > dtcm AT > main_ram
 
-    /* Discard debug sections */
     /DISCARD/ : {
         *(.comment)
         *(.debug*)

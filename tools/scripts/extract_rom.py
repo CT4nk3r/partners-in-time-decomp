@@ -40,10 +40,11 @@ KNOWN_HASHES = {
 
 # NDS game codes for Mario & Luigi: Partners in Time
 KNOWN_GAME_CODES = [
-    "AYWE",  # USA
-    "AYWP",  # EUR
-    "AYWJ",  # JPN
-    "ARMP",  # EUR (alternate code)
+    "AYWE",  # USA (original)
+    "AYWP",  # EUR (original)
+    "AYWJ",  # JPN (original)
+    "ARME",  # USA
+    "ARMP",  # EUR
 ]
 
 
@@ -191,12 +192,18 @@ def run_ndstool(rom_path: Path, extract_dir: Path):
     return extract_dir
 
 
-def generate_disassembly(extract_dir: Path):
+def generate_disassembly(extract_dir: Path, header: dict):
     """Generate initial disassembly of ARM9 and ARM7 binaries."""
     arm9_bin = extract_dir / "arm9.bin"
     arm7_bin = extract_dir / "arm7.bin"
 
-    for name, bin_path, arch in [("arm9", arm9_bin, "arm"), ("arm7", arm7_bin, "arm")]:
+    arm9_addr = header["arm9_ram_address"]
+    arm7_addr = header["arm7_ram_address"]
+
+    for name, bin_path, arch, base_addr in [
+        ("arm9", arm9_bin, "arm", arm9_addr),
+        ("arm7", arm7_bin, "arm", arm7_addr),
+    ]:
         if not bin_path.exists():
             print(f"Skipping {name} disassembly — binary not found")
             continue
@@ -209,7 +216,7 @@ def generate_disassembly(extract_dir: Path):
             "-D",
             "-b", "binary",
             "-m", arch,
-            f"--adjust-vma=0x{header['arm9_ram_address']:08X}" if name == "arm9" else f"--adjust-vma=0x{header['arm7_ram_address']:08X}",
+            f"--adjust-vma=0x{base_addr:08X}",
             str(bin_path),
         ]
 
@@ -299,7 +306,7 @@ def main():
 
     # Step 4: Generate initial disassembly
     print("[4/4] Generating initial disassembly...")
-    generate_disassembly(extract_dir)
+    generate_disassembly(extract_dir, header)
 
     print("=" * 60)
     print("Extraction complete!")

@@ -399,3 +399,4 @@ Study these for patterns and conventions:
 5. **`config/decompiled/all_functions.c`** is 1.3MB — don't try to load it all at once, use individual files
 6. **USA Rev 0 is the primary target** — always match against that version first
 7. The game uses **C++ RTTI** but the decompilation is in C — reconstruct classes as structs with function pointer tables (vtables)
+8. **Read `ARCHITECTURE.md`** for the full game engine map — class hierarchy, subsystems, address regions, boot sequence

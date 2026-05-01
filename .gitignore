@@ -1,0 +1,42 @@
+# Build output
+build/
+*.o
+*.elf
+*.nds
+*.bin
+
+# ROM files — NEVER commit these
+rom/baserom.nds
+rom/*.nds
+
+# Extracted ROM data (generated from user's ROM)
+extracted/
+
+# Ghidra projects
+*.gpr
+*.rep/
+ghidra_projects/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# OS
+*.lnk
+
+# devkitPro build artifacts
+*.d
+*.map

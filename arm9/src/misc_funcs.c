@@ -8,6 +8,8 @@
  */
 
 #include "types.h"
+#pragma GCC diagnostic ignored "-Wint-conversion"
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 
 /* Extern data references */
 extern u32 DAT_020079a4;

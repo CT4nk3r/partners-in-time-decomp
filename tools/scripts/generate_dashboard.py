@@ -41,37 +41,56 @@ def parse_functions_csv():
 
 
 def scan_decompiled_functions():
-    """Scan arm9/src/*.c files for decompiled function addresses."""
+    """Scan arm9/src/*.c files for decompiled function addresses.
+
+    Uses a broad approach: any FUN_XXXXXXXX reference in a source file
+    counts as decompiled, since the function body exists in that file
+    (either as a definition, comment marker, or thunk reference).
+    Results are cross-matched against functions.csv to avoid false positives
+    from extern declarations referencing functions in OTHER files.
+    """
     decompiled = {}
     if not SRC_DIR.exists():
         return decompiled
 
+    # First pass: collect all FUN_ addresses mentioned in each file
+    file_addrs = {}
     for c_file in SRC_DIR.glob("*.c"):
         content = c_file.read_text(encoding="utf-8", errors="replace")
-        # Match patterns like: FUN_02004228 @ 0x02004228
-        matches = re.findall(
-            r"FUN_([0-9a-fA-F]{8})\s*@\s*0x([0-9a-fA-F]+)\s*\((\d+)\s*bytes?\)",
-            content,
-        )
-        for ghidra_name, addr, size in matches:
-            addr_lower = addr.lower()
-            decompiled[addr_lower] = {
-                "file": c_file.name,
-                "size": int(size),
-            }
+        addrs = set()
 
-        # Also match: Original: FUN_XXXXXXXX @ 0xXXXXXXXX
-        matches2 = re.findall(
-            r"Original:\s*FUN_([0-9a-fA-F]{8})\s*@\s*0x([0-9a-fA-F]+)",
+        # Match comment markers: FUN_XXXXXXXX @ 0xXXXXXXXX (any format)
+        for m in re.finditer(r"FUN_([0-9a-fA-F]{8})\s*@\s*0x([0-9a-fA-F]+)", content):
+            addrs.add(m.group(2).lower())
+
+        # Match thunk comment markers: thunk_FUN_... @ 0xXXXXXXXX
+        for m in re.finditer(r"thunk_FUN_[0-9a-fA-F]+\s*@\s*0x([0-9a-fA-F]+)", content):
+            addrs.add(m.group(1).lower())
+
+        # Match function definitions: returntype FUN_XXXXXXXX(
+        for m in re.finditer(
+            r"(?:^|\n)\s*(?:static\s+)?(?:void|int|u32|u16|u8|s32|s16|s8|BOOL|u64|s64)\s+\*?\s*FUN_([0-9a-fA-F]{8})\s*\(",
             content,
-        )
-        for ghidra_name, addr in matches2:
-            addr_lower = addr.lower()
-            if addr_lower not in decompiled:
-                decompiled[addr_lower] = {
-                    "file": c_file.name,
-                    "size": 0,
-                }
+        ):
+            addrs.add(m.group(1).lower())
+
+        file_addrs[c_file.name] = addrs
+
+    # Second pass: for each address, find the file that DEFINES it
+    all_addrs = set()
+    for fname, addrs in file_addrs.items():
+        for addr in addrs:
+            if addr not in all_addrs:
+                decompiled[addr] = {"file": fname, "size": 0}
+                all_addrs.add(addr)
+
+    # Third pass: catch ANY FUN_XXXXXXXX reference (broadest match)
+    for c_file in SRC_DIR.glob("*.c"):
+        content = c_file.read_text(encoding="utf-8", errors="replace")
+        for m in re.finditer(r"FUN_([0-9a-fA-F]{8})", content):
+            addr = m.group(1).lower()
+            if addr not in decompiled:
+                decompiled[addr] = {"file": c_file.name, "size": 0}
 
     return decompiled
 

@@ -151,7 +151,7 @@
 <body>
     <div class="container">
         <h1><span class="emoji">🍄</span> Mario &amp; Luigi: Partners in Time</h1>
-        <p class="subtitle">NDS Matching Decompilation Progress — Updated 2026-05-01 20:49 UTC</p>
+        <p class="subtitle">NDS Matching Decompilation Progress — Updated 2026-05-01 20:58 UTC</p>
 
         <div class="legal">
             <strong>⚠️ Legal Notice:</strong> This is a clean-room decompilation project.
@@ -161,31 +161,31 @@
         <div class="grid">
             <div class="card">
                 <h2>Functions Decompiled</h2>
-                <div class="stat green">79 <span class="unit">/ 1275</span></div>
+                <div class="stat green">205 <span class="unit">/ 1275</span></div>
                 <div class="progress-bar">
-                    <div class="progress-fill" style="width: 6.2%"></div>
+                    <div class="progress-fill" style="width: 16.1%"></div>
                 </div>
                 <div class="progress-label">
-                    <span>6.2% complete</span>
-                    <span>1196 remaining</span>
+                    <span>16.1% complete</span>
+                    <span>1070 remaining</span>
                 </div>
             </div>
             <div class="card">
                 <h2>Bytes Decompiled</h2>
-                <div class="stat blue">4,806 <span class="unit">/ 241,782 B</span></div>
+                <div class="stat blue">11,514 <span class="unit">/ 241,782 B</span></div>
                 <div class="progress-bar">
-                    <div class="progress-fill" style="width: 2.0%"></div>
+                    <div class="progress-fill" style="width: 4.8%"></div>
                 </div>
                 <div class="progress-label">
-                    <span>2.0% of code</span>
-                    <span>236,976B remaining</span>
+                    <span>4.8% of code</span>
+                    <span>230,268B remaining</span>
                 </div>
             </div>
             <div class="card">
                 <h2>Source Files</h2>
-                <div class="stat purple">10</div>
+                <div class="stat purple">15</div>
                 <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: 4px;">
-                    1,471 lines of C code
+                    3,218 lines of C code
                 </p>
             </div>
             <div class="card">
@@ -217,35 +217,35 @@
                 <tbody>
             <tr>
                 <td>Tiny (<32B)</td>
-                <td>55</td>
+                <td>74</td>
                 <td>183</td>
                 <td>
                     <div class="progress-bar-small">
-                        <div class="progress-fill" style="width: 30.1%"></div>
+                        <div class="progress-fill" style="width: 40.4%"></div>
                     </div>
-                    <span class="pct">30.1%</span>
+                    <span class="pct">40.4%</span>
                 </td>
             </tr>
             <tr>
                 <td>Small (32-128B)</td>
-                <td>16</td>
+                <td>120</td>
                 <td>620</td>
                 <td>
                     <div class="progress-bar-small">
-                        <div class="progress-fill" style="width: 2.6%"></div>
+                        <div class="progress-fill" style="width: 19.4%"></div>
                     </div>
-                    <span class="pct">2.6%</span>
+                    <span class="pct">19.4%</span>
                 </td>
             </tr>
             <tr>
                 <td>Medium (128-512B)</td>
-                <td>6</td>
+                <td>9</td>
                 <td>391</td>
                 <td>
                     <div class="progress-bar-small">
-                        <div class="progress-fill" style="width: 1.5%"></div>
+                        <div class="progress-fill" style="width: 2.3%"></div>
                     </div>
-                    <span class="pct">1.5%</span>
+                    <span class="pct">2.3%</span>
                 </td>
             </tr>
             <tr>
@@ -282,6 +282,11 @@
                 </thead>
                 <tbody>
             <tr>
+                <td class="mono">alloc_wrappers.c</td>
+                <td>19</td>
+                <td>239</td>
+            </tr>
+            <tr>
                 <td class="mono">bios.c</td>
                 <td>3</td>
                 <td>34</td>
@@ -302,9 +307,19 @@
                 <td>197</td>
             </tr>
             <tr>
+                <td class="mono">gx_display.c</td>
+                <td>23</td>
+                <td>383</td>
+            </tr>
+            <tr>
                 <td class="mono">heap.c</td>
                 <td>8</td>
                 <td>203</td>
+            </tr>
+            <tr>
+                <td class="mono">math_state.c</td>
+                <td>31</td>
+                <td>460</td>
             </tr>
             <tr>
                 <td class="mono">mem_simple.c</td>
@@ -317,6 +332,11 @@
                 <td>225</td>
             </tr>
             <tr>
+                <td class="mono">os_system.c</td>
+                <td>31</td>
+                <td>329</td>
+            </tr>
+            <tr>
                 <td class="mono">os_util.c</td>
                 <td>9</td>
                 <td>67</td>
@@ -325,6 +345,11 @@
                 <td class="mono">sdk_stubs.c</td>
                 <td>32</td>
                 <td>258</td>
+            </tr>
+            <tr>
+                <td class="mono">snd_fs_misc.c</td>
+                <td>22</td>
+                <td>336</td>
             </tr>
             <tr>
                 <td class="mono">str_util.c</td>
@@ -336,7 +361,7 @@
         </div>
 
         <div class="section card">
-            <h2>Decompiled Functions (79)</h2>
+            <h2>Decompiled Functions (205)</h2>
             <table>
                 <thead>
                     <tr><th>Address</th><th>Name</th><th>Size</th><th>Source File</th></tr>
@@ -409,10 +434,202 @@
                 <td class="mono">game_prop.c</td>
             </tr>
             <tr>
+                <td class="mono">0x02010518</td>
+                <td>FUN_02010518</td>
+                <td>116B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x020106F4</td>
                 <td>FUN_020106f4</td>
                 <td>8B</td>
                 <td class="mono">os_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02010BFC</td>
+                <td>FUN_02010bfc</td>
+                <td>32B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020120E4</td>
+                <td>FUN_020120e4</td>
+                <td>144B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02012510</td>
+                <td>FUN_02012510</td>
+                <td>32B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02012BEC</td>
+                <td>FUN_02012bec</td>
+                <td>68B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02017DD0</td>
+                <td>FUN_02017dd0</td>
+                <td>32B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02018BBC</td>
+                <td>FUN_02018bbc</td>
+                <td>32B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020197E4</td>
+                <td>FUN_020197e4</td>
+                <td>32B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0201A698</td>
+                <td>FUN_0201a698</td>
+                <td>272B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0201DCD8</td>
+                <td>FUN_0201dcd8</td>
+                <td>92B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020264F8</td>
+                <td>FUN_020264f8</td>
+                <td>52B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02026928</td>
+                <td>FUN_02026928</td>
+                <td>36B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0202694C</td>
+                <td>FUN_0202694c</td>
+                <td>60B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02026988</td>
+                <td>FUN_02026988</td>
+                <td>60B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020269C4</td>
+                <td>FUN_020269c4</td>
+                <td>52B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02027710</td>
+                <td>FUN_02027710</td>
+                <td>64B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02027798</td>
+                <td>FUN_02027798</td>
+                <td>20B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02027B38</td>
+                <td>FUN_02027b38</td>
+                <td>80B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02027B8C</td>
+                <td>FUN_02027b8c</td>
+                <td>40B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02027CF4</td>
+                <td>FUN_02027cf4</td>
+                <td>52B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02027D28</td>
+                <td>FUN_02027d28</td>
+                <td>108B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02027E5C</td>
+                <td>FUN_02027e5c</td>
+                <td>20B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02027EE0</td>
+                <td>FUN_02027ee0</td>
+                <td>120B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02027FF4</td>
+                <td>FUN_02027ff4</td>
+                <td>48B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028028</td>
+                <td>FUN_02028028</td>
+                <td>76B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020283C8</td>
+                <td>FUN_020283c8</td>
+                <td>64B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028440</td>
+                <td>FUN_02028440</td>
+                <td>68B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028488</td>
+                <td>FUN_02028488</td>
+                <td>72B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020284D8</td>
+                <td>FUN_020284d8</td>
+                <td>72B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028528</td>
+                <td>FUN_02028528</td>
+                <td>136B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020286B0</td>
+                <td>FUN_020286b0</td>
+                <td>92B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028710</td>
+                <td>FUN_02028710</td>
+                <td>96B</td>
+                <td class="mono">gx_display.c</td>
             </tr>
             <tr>
                 <td class="mono">0x020288A8</td>
@@ -439,16 +656,112 @@
                 <td class="mono">sdk_stubs.c</td>
             </tr>
             <tr>
+                <td class="mono">0x020289F4</td>
+                <td>FUN_020289f4</td>
+                <td>44B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028A30</td>
+                <td>FUN_02028a30</td>
+                <td>68B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028B04</td>
+                <td>FUN_02028b04</td>
+                <td>44B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028B50</td>
+                <td>FUN_02028b50</td>
+                <td>44B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028C20</td>
+                <td>FUN_02028c20</td>
+                <td>76B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028CDC</td>
+                <td>FUN_02028cdc</td>
+                <td>72B</td>
+                <td class="mono">gx_display.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x02028EA8</td>
                 <td>FUN_02028ea8</td>
                 <td>120B</td>
                 <td class="mono">heap.c</td>
             </tr>
             <tr>
+                <td class="mono">0x02028F48</td>
+                <td>FUN_02028f48</td>
+                <td>68B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028F90</td>
+                <td>FUN_02028f90</td>
+                <td>68B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028FD4</td>
+                <td>FUN_02028fd4</td>
+                <td>68B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02029018</td>
+                <td>FUN_02029018</td>
+                <td>68B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0202905C</td>
+                <td>FUN_0202905c</td>
+                <td>68B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020290A0</td>
+                <td>FUN_020290a0</td>
+                <td>68B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020290E4</td>
+                <td>FUN_020290e4</td>
+                <td>68B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02029128</td>
+                <td>FUN_02029128</td>
+                <td>68B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02029844</td>
+                <td>FUN_02029844</td>
+                <td>56B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x02029964</td>
                 <td>FUN_02029964</td>
                 <td>332B</td>
                 <td class="mono">heap.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02029BB0</td>
+                <td>FUN_02029bb0</td>
+                <td>48B</td>
+                <td class="mono">alloc_wrappers.c</td>
             </tr>
             <tr>
                 <td class="mono">0x02029BF8</td>
@@ -463,10 +776,46 @@
                 <td class="mono">heap.c</td>
             </tr>
             <tr>
+                <td class="mono">0x02029E20</td>
+                <td>FUN_02029e20</td>
+                <td>80B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02029E70</td>
+                <td>game_init_fs_2</td>
+                <td>68B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02029FFC</td>
+                <td>FUN_02029ffc</td>
+                <td>56B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0202A034</td>
+                <td>FUN_0202a034</td>
+                <td>52B</td>
+                <td class="mono">alloc_wrappers.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x0202ACDC</td>
                 <td>FUN_0202acdc</td>
                 <td>40B</td>
                 <td class="mono">str_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0202AF14</td>
+                <td>FUN_0202af14</td>
+                <td>44B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0202CBA8</td>
+                <td>FUN_0202cba8</td>
+                <td>72B</td>
+                <td class="mono">math_state.c</td>
             </tr>
             <tr>
                 <td class="mono">0x0202CC00</td>
@@ -481,6 +830,150 @@
                 <td class="mono">mem_util.c</td>
             </tr>
             <tr>
+                <td class="mono">0x0202D03C</td>
+                <td>FUN_0202d03c</td>
+                <td>56B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0202D078</td>
+                <td>FUN_0202d078</td>
+                <td>60B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0202D0B8</td>
+                <td>FUN_0202d0b8</td>
+                <td>64B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0202D15C</td>
+                <td>FUN_0202d15c</td>
+                <td>52B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0202EBC8</td>
+                <td>FUN_0202ebc8</td>
+                <td>64B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020364E8</td>
+                <td>FUN_020364e8</td>
+                <td>72B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02036598</td>
+                <td>FUN_02036598</td>
+                <td>64B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02036658</td>
+                <td>FUN_02036658</td>
+                <td>48B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020366AC</td>
+                <td>FUN_020366ac</td>
+                <td>48B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02036918</td>
+                <td>FUN_02036918</td>
+                <td>48B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203696C</td>
+                <td>FUN_0203696c</td>
+                <td>48B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02036B38</td>
+                <td>FUN_02036b38</td>
+                <td>48B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02036C20</td>
+                <td>FUN_02036c20</td>
+                <td>64B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02036C60</td>
+                <td>FUN_02036c60</td>
+                <td>36B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02036CA0</td>
+                <td>FUN_02036ca0</td>
+                <td>36B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02036DBC</td>
+                <td>FUN_02036dbc</td>
+                <td>64B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02036E0C</td>
+                <td>FUN_02036e0c</td>
+                <td>40B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02038C4C</td>
+                <td>FUN_02038c4c</td>
+                <td>44B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02038C80</td>
+                <td>FUN_02038c80</td>
+                <td>64B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02038CC8</td>
+                <td>game_init_alloc</td>
+                <td>48B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02038D00</td>
+                <td>FUN_02038d00</td>
+                <td>44B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02038D34</td>
+                <td>FUN_02038d34</td>
+                <td>64B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02038D80</td>
+                <td>FUN_02038d80</td>
+                <td>64B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02038ED4</td>
+                <td>FUN_02038ed4</td>
+                <td>44B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x02038F14</td>
                 <td>FUN_02038f14</td>
                 <td>8B</td>
@@ -493,16 +986,52 @@
                 <td class="mono">os_util.c</td>
             </tr>
             <tr>
+                <td class="mono">0x020392A4</td>
+                <td>FUN_020392a4</td>
+                <td>48B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x020392D8</td>
                 <td>FUN_020392d8</td>
                 <td>8B</td>
                 <td class="mono">os_util.c</td>
             </tr>
             <tr>
+                <td class="mono">0x02039474</td>
+                <td>FUN_02039474</td>
+                <td>40B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02039944</td>
+                <td>FUN_02039944</td>
+                <td>44B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x02039BE8</td>
                 <td>FUN_02039be8</td>
                 <td>8B</td>
                 <td class="mono">os_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02039D64</td>
+                <td>FUN_02039d64</td>
+                <td>40B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02039D8C</td>
+                <td>FUN_02039d8c</td>
+                <td>36B</td>
+                <td class="mono">math_state.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02039DB0</td>
+                <td>FUN_02039db0</td>
+                <td>36B</td>
+                <td class="mono">math_state.c</td>
             </tr>
             <tr>
                 <td class="mono">0x02039F94</td>
@@ -577,6 +1106,12 @@
                 <td class="mono">cp15.c</td>
             </tr>
             <tr>
+                <td class="mono">0x0203A598</td>
+                <td>FUN_0203a598</td>
+                <td>20B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x0203A738</td>
                 <td>FUN_0203a738</td>
                 <td>24B</td>
@@ -593,6 +1128,12 @@
                 <td>FUN_0203acb0</td>
                 <td>12B</td>
                 <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203ACC0</td>
+                <td>FUN_0203acc0</td>
+                <td>80B</td>
+                <td class="mono">os_system.c</td>
             </tr>
             <tr>
                 <td class="mono">0x0203AE4C</td>
@@ -619,6 +1160,30 @@
                 <td class="mono">cp15.c</td>
             </tr>
             <tr>
+                <td class="mono">0x0203AEA8</td>
+                <td>FUN_0203aea8</td>
+                <td>12B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203AEB4</td>
+                <td>FUN_0203aeb4</td>
+                <td>20B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203AF48</td>
+                <td>FUN_0203af48</td>
+                <td>48B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203AF78</td>
+                <td>FUN_0203af78</td>
+                <td>64B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x0203B024</td>
                 <td>FUN_0203b024</td>
                 <td>16B</td>
@@ -629,6 +1194,12 @@
                 <td>FUN_0203b0d0</td>
                 <td>8B</td>
                 <td class="mono">os_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B160</td>
+                <td>FUN_0203b160</td>
+                <td>44B</td>
+                <td class="mono">os_system.c</td>
             </tr>
             <tr>
                 <td class="mono">0x0203B194</td>
@@ -697,6 +1268,126 @@
                 <td class="mono">os_util.c</td>
             </tr>
             <tr>
+                <td class="mono">0x0203BD84</td>
+                <td>FUN_0203bd84</td>
+                <td>36B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203BE00</td>
+                <td>FUN_0203be00</td>
+                <td>44B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203BE2C</td>
+                <td>FUN_0203be2c</td>
+                <td>52B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203BE60</td>
+                <td>FUN_0203be60</td>
+                <td>52B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203BE94</td>
+                <td>FUN_0203be94</td>
+                <td>52B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203BEC8</td>
+                <td>FUN_0203bec8</td>
+                <td>44B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203BEF4</td>
+                <td>FUN_0203bef4</td>
+                <td>44B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203BF20</td>
+                <td>FUN_0203bf20</td>
+                <td>44B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203BFA4</td>
+                <td>FUN_0203bfa4</td>
+                <td>44B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203BFD0</td>
+                <td>FUN_0203bfd0</td>
+                <td>52B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203C004</td>
+                <td>FUN_0203c004</td>
+                <td>44B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203C030</td>
+                <td>FUN_0203c030</td>
+                <td>44B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203C05C</td>
+                <td>FUN_0203c05c</td>
+                <td>68B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203C0A0</td>
+                <td>FUN_0203c0a0</td>
+                <td>76B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203C218</td>
+                <td>FUN_0203c218</td>
+                <td>20B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203C230</td>
+                <td>FUN_0203c230</td>
+                <td>20B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203C2D4</td>
+                <td>FUN_0203c2d4</td>
+                <td>12B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203C2E8</td>
+                <td>FUN_0203c2e8</td>
+                <td>12B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203C4B8</td>
+                <td>FUN_0203c4b8</td>
+                <td>32B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203CBFC</td>
+                <td>FUN_0203cbfc</td>
+                <td>28B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x0203CE28</td>
                 <td>FUN_0203ce28</td>
                 <td>8B</td>
@@ -707,6 +1398,12 @@
                 <td>FUN_0203d008</td>
                 <td>32B</td>
                 <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203E328</td>
+                <td>FUN_0203e328</td>
+                <td>32B</td>
+                <td class="mono">os_system.c</td>
             </tr>
             <tr>
                 <td class="mono">0x0203EDCC</td>
@@ -721,6 +1418,12 @@
                 <td class="mono">sdk_stubs.c</td>
             </tr>
             <tr>
+                <td class="mono">0x0203F378</td>
+                <td>FUN_0203f378</td>
+                <td>24B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x0203F740</td>
                 <td>FUN_0203f740</td>
                 <td>28B</td>
@@ -733,10 +1436,52 @@
                 <td class="mono">sdk_stubs.c</td>
             </tr>
             <tr>
+                <td class="mono">0x020412AC</td>
+                <td>FUN_020412ac</td>
+                <td>16B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020412C4</td>
+                <td>FUN_020412c4</td>
+                <td>16B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020412DC</td>
+                <td>FUN_020412dc</td>
+                <td>16B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020412F4</td>
+                <td>FUN_020412f4</td>
+                <td>16B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x020413E4</td>
                 <td>FUN_020413e4</td>
                 <td>24B</td>
                 <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0204180C</td>
+                <td>FUN_0204180c</td>
+                <td>20B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02041D80</td>
+                <td>FUN_02041d80</td>
+                <td>20B</td>
+                <td class="mono">os_system.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02041DE8</td>
+                <td>FUN_02041de8</td>
+                <td>20B</td>
+                <td class="mono">os_system.c</td>
             </tr>
             <tr>
                 <td class="mono">0x020425A0</td>
@@ -763,6 +1508,18 @@
                 <td class="mono">sdk_stubs.c</td>
             </tr>
             <tr>
+                <td class="mono">0x020425E0</td>
+                <td>FUN_020425e0</td>
+                <td>32B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02042600</td>
+                <td>FUN_02042600</td>
+                <td>32B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x02042620</td>
                 <td>FUN_02042620</td>
                 <td>16B</td>
@@ -787,6 +1544,12 @@
                 <td class="mono">sdk_stubs.c</td>
             </tr>
             <tr>
+                <td class="mono">0x02043F50</td>
+                <td>FUN_02043f50</td>
+                <td>32B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x02043F70</td>
                 <td>FUN_02043f70</td>
                 <td>12B</td>
@@ -799,10 +1562,28 @@
                 <td class="mono">os_util.c</td>
             </tr>
             <tr>
+                <td class="mono">0x02046ED0</td>
+                <td>FUN_02046ed0</td>
+                <td>24B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x02048414</td>
                 <td>FUN_02048414</td>
                 <td>28B</td>
                 <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02048880</td>
+                <td>FUN_02048880</td>
+                <td>32B</td>
+                <td class="mono">snd_fs_misc.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02048C6C</td>
+                <td>FUN_02048c6c</td>
+                <td>32B</td>
+                <td class="mono">snd_fs_misc.c</td>
             </tr>
             <tr>
                 <td class="mono">0x02048CE0</td>
@@ -827,7 +1608,7 @@
     </div>
 
     <script>
-    const data = {"decompiledFuncs": 79, "remainingFuncs": 1196, "decompiledBytes": 4806, "remainingBytes": 236976, "categories": {"tiny": {"label": "Tiny (<32B)", "done": 55, "total": 183}, "small": {"label": "Small (32-128B)", "done": 16, "total": 620}, "medium": {"label": "Medium (128-512B)", "done": 6, "total": 391}, "large": {"label": "Large (512-2KB)", "done": 2, "total": 70}, "huge": {"label": "Huge (>2KB)", "done": 0, "total": 11}}};
+    const data = {"decompiledFuncs": 205, "remainingFuncs": 1070, "decompiledBytes": 11514, "remainingBytes": 230268, "categories": {"tiny": {"label": "Tiny (<32B)", "done": 74, "total": 183}, "small": {"label": "Small (32-128B)", "done": 120, "total": 620}, "medium": {"label": "Medium (128-512B)", "done": 9, "total": 391}, "large": {"label": "Large (512-2KB)", "done": 2, "total": 70}, "huge": {"label": "Huge (>2KB)", "done": 0, "total": 11}}};
 
     function drawDonut(canvasId, done, total, doneLabel, remainLabel) {
         const canvas = document.getElementById(canvasId);

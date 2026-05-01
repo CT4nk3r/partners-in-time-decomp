@@ -18,7 +18,43 @@
 #define CONCAT22(hi16, lo16)  (((u32)(hi16) << 16) | ((u16)(lo16)))
 #define CONCAT31(hi24, lo8)   (((u32)(hi24) << 8) | ((u8)(lo8)))
 
-typedef int (*FuncPtr)();
+typedef int (*FuncPtr)(...);
+
+/* ============================================================
+ * External function declarations
+ * ============================================================ */
+extern void FUN_020084a0(...);
+extern void FUN_02008534(...);
+extern void FUN_0201a7b0(...);
+extern void FUN_0201ae04(...);
+extern void FUN_0201b418(...);
+extern void FUN_0201ccf4(...);
+extern void FUN_0201d0cc(...);
+extern int FUN_0201d3bc(...);
+extern void FUN_0201f360(...);
+extern void FUN_02022048(...);
+extern void FUN_0202277c(...);
+extern void FUN_02025810(...);
+extern void FUN_02027798(...);
+extern void FUN_020278fc(...);
+extern void FUN_02027a68(...);
+extern void FUN_02027cf4(...);
+extern u32 FUN_02029bf8(...);
+extern void FUN_0202a034(...);
+extern void FUN_0202cc10(...);
+extern void FUN_0202cc94(...);
+extern void FUN_0202cd68(...);
+extern void FUN_02030790(...);
+extern void FUN_0203a04c(...);
+extern void FUN_0203b7c0(...);
+extern void FUN_0203b7f0(...);
+extern void FUN_0203b808(...);
+extern void FUN_0203b854(...);
+extern void FUN_0203b914(...);
+extern void FUN_0203bec8(...);
+extern u32 FUN_0203cda8(...);
+extern void FUN_0203cdf0(...);
+extern void thunk_FUN_02029ab8(...);
 
 /* ============================================================
  * External data references (DAT_)
@@ -125,43 +161,8 @@ extern u16 *DAT_0202682c;
 extern u32 DAT_02026860;
 extern u32 DAT_02026864;
 
-/* ============================================================
- * External function declarations
- * ============================================================ */
-void FUN_020084a0();
-void FUN_02008534();
-void FUN_0201a7b0();
-void FUN_0201ae04();
-void FUN_0201b418();
-void FUN_0201ccf4();
-void FUN_0201d0cc();
-int FUN_0201d170();
-int FUN_0201d3bc();
-void FUN_0201f360();
-void FUN_0201fa50();
-void FUN_02022048();
-void FUN_0202277c();
-void FUN_02025810();
-void FUN_02027798();
-void FUN_020278fc();
-void FUN_02027a68();
-void FUN_02027cf4();
-int FUN_02029bf8();
-void FUN_0202a034();
-void FUN_0202cc10();
-void FUN_0202cc94();
-void FUN_0202cd68();
-void FUN_02030790();
-void FUN_0203a04c();
-void FUN_0203b7c0();
-void FUN_0203b7f0();
-void FUN_0203b808();
-void FUN_0203b854();
-void FUN_0203b914();
-void FUN_0203bec8();
-int FUN_0203cda8();
-void FUN_0203cdf0();
-void thunk_FUN_02029ab8();
+extern int FUN_0201d170(...);
+extern void FUN_0201fa50(...);
 
 /* ============================================================
  * Forward declarations

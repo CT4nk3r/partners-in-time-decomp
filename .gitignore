@@ -1,9 +1,13 @@
 # Build output
 build/
 *.o
+*.obj
 *.elf
 *.nds
 *.bin
+*.exe
+*.dll
+*.dll.a
 
 # ROM files — NEVER commit these
 rom/baserom.nds

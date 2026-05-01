@@ -174,6 +174,54 @@ void platform_audio_push(const int16_t* samples, int frame_count) {
     (void)samples; (void)frame_count;
 }
 
+/* === Game thread + VBlank sync ===
+ *
+ * The decompiled game_start() is an infinite loop on the NDS that calls
+ * GX_VBlankWait() (-> SWI 0x05 VBlankIntrWait) for frame pacing. To run it
+ * unchanged on the host we drive it in a separate thread and have
+ * arm_swi_05_vblank_intr_wait() block on a semaphore that the SDL main
+ * thread posts to once per rendered frame.
+ */
+static SDL_sem*    g_vblank_sem;
+static SDL_Thread* g_game_thread;
+static int         g_game_thread_should_exit;
+static int         g_game_started;
+
+void platform_signal_vblank(void) {
+    if (g_vblank_sem) SDL_SemPost(g_vblank_sem);
+}
+
+void platform_wait_vblank(void) {
+    if (!g_vblank_sem) return;
+    /* Wait up to 1 frame; we poll the exit flag so the thread can be cleaned up. */
+    SDL_SemWaitTimeout(g_vblank_sem, 50);
+}
+
+bool platform_game_started(void) { return g_game_started != 0; }
+
+void platform_start_game_thread(int (*entry)(void*), const char* name) {
+    if (g_game_thread) return;
+    g_vblank_sem  = SDL_CreateSemaphore(0);
+    g_game_thread = SDL_CreateThread(entry, name ? name : "mlpit_game", NULL);
+    g_game_started = 1;
+}
+
+void platform_stop_game_thread(void) {
+    g_game_thread_should_exit = 1;
+    /* Wake the thread if it's sleeping in vblank wait */
+    for (int i = 0; i < 4 && g_vblank_sem; i++) SDL_SemPost(g_vblank_sem);
+    if (g_game_thread) {
+        SDL_WaitThread(g_game_thread, NULL);
+        g_game_thread = NULL;
+    }
+    if (g_vblank_sem) {
+        SDL_DestroySemaphore(g_vblank_sem);
+        g_vblank_sem = NULL;
+    }
+}
+
+int platform_game_should_exit(void) { return g_game_thread_should_exit; }
+
 void nds_log(const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -181,3 +229,4 @@ void nds_log(const char* fmt, ...) {
     va_end(ap);
     fflush(stdout);
 }
+

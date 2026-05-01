@@ -65,6 +65,14 @@ void nds_reg_write32(uint32_t addr, uint32_t val);
 void nds_reg_write16(uint32_t addr, uint16_t val);
 void nds_reg_write8(uint32_t addr, uint8_t val);
 
+/* === Game thread (run decompiled game_start in background) === */
+void platform_signal_vblank(void);
+void platform_wait_vblank(void);
+bool platform_game_started(void);
+int  platform_game_should_exit(void);
+void platform_start_game_thread(int (*entry)(void*), const char* name);
+void platform_stop_game_thread(void);
+
 /* === Logging === */
 void nds_log(const char* fmt, ...);
 

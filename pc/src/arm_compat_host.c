@@ -17,9 +17,9 @@ void arm_swi_03_stop(void) {
 }
 
 void arm_swi_05_vblank_intr_wait(void) {
-    /* SWI 0x05 = wait for VBlank. On host this is the frame pacing point;
-     * the actual vsync is driven by SDL's SDL_RENDERER_PRESENTVSYNC at present(). */
-    platform_sleep_us(16666);
+    /* SWI 0x05 = wait for VBlank. The game thread blocks here until the
+     * main SDL thread finishes a frame and posts the vblank semaphore. */
+    platform_wait_vblank();
 }
 
 void arm_swi_0b_cpuset(const void *src, void *dst, u32 mode) {

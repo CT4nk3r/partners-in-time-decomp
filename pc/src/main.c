@@ -13,6 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern int game_thread_main(void* user);
+
 static void render_placeholder(void) {
     uint16_t* top = platform_top_framebuffer();
     uint16_t* bot = platform_bottom_framebuffer();
@@ -53,21 +55,24 @@ int main(int argc, char** argv) {
     nds_log("Decompilation: 1275/1275 ARM9 functions\n");
     nds_log("Press ESC or close window to quit.\n");
 
+    /* Start the game thread. Currently runs a vblank heartbeat stub
+     * (see pc/src/game_thread.c for why we cannot yet call game_start()). */
+    platform_start_game_thread(game_thread_main, "mlpit_game");
+
     while (platform_poll_events()) {
         const NdsInput* input = platform_input();
-
-        /* TODO: Call into decompiled game main loop here.
-         * Currently the game code in arm9/src/ targets armv5te and uses
-         * NDS hardware registers directly, so we cannot link it yet.
-         * See pc/README.md for the porting roadmap. */
+        (void)input;
 
         render_placeholder();
         platform_present();
 
-        /* ~60 fps */
+        /* Tell the game thread "vblank happened" - unblocks GX_VBlankWait. */
+        platform_signal_vblank();
+
         platform_sleep_us(16666);
     }
 
+    platform_stop_game_thread();
     platform_shutdown();
     return 0;
 }

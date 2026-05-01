@@ -153,6 +153,13 @@ suggesting these properties are context-dependent (e.g., battle vs overworld).
 - Initial heap: 8KB buffer at BSS
 - Block header: `prev | next | size (bit0=free) | flags (bits0-4=heap_id)`
 
+### Object Factory System (decompiled in `alloc_wrappers.c`)
+- 8 factory functions allocate fixed-size structs (0x30 or 0x38 bytes) via `OS_Alloc`
+- Each immediately calls a constructor-like init function (in overlay space 0x0206-0x0207xxxx)
+- All constructors take `(ptr, type=8, param=0)` — suggests a common base class init
+- Heap metadata operations: block merging (`heap_merge_blocks`), slot clearing
+- Mutex-protected operations for thread safety: `obj_set_flags`, `obj_clear_set_flags`
+
 ### Memory Copy/Fill Utilities
 Two tiers of memory functions:
 1. **MI_CpuFill8 / MI_CpuCopy8** (`mem_util.c`) — Byte-granular with alignment handling
@@ -163,13 +170,24 @@ Two tiers of memory functions:
 
 ## 7. Graphics Subsystem (0x02027000 - 0x0202BFFF)
 
-47 graphics functions identified in this address range:
+47 graphics functions identified in this address range, 23 decompiled in `gx_display.c`.
 
-### Display Pipeline
-- **GX_InitGraphicsEngine** (0x02028128, 508B) — VRAM allocation, buffer setup
-- **GX_SetupVBlankRoutine** (0x02028774, 248B) — VBlank interrupt handler
-- **GX_UpdateDisplay** (0x02028028, 76B) — Main VBlank display update
-- **GX_SwapCommandBuffer** (0x020286B0, 92B) — Double-buffering
+### Display Pipeline (decompiled)
+- **gx_init_display_layers** (0x02027710, 64B) — Init 4 BG layer entries (pos, priority, data)
+- **gx_main_update** (0x02028028, 76B) — Per-frame update: process delta frames, refresh, animate
+- **gx_cleanup_render** (0x020286B0, 92B) — Disable VRAM/OAM mapping, release resources
+- **gx_alloc_display_resources** (0x02028710, 96B) — Alloc render memory, enable VRAM mapping
+- **gx_queue_render** (0x02028528, 136B) — Queue render op via callback function pointer
+
+### Display Mode & State
+- **gx_init_mode_a / gx_init_mode_b** — Two display mode initializers
+- **gx_check_ready** — Returns FALSE if display status is 0 or state == 2
+- **gx_set_mode** — Mode switch with default fallback to mode 8
+
+### CRC / Integrity Verification
+- **gx_verify_crc** (0x020283c8, 64B) — Compare computed CRC vs stored u16
+- **gx_validate_buffer**, **gx_check_header**, **gx_check_footer** — Integrity checks
+- **gx_compare_signature** (0x02028c20, 76B) — 6-byte signature match + magic byte check
 
 ### Background System
 - **GX_SetBGAffineMatrix** (0x02027404, 248B) — Affine transform setup
@@ -180,13 +198,71 @@ Two tiers of memory functions:
 - **GX_BG_QueueAnimation** (0x020275E4, 104B) — Queue BG animations
 - **GX_AnimationQueue_Update** (0x020276A0, 108B) — Tick animation timers
 
-### Display Object System
-- **GX_DisplayObjectQueue_Update** (0x02029EC4, 192B) — Process render queue
-- **GX_DisplayObject_Show/Hide** — Visibility control
+---
+
+## 8. OS Services (decompiled in `os_system.c`)
+
+31 functions decompiled covering the core OS layer:
+
+### IRQ System
+- **os_irq_init** (0x0203a598) — Top-level IRQ + system init
+- **os_irq_state_init** (0x0203b160) — Zero 9 IRQ state table entries
+
+### DMA Channel Wrappers (14 functions)
+All dispatch through `dma_command` (FUN_0203bda8) with different command IDs:
+- Commands 6, 7, 17-27, 30-32 mapped to specific DMA operations
+- **dma_cmd_17** uses bit-packed flags (5 boolean params → single u32)
+- **dma_cmd_18** computes auxiliary param via `dma_aux_param()`
+
+### IPC (Inter-Processor Communication)
+- **os_ipc_init** — One-time init: set flag, reset cmd, enable interrupt 0x10
+- **os_ipc_send / os_ipc_recv** — Dispatch through function pointer tables
+- **os_ipc_sync / os_ipc_async** — Sync/async variants with stored params
+
+### Power Management
+- **os_power_fifo_wait** — Busy-loop sending power FIFO commands
+- **os_panic_shutdown** — Infinite loop (unrecoverable error)
+
+### Timer & Priority
+- **os_timer_dispatch** — Timer callback via function pointer
+- **os_priority_increment** — Increment task priority counter (0xC-byte stride)
 
 ---
 
-## 8. Sound System
+## 9. Math & State Management (decompiled in `math_state.c`)
+
+35 functions covering low-level math, synchronization, and data structures:
+
+### VRAM Address Calculation
+- 4 functions compute VRAM character/screen base addresses from DISPCNT register
+- 2 validation getters check mode flags before returning addresses
+- All use `REG_DISPCNT` (0x04000000) bitfield extraction
+
+### Color Blending (RGB555)
+- **color_blend** — Linear interpolation between two 15-bit colors
+- **color_brighten** — Blend toward white with saturation
+- **color_darken** — Blend toward black with saturation
+- **color_interpolate** — Single-color interpolation toward complement
+- All use expanded RGB555 mask technique: `(color | color<<15) & 0x03E07C1F`
+
+### Random Number Generator
+- **rng_next** — Linear congruential generator: `seed = (seed * 0x29 + scramble) << 15`
+- Returns upper 16 bits as random value
+
+### Mutex / IRQ-Safe Operations
+- **os_swap_value / os_set_bits / os_clear_bits** — Disable IME, modify, restore
+- Pattern: save `*IME`, set `*IME=0`, modify data, restore `*IME`
+- Two callback queue variants using `os_set_bits` for slot registration
+
+### Linked List Operations
+- **list_pop_head** — Remove and return head node
+- **list_remove_node** — Unlink from doubly-linked list (update prev/next)
+- **list_insert_tail** — Append to tail of doubly-linked list
+- Node layout: `+0xC = prev`, `+0x10 = next`; list header: `+0x7C = head`, `+0x80 = tail`
+
+---
+
+## 10. Sound System (partially decompiled in `snd_fs_misc.c`)
 
 Sound data loaded from `sound/sound_data.sdat` (NDS SDAT format).
 Memory region named "SoundHeap" at runtime.
@@ -195,7 +271,7 @@ Memory region named "SoundHeap" at runtime.
 
 ---
 
-## 9. Filesystem
+## 11. Filesystem
 
 ROM filesystem mounted via Nitro SDK `FS_Init`. Key paths:
 - `/FMap/FMapData.dat` — Field map data (overworld maps, room layouts)
@@ -205,7 +281,7 @@ ROM filesystem mounted via Nitro SDK `FS_Init`. Key paths:
 
 ---
 
-## 10. Function Statistics
+## 12. Function Statistics
 
 | Category | Count | Bytes | % of ARM9 |
 |----------|-------|-------|-----------|
@@ -220,7 +296,7 @@ ROM filesystem mounted via Nitro SDK `FS_Init`. Key paths:
 
 ---
 
-## 11. Address Map (Key Regions)
+## 13. Address Map (Key Regions)
 
 | Range | Content |
 |-------|---------|

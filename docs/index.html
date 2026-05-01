@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M&amp;L: Partners in Time — Decomp Progress</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-dim: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --orange: #d29922;
+            --red: #f85149;
+            --purple: #bc8cff;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        h1 .emoji { font-size: 2rem; }
+        .subtitle { color: var(--text-dim); margin-bottom: 24px; font-size: 0.9rem; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .card h2 {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+        .stat {
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .stat .unit { font-size: 1rem; color: var(--text-dim); font-weight: 400; }
+        .stat.green { color: var(--green); }
+        .stat.blue { color: var(--accent); }
+        .stat.orange { color: var(--orange); }
+        .stat.purple { color: var(--purple); }
+        .progress-bar {
+            width: 100%;
+            height: 24px;
+            background: #21262d;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 12px 0 6px;
+        }
+        .progress-bar-small {
+            display: inline-block;
+            width: 100px;
+            height: 12px;
+            background: #21262d;
+            border-radius: 6px;
+            overflow: hidden;
+            vertical-align: middle;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--green), var(--accent));
+            border-radius: 12px;
+            transition: width 0.5s ease;
+        }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        th {
+            text-align: left;
+            padding: 8px 12px;
+            border-bottom: 2px solid var(--border);
+            color: var(--text-dim);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        td {
+            padding: 6px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        tr:hover { background: rgba(88, 166, 255, 0.05); }
+        .mono { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 0.8rem; }
+        .pct { font-size: 0.8rem; color: var(--text-dim); margin-left: 8px; }
+        .section { margin-bottom: 24px; }
+        .section h2 {
+            font-size: 1.1rem;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        .legal {
+            background: #1c1206;
+            border: 1px solid #6e4b00;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            font-size: 0.85rem;
+            color: var(--orange);
+        }
+        .legal strong { color: #f0c000; }
+        .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+        canvas { max-width: 100%; }
+        .footer {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+        @media (max-width: 768px) {
+            .charts { grid-template-columns: 1fr; }
+            .grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><span class="emoji">🍄</span> Mario &amp; Luigi: Partners in Time</h1>
+        <p class="subtitle">NDS Matching Decompilation Progress — Updated 2026-05-01 20:49 UTC</p>
+
+        <div class="legal">
+            <strong>⚠️ Legal Notice:</strong> This is a clean-room decompilation project.
+            No copyrighted game assets are included. You must own a legal copy of the game ROM.
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h2>Functions Decompiled</h2>
+                <div class="stat green">79 <span class="unit">/ 1275</span></div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 6.2%"></div>
+                </div>
+                <div class="progress-label">
+                    <span>6.2% complete</span>
+                    <span>1196 remaining</span>
+                </div>
+            </div>
+            <div class="card">
+                <h2>Bytes Decompiled</h2>
+                <div class="stat blue">4,806 <span class="unit">/ 241,782 B</span></div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 2.0%"></div>
+                </div>
+                <div class="progress-label">
+                    <span>2.0% of code</span>
+                    <span>236,976B remaining</span>
+                </div>
+            </div>
+            <div class="card">
+                <h2>Source Files</h2>
+                <div class="stat purple">10</div>
+                <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: 4px;">
+                    1,471 lines of C code
+                </p>
+            </div>
+            <div class="card">
+                <h2>Symbols Identified</h2>
+                <div class="stat orange">32</div>
+                <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: 4px;">
+                    Named functions &amp; data labels
+                </p>
+            </div>
+        </div>
+
+        <div class="charts">
+            <div class="card">
+                <h2>By Function Count</h2>
+                <canvas id="chartFuncs" height="200"></canvas>
+            </div>
+            <div class="card">
+                <h2>By Code Size</h2>
+                <canvas id="chartBytes" height="200"></canvas>
+            </div>
+        </div>
+
+        <div class="section card">
+            <h2>Progress by Size Category</h2>
+            <table>
+                <thead>
+                    <tr><th>Category</th><th>Done</th><th>Total</th><th>Progress</th></tr>
+                </thead>
+                <tbody>
+            <tr>
+                <td>Tiny (<32B)</td>
+                <td>55</td>
+                <td>183</td>
+                <td>
+                    <div class="progress-bar-small">
+                        <div class="progress-fill" style="width: 30.1%"></div>
+                    </div>
+                    <span class="pct">30.1%</span>
+                </td>
+            </tr>
+            <tr>
+                <td>Small (32-128B)</td>
+                <td>16</td>
+                <td>620</td>
+                <td>
+                    <div class="progress-bar-small">
+                        <div class="progress-fill" style="width: 2.6%"></div>
+                    </div>
+                    <span class="pct">2.6%</span>
+                </td>
+            </tr>
+            <tr>
+                <td>Medium (128-512B)</td>
+                <td>6</td>
+                <td>391</td>
+                <td>
+                    <div class="progress-bar-small">
+                        <div class="progress-fill" style="width: 1.5%"></div>
+                    </div>
+                    <span class="pct">1.5%</span>
+                </td>
+            </tr>
+            <tr>
+                <td>Large (512-2KB)</td>
+                <td>2</td>
+                <td>70</td>
+                <td>
+                    <div class="progress-bar-small">
+                        <div class="progress-fill" style="width: 2.9%"></div>
+                    </div>
+                    <span class="pct">2.9%</span>
+                </td>
+            </tr>
+            <tr>
+                <td>Huge (>2KB)</td>
+                <td>0</td>
+                <td>11</td>
+                <td>
+                    <div class="progress-bar-small">
+                        <div class="progress-fill" style="width: 0.0%"></div>
+                    </div>
+                    <span class="pct">0.0%</span>
+                </td>
+            </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section card">
+            <h2>Source Files</h2>
+            <table>
+                <thead>
+                    <tr><th>File</th><th>Functions</th><th>Lines</th></tr>
+                </thead>
+                <tbody>
+            <tr>
+                <td class="mono">bios.c</td>
+                <td>3</td>
+                <td>34</td>
+            </tr>
+            <tr>
+                <td class="mono">cp15.c</td>
+                <td>10</td>
+                <td>94</td>
+            </tr>
+            <tr>
+                <td class="mono">game_main.c</td>
+                <td>11</td>
+                <td>245</td>
+            </tr>
+            <tr>
+                <td class="mono">game_prop.c</td>
+                <td>4</td>
+                <td>197</td>
+            </tr>
+            <tr>
+                <td class="mono">heap.c</td>
+                <td>8</td>
+                <td>203</td>
+            </tr>
+            <tr>
+                <td class="mono">mem_simple.c</td>
+                <td>8</td>
+                <td>130</td>
+            </tr>
+            <tr>
+                <td class="mono">mem_util.c</td>
+                <td>8</td>
+                <td>225</td>
+            </tr>
+            <tr>
+                <td class="mono">os_util.c</td>
+                <td>9</td>
+                <td>67</td>
+            </tr>
+            <tr>
+                <td class="mono">sdk_stubs.c</td>
+                <td>32</td>
+                <td>258</td>
+            </tr>
+            <tr>
+                <td class="mono">str_util.c</td>
+                <td>1</td>
+                <td>18</td>
+            </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section card">
+            <h2>Decompiled Functions (79)</h2>
+            <table>
+                <thead>
+                    <tr><th>Address</th><th>Name</th><th>Size</th><th>Source File</th></tr>
+                </thead>
+                <tbody>
+            <tr>
+                <td class="mono">0x02004228</td>
+                <td>FUN_02004228</td>
+                <td>4B</td>
+                <td class="mono">bios.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0200429C</td>
+                <td>FUN_0200429c</td>
+                <td>6B</td>
+                <td class="mono">bios.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0200445A</td>
+                <td>FUN_0200445a</td>
+                <td>4B</td>
+                <td class="mono">bios.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02004EF8</td>
+                <td>FUN_02004ef8</td>
+                <td>116B</td>
+                <td class="mono">game_main.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020050F4</td>
+                <td>FUN_020050f4</td>
+                <td>228B</td>
+                <td class="mono">game_main.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0200528C</td>
+                <td>FUN_0200528c</td>
+                <td>100B</td>
+                <td class="mono">game_main.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02005300</td>
+                <td>FUN_02005300</td>
+                <td>112B</td>
+                <td class="mono">game_main.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02005380</td>
+                <td>FUN_02005380</td>
+                <td>176B</td>
+                <td class="mono">game_main.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02005444</td>
+                <td>game_start</td>
+                <td>344B</td>
+                <td class="mono">game_main.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020055C0</td>
+                <td>FUN_020055c0</td>
+                <td>828B</td>
+                <td class="mono">game_prop.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02005900</td>
+                <td>FUN_02005900</td>
+                <td>616B</td>
+                <td class="mono">game_prop.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020106F4</td>
+                <td>FUN_020106f4</td>
+                <td>8B</td>
+                <td class="mono">os_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020288A8</td>
+                <td>FUN_020288a8</td>
+                <td>40B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020288D0</td>
+                <td>FUN_020288d0</td>
+                <td>40B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020288F8</td>
+                <td>FUN_020288f8</td>
+                <td>40B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028920</td>
+                <td>FUN_02028920</td>
+                <td>40B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02028EA8</td>
+                <td>FUN_02028ea8</td>
+                <td>120B</td>
+                <td class="mono">heap.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02029964</td>
+                <td>FUN_02029964</td>
+                <td>332B</td>
+                <td class="mono">heap.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02029BF8</td>
+                <td>FUN_02029bf8</td>
+                <td>36B</td>
+                <td class="mono">heap.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02029C1C</td>
+                <td>FUN_02029c1c</td>
+                <td>36B</td>
+                <td class="mono">heap.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0202ACDC</td>
+                <td>FUN_0202acdc</td>
+                <td>40B</td>
+                <td class="mono">str_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0202CC00</td>
+                <td>FUN_0202cc00</td>
+                <td>12B</td>
+                <td class="mono">mem_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0202CC10</td>
+                <td>FUN_0202cc10</td>
+                <td>72B</td>
+                <td class="mono">mem_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02038F14</td>
+                <td>FUN_02038f14</td>
+                <td>8B</td>
+                <td class="mono">os_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203928C</td>
+                <td>FUN_0203928c</td>
+                <td>4B</td>
+                <td class="mono">os_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020392D8</td>
+                <td>FUN_020392d8</td>
+                <td>8B</td>
+                <td class="mono">os_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02039BE8</td>
+                <td>FUN_02039be8</td>
+                <td>8B</td>
+                <td class="mono">os_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02039F94</td>
+                <td>FUN_02039f94</td>
+                <td>20B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203A014</td>
+                <td>FUN_0203a014</td>
+                <td>28B</td>
+                <td class="mono">cp15.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203A030</td>
+                <td>FUN_0203a030</td>
+                <td>28B</td>
+                <td class="mono">cp15.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203A070</td>
+                <td>FUN_0203a070</td>
+                <td>12B</td>
+                <td class="mono">cp15.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203A088</td>
+                <td>FUN_0203a088</td>
+                <td>28B</td>
+                <td class="mono">cp15.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203A0F0</td>
+                <td>FUN_0203a0f0</td>
+                <td>20B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203A104</td>
+                <td>FUN_0203a104</td>
+                <td>20B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203A4EC</td>
+                <td>FUN_0203a4ec</td>
+                <td>16B</td>
+                <td class="mono">cp15.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203A4FC</td>
+                <td>FUN_0203a4fc</td>
+                <td>16B</td>
+                <td class="mono">cp15.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203A50C</td>
+                <td>FUN_0203a50c</td>
+                <td>8B</td>
+                <td class="mono">cp15.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203A514</td>
+                <td>FUN_0203a514</td>
+                <td>8B</td>
+                <td class="mono">cp15.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203A51C</td>
+                <td>FUN_0203a51c</td>
+                <td>8B</td>
+                <td class="mono">cp15.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203A738</td>
+                <td>FUN_0203a738</td>
+                <td>24B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203ACA0</td>
+                <td>FUN_0203aca0</td>
+                <td>16B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203ACB0</td>
+                <td>FUN_0203acb0</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203AE4C</td>
+                <td>FUN_0203ae4c</td>
+                <td>24B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203AE78</td>
+                <td>FUN_0203ae78</td>
+                <td>24B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203AE90</td>
+                <td>FUN_0203ae90</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203AE9C</td>
+                <td>FUN_0203ae9c</td>
+                <td>12B</td>
+                <td class="mono">cp15.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B024</td>
+                <td>FUN_0203b024</td>
+                <td>16B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B0D0</td>
+                <td>FUN_0203b0d0</td>
+                <td>8B</td>
+                <td class="mono">os_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B194</td>
+                <td>FUN_0203b194</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B7A8</td>
+                <td>FUN_0203b7a8</td>
+                <td>24B</td>
+                <td class="mono">mem_simple.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B7C0</td>
+                <td>FUN_0203b7c0</td>
+                <td>28B</td>
+                <td class="mono">mem_simple.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B7DC</td>
+                <td>FUN_0203b7dc</td>
+                <td>20B</td>
+                <td class="mono">mem_simple.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B7F0</td>
+                <td>FUN_0203b7f0</td>
+                <td>24B</td>
+                <td class="mono">mem_simple.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B808</td>
+                <td>FUN_0203b808</td>
+                <td>76B</td>
+                <td class="mono">mem_simple.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B854</td>
+                <td>FUN_0203b854</td>
+                <td>56B</td>
+                <td class="mono">mem_simple.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B8C4</td>
+                <td>FUN_0203b8c4</td>
+                <td>36B</td>
+                <td class="mono">mem_simple.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B914</td>
+                <td>game_setup_struct</td>
+                <td>148B</td>
+                <td class="mono">mem_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203B9A8</td>
+                <td>FUN_0203b9a8</td>
+                <td>304B</td>
+                <td class="mono">mem_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203BAD8</td>
+                <td>FUN_0203bad8</td>
+                <td>8B</td>
+                <td class="mono">os_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203CE28</td>
+                <td>FUN_0203ce28</td>
+                <td>8B</td>
+                <td class="mono">os_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203D008</td>
+                <td>FUN_0203d008</td>
+                <td>32B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203EDCC</td>
+                <td>FUN_0203edcc</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203EDDC</td>
+                <td>FUN_0203eddc</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203F740</td>
+                <td>FUN_0203f740</td>
+                <td>28B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x0203FDD0</td>
+                <td>FUN_0203fdd0</td>
+                <td>28B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020413E4</td>
+                <td>FUN_020413e4</td>
+                <td>24B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020425A0</td>
+                <td>FUN_020425a0</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020425B0</td>
+                <td>FUN_020425b0</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020425C0</td>
+                <td>FUN_020425c0</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020425D0</td>
+                <td>FUN_020425d0</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02042620</td>
+                <td>FUN_02042620</td>
+                <td>16B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02042634</td>
+                <td>FUN_02042634</td>
+                <td>24B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020426AC</td>
+                <td>FUN_020426ac</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x020426E8</td>
+                <td>FUN_020426e8</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02043F70</td>
+                <td>FUN_02043f70</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02044644</td>
+                <td>FUN_02044644</td>
+                <td>4B</td>
+                <td class="mono">os_util.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02048414</td>
+                <td>FUN_02048414</td>
+                <td>28B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02048CE0</td>
+                <td>FUN_02048ce0</td>
+                <td>12B</td>
+                <td class="mono">sdk_stubs.c</td>
+            </tr>
+            <tr>
+                <td class="mono">0x02059E1C</td>
+                <td>FUN_02059e1c</td>
+                <td>20B</td>
+                <td class="mono">mem_simple.c</td>
+            </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer">
+            Mario &amp; Luigi: Partners in Time NDS Decompilation Project<br>
+            Generated by <code>tools/scripts/generate_dashboard.py</code>
+        </div>
+    </div>
+
+    <script>
+    const data = {"decompiledFuncs": 79, "remainingFuncs": 1196, "decompiledBytes": 4806, "remainingBytes": 236976, "categories": {"tiny": {"label": "Tiny (<32B)", "done": 55, "total": 183}, "small": {"label": "Small (32-128B)", "done": 16, "total": 620}, "medium": {"label": "Medium (128-512B)", "done": 6, "total": 391}, "large": {"label": "Large (512-2KB)", "done": 2, "total": 70}, "huge": {"label": "Huge (>2KB)", "done": 0, "total": 11}}};
+
+    function drawDonut(canvasId, done, total, doneLabel, remainLabel) {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width = canvas.offsetWidth * 2;
+        const h = canvas.height = canvas.offsetHeight * 2;
+        ctx.scale(2, 2);
+        const cw = w / 2, ch = h / 2;
+        const cx = cw / 2, cy = ch / 2;
+        const r = Math.min(cx, cy) - 20;
+        const lw = 28;
+
+        const pct = total > 0 ? done / total : 0;
+        const startAngle = -Math.PI / 2;
+        const doneAngle = startAngle + pct * 2 * Math.PI;
+
+        // Remaining arc
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, doneAngle, startAngle + 2 * Math.PI);
+        ctx.strokeStyle = '#21262d';
+        ctx.lineWidth = lw;
+        ctx.stroke();
+
+        // Done arc
+        if (pct > 0) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, startAngle, doneAngle);
+            const grad = ctx.createLinearGradient(0, 0, cw, ch);
+            grad.addColorStop(0, '#3fb950');
+            grad.addColorStop(1, '#58a6ff');
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = lw;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+        }
+
+        // Center text
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 22px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText((pct * 100).toFixed(1) + '%', cx, cy - 4);
+        ctx.font = '11px -apple-system, sans-serif';
+        ctx.fillStyle = '#8b949e';
+        ctx.fillText(done.toLocaleString() + ' / ' + total.toLocaleString(), cx, cy + 16);
+    }
+
+    drawDonut('chartFuncs', data.decompiledFuncs, data.decompiledFuncs + data.remainingFuncs, 'Decompiled', 'Remaining');
+    drawDonut('chartBytes', data.decompiledBytes, data.decompiledBytes + data.remainingBytes, 'Decompiled', 'Remaining');
+    </script>
+</body>
+</html>

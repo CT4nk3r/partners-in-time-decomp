@@ -1,0 +1,81 @@
+# Mario & Luigi: Partners in Time — Known Symbol Map
+#
+# This file tracks function renames as they are identified.
+# Format: ghidra_name -> identified_name @ address (size bytes)
+#
+# Sources:
+#   - RTTI strings in binary (C++ class names)
+#   - NDS SDK function signatures
+#   - String references
+#   - Behavioral analysis
+#
+# Status: [entry] = entry point, [sdk] = NDS SDK function,
+#         [game] = game-specific, [rtti] = from RTTI strings
+
+# ========================================================
+# CRT0 / Startup (0x02004800 region)
+# ========================================================
+[entry]  _start              @ 0x02004800 (gap - CRT0 startup stub)
+[entry]  NitroMain           @ 0x02004B20 (gap - game main init, called from CRT0)
+[entry]  crt0_init_cp15      @ 0x02004A14 (gap - CP15 coprocessor setup)
+[entry]  crt0_fill_mem       @ 0x02004900 (gap - memory fill utility)
+[entry]  crt0_copy_sections  @ 0x02004914 (FUN_02004914, 164 bytes)
+
+# ========================================================
+# NDS SDK Functions
+# ========================================================
+[sdk]    OS_Init             @ 0x02046DFC (gap - Nitro SDK OS initialization)
+[sdk]    GX_Init             @ 0x0202976C (gap - Graphics system init)
+[sdk]    FS_Init             @ 0x02048618 (gap - File system init)
+[sdk]    LZ77_UncompVram_1   @ 0x02046FFC (FUN_02046ffc - calls BIOS LZ77UnCompVram)
+[sdk]    LZ77_UncompVram_2   @ 0x02047010 (FUN_02047010 - calls BIOS LZ77UnCompVram)
+[sdk]    LZ77_UncompVram_3   @ 0x02047024 (FUN_02047024 - calls BIOS LZ77UnCompVram)
+
+# ========================================================
+# Game Engine — from RTTI strings and string references
+# ========================================================
+[rtti]   clGameMain          @ TBD (class "10clGameMain" RTTI at 0x0204FFC4)
+[game]   GameMain_func       @ near 0x0204FF64 (string "GameMain " referenced)
+[rtti]   clCellAnimeBase     @ TBD (class "15clCellAnimeBase" RTTI at 0x0205093C)
+[rtti]   clCellAnime         @ TBD (class "11clCellAnime" RTTI at 0x02050970)
+[rtti]   clCellAnimePA       @ TBD (class "13clCellAnimePA" RTTI at 0x02050A48)
+[rtti]   clObjPA             @ TBD (class "7clObjPA" RTTI at 0x02050B20)
+[rtti]   clCellAnimeTX       @ TBD (class "13clCellAnimeTX" RTTI at 0x02050B54)
+[rtti]   clVBlankTask        @ TBD (class "12clVBlankTask" RTTI at 0x02050C5C)
+[rtti]   tsClMapControl      @ TBD (class "14tsClMapControl" RTTI at 0x02050C6C)
+[rtti]   tsClMapControlVBlank @ TBD (class "20tsClMapControlVBlank" RTTI at 0x02050C80)
+[rtti]   clMesWinVBlank      @ TBD (class "14clMesWinVBlank" RTTI at 0x0205612C)
+[rtti]   clMesWinObj         @ TBD (class "11clMesWinObj" RTTI at 0x0205628C)
+
+# ========================================================
+# Game Data References
+# ========================================================
+[game]   FMapData_path       @ 0x02049B04 (string "/FMap/FMapData.dat")
+[game]   FileSystem_str      @ 0x0204FF74 (string "FileSystem")
+[game]   SoundHeap_str       @ 0x02059788 (string "SoundHeap")
+[game]   SoundData_path      @ 0x02059794 (string "sound/sound_data.sdat")
+
+# ========================================================
+# Game Init Chain (called from NitroMain @ 0x02004B20)
+# ========================================================
+[game]   game_init_1         @ 0x020352E8 (first call from NitroMain)
+[game]   game_init_2         @ 0x02035218 (display setup)
+[game]   game_init_3         @ 0x0203510C (more display setup)
+[game]   game_init_heap      @ 0x02038DCC (heap initialization)
+[game]   game_init_alloc     @ 0x02038CC8 (memory allocation init)
+[game]   game_init_gfx       @ 0x02035260 (graphics init)
+[game]   game_init_sound     @ 0x020424E4 (sound system init)
+[game]   game_init_fs_1      @ 0x0202A304 (file system setup)
+[game]   game_init_fs_2      @ 0x02029E70 (file system setup 2)
+[game]   game_init_vram      @ 0x0203B630 (VRAM bank setup, called twice)
+[game]   game_setup_struct   @ 0x0203B914 (game state struct init)
+[game]   game_start          @ 0x02005444 (FUN_02005444 - final call, starts game loop)
+
+# ========================================================
+# Priority Decompilation Targets (largest functions)
+# ========================================================
+[game]   FUN_0201b568        @ 0x0201B568 (4492 bytes - likely battle system or state machine)
+[game]   FUN_02023afc        @ 0x02023AFC (3984 bytes - likely major game logic)
+[game]   FUN_02016bd4        @ 0x02016BD4 (3500 bytes - large state handler)
+[game]   FUN_020064d0        @ 0x020064D0 (3216 bytes - early address = core engine)
+[game]   FUN_0200a494        @ 0x0200A494 (2868 bytes - core engine)

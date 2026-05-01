@@ -1,0 +1,67 @@
+# Mario & Luigi: Partners in Time — Symbol Table
+# Auto-generated initial mapping
+#
+# Entry point: 0x02004800
+# Total functions: 1275
+#
+# Format: address, size, current_name, suggested_name, category
+#
+
+# === ENTRY POINT ===
+
+# === BIOS CALLERS ===
+0x02046FFC, 20, FUN_02046ffc, , bios (calls BIOS LZ77UnCompVram)
+0x02047010, 20, FUN_02047010, , bios (calls BIOS LZ77UnCompVram)
+0x02047024, 16, FUN_02047024, , bios (calls BIOS LZ77UnCompVram)
+
+# === LARGEST FUNCTIONS (priority targets) ===
+0x0201B568, 4492, FUN_0201b568, , large
+0x02023AFC, 3984, FUN_02023afc, , large
+0x02016BD4, 3500, FUN_02016bd4, , large
+0x020064D0, 3216, FUN_020064d0, , large
+0x0200A494, 2868, FUN_0200a494, , large
+0x0201DD34, 2796, FUN_0201dd34, , large
+0x02008534, 2636, FUN_02008534, , large
+0x0200D798, 2324, FUN_0200d798, , large
+0x0203238C, 2208, FUN_0203238c, , large
+0x020477F0, 2172, FUN_020477f0, , large
+0x0200FCB4, 2060, FUN_0200fcb4, , large
+0x02013438, 1780, FUN_02013438, , large
+0x02024AAC, 1748, FUN_02024aac, , large
+0x0201E838, 1700, FUN_0201e838, , large
+0x02044898, 1700, FUN_02044898, , large
+0x0200EB90, 1676, FUN_0200eb90, , large
+0x02009678, 1648, FUN_02009678, , large
+0x02025194, 1640, FUN_02025194, , large
+0x02025810, 1612, FUN_02025810, , large
+0x0201C6F8, 1532, FUN_0201c6f8, , large
+0x0201D3BC, 1528, FUN_0201d3bc, , large
+0x02041E94, 1404, FUN_02041e94, , large
+0x02018254, 1228, FUN_02018254, , large
+0x0200F32C, 1180, FUN_0200f32c, , large
+0x02013F54, 1160, FUN_02013f54, , large
+0x0201F5A8, 1128, FUN_0201f5a8, , large
+0x0201FA50, 1128, FUN_0201fa50, , large
+0x0200E6C0, 1096, FUN_0200e6c0, , large
+0x0201A248, 1084, FUN_0201a248, , large
+0x020192F8, 1080, FUN_020192f8, , large
+
+# === STRING REFERENCES ===
+# 0x02049B04: "/FMap/FMapData.dat"
+# 0x0204FF64: "GameMain "
+# 0x0204FF74: "FileSystem"
+# 0x0204FFC4: "10clGameMain"
+# 0x0205093C: "15clCellAnimeBase"
+# 0x02050970: "11clCellAnime"
+# 0x02050A48: "13clCellAnimePA"
+# 0x02050B20: "7clObjPA"
+# 0x02050B54: "13clCellAnimeTX"
+# 0x02050C5C: "12clVBlankTask"
+# 0x02050C6C: "14tsClMapControl"
+# 0x02050C80: "20tsClMapControlVBlank"
+# 0x02054BDC: "yy: load file Work."
+# 0x0205612C: "14clMesWinVBlank"
+# 0x02056208: "MesWinVBlank"
+# 0x0205628C: "11clMesWinObj"
+# 0x02059788: "SoundHeap"
+# 0x02059794: "sound/sound_data.sdat"

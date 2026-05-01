@@ -7,24 +7,34 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # Find SDL2
 find_package(SDL2 QUIET)
 if(NOT SDL2_FOUND)
-    # Fallback for MSYS2 / pkg-config
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(SDL2 REQUIRED sdl2)
 endif()
 
-# Source files
-set(SOURCES
+# Platform-layer sources (the SDL2 host code)
+set(PC_SOURCES
     src/main.c
     src/platform_sdl.c
     src/nds_hw_stubs.c
     src/nds_vram.c
+    src/arm_compat_host.c
+    src/host_undefined_stubs.c
 )
 
-add_executable(mlpit_pc ${SOURCES})
+# Decompiled ARM9 game code (compiled for host with HOST_PORT shim)
+file(GLOB ARM9_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../arm9/src/*.c")
+
+add_executable(mlpit_pc ${PC_SOURCES} ${ARM9_SOURCES})
 
 target_include_directories(mlpit_pc PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../arm9/include
     ${SDL2_INCLUDE_DIRS}
+)
+
+target_compile_definitions(mlpit_pc PRIVATE
+    HOST_PORT=1
+    SDL_MAIN_HANDLED=1
 )
 
 if(TARGET SDL2::SDL2)
@@ -35,14 +45,18 @@ else()
     target_compile_options(mlpit_pc PRIVATE ${SDL2_CFLAGS_OTHER})
 endif()
 
-# Skip SDL2main; we manage our own entry point and call SDL_SetMainReady()
-target_compile_definitions(mlpit_pc PRIVATE SDL_MAIN_HANDLED)
-
+# Suppress noisy warnings from decompiled code
 target_compile_options(mlpit_pc PRIVATE
-    -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable
+    -Wall
+    -Wno-unused -Wno-unused-parameter -Wno-unused-variable
+    -Wno-unused-function -Wno-unused-but-set-variable
+    -Wno-pointer-sign -Wno-incompatible-pointer-types -Wno-int-conversion
+    -Wno-implicit-function-declaration
+    -Wno-builtin-declaration-mismatch
+    -Wno-comment
+    -fno-builtin
 )
 
-# Output to top-level build/pc/ for consistency
 set_target_properties(mlpit_pc PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )

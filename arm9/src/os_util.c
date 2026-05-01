@@ -7,6 +7,7 @@
  */
 
 #include "types.h"
+#include "arm_compat.h"
 
 // FUN_0203928c @ 0x0203928C (4 bytes) — Empty stub / NOP function
 void OS_Dummy(void)
@@ -35,9 +36,7 @@ u32 OS_ReturnZero(void)
 // FUN_0203b0d0 @ 0x0203B0D0 (8 bytes) — Count leading zeros (CLZ instruction)
 int OS_CountLeadingZeros(u32 value)
 {
-    int result;
-    asm("clz %0, %1" : "=r"(result) : "r"(value));
-    return result;
+    return arm_clz(value);
 }
 
 // FUN_0203bad8 @ 0x0203BAD8 (8 bytes) — Atomic swap

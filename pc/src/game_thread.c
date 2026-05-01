@@ -1,54 +1,73 @@
 /*
  * game_thread.c - Entry point for the game thread on the PC port
  *
- * The decompiled game_start() in arm9/src/game_main.c is an infinite NDS
- * main loop. We run it in a separate SDL thread so the SDL main thread can
- * keep the window responsive and drive frame pacing via the vblank semaphore.
- *
- * Currently this is a SAFE STUB: directly calling game_start() crashes
- * because:
- *   1. The static globals in game_main.c (sGameState, sDispCnt, etc.) are
- *      uninitialized pointers. They were meant to alias fixed NDS RAM
- *      addresses (DAT_020055B4 etc.), which our host_undefined_stubs.c
- *      provides as plain u32 storage - not the GameState structure layout
- *      the decompiled code dereferences.
- *   2. The SDK functions (GX_*, FS_*, OBJ_*, SND_*) are auto-generated
- *      no-op stubs that all return 0 instead of doing real work.
- *
- * To make game_start() actually run we need to incrementally:
- *   - Allocate real backing storage for the game-state pointers and pass
- *     them through a small init shim (see GAME_INIT_FOR_HOST below)
- *   - Replace the most critical SDK stubs with host implementations
- *     (GX_VBlankWait already works via arm_compat_host.c)
- *
- * For now, the thread runs a minimal heartbeat so we can verify the
- * threading + vblank-sync infrastructure works before tackling SDK porting.
+ * Runs the decompiled game_init() inside a SIGSEGV-protected region so we
+ * can observe how far real game initialization gets before the next stub
+ * fault. After init returns (or faults), we fall back to a vblank
+ * heartbeat so the SDL window stays responsive.
  */
 #include "nds_platform.h"
 #include "arm_compat.h"
 
 #include <stdio.h>
+#include <signal.h>
+#include <setjmp.h>
 
-/* Forward decls for decompiled entry points. We do NOT call them yet. */
 extern void game_init(void);
-extern void game_start(void);  /* NORETURN on NDS, would crash on host */
+extern void game_start(void);
+extern void game_state_host_init(void);
+
+static jmp_buf g_crash_jmp;
+static volatile sig_atomic_t g_in_protected = 0;
+
+static void crash_handler(int sig) {
+    if (g_in_protected) {
+        longjmp(g_crash_jmp, sig);
+    }
+    /* Outside protected region — let it crash normally. */
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
 
 int game_thread_main(void* user) {
     (void)user;
     nds_log("[game] thread started\n");
 
+    signal(SIGSEGV, crash_handler);
+    signal(SIGABRT, crash_handler);
+    signal(SIGFPE,  crash_handler);
+    signal(SIGILL,  crash_handler);
+
+    nds_log("[game] initializing host game state...\n");
+    game_state_host_init();
+    nds_log("[game] host game state initialized\n");
+
+    nds_log("[game] attempting game_start() (protected)...\n");
+    g_in_protected = 1;
+    int sig = setjmp(g_crash_jmp);
+    if (sig == 0) {
+        game_start();  /* NORETURN on NDS — runs forever */
+        /* Unreachable on NDS, but in our host build the inner loop blocks
+         * on platform_wait_vblank() so the thread effectively runs forever
+         * until platform_game_should_exit() unblocks via stop_game_thread. */
+        g_in_protected = 0;
+        nds_log("[game] game_start() returned (unexpected)\n");
+    } else {
+        g_in_protected = 0;
+        nds_log("[game] game_start() FAULTED (signal %d) - "
+                "next stub needs implementing\n", sig);
+    }
+
+    nds_log("[game] entering vblank heartbeat fallback\n");
     int frame = 0;
     while (!platform_game_should_exit()) {
-        /* This routes through arm_swi_05_vblank_intr_wait -> platform_wait_vblank
-         * which blocks until the main SDL thread posts the vblank semaphore. */
         arm_swi_05_vblank_intr_wait();
-
-        if ((frame % 60) == 0) {
-            nds_log("[game] tick frame=%d (vblank sync OK)\n", frame);
+        if ((frame % 120) == 0) {
+            nds_log("[game] heartbeat frame=%d\n", frame);
         }
         frame++;
     }
 
-    nds_log("[game] thread exiting after %d frames\n", frame);
+    nds_log("[game] thread exiting after %d heartbeat frames\n", frame);
     return 0;
 }

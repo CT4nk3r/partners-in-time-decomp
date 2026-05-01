@@ -243,3 +243,41 @@ u32 game_check_display_ready(void)
 
     return 0;
 }
+
+#ifdef HOST_PORT
+/**
+ * game_state_host_init — PC port helper.
+ *
+ * On real NDS hardware the file-static pointers above were initialized by
+ * CRT0 / data section relocation to point at fixed RAM addresses
+ * (DAT_020055A0..DAT_020055BC).  In our host build those addresses do not
+ * exist, so we allocate real backing storage and patch the pointers.
+ *
+ * Must be called once before game_init() / game_start() on the PC port.
+ *
+ * NOT part of the original game — exists only to satisfy host linkage.
+ */
+#include <stdlib.h>
+#include <string.h>
+
+static GameState  s_host_game_state;
+static u8         s_host_display_enabled = 1;
+static u8         s_host_pause_flag      = 0;
+static u8         s_host_reset_flag      = 0;
+static u16        s_host_disp_cnt        = 0;
+static u16        s_host_disp_status[2]  = { 0x30C, 0x30C };
+static u8         s_host_cur_brightness  = 0;
+
+void game_state_host_init(void)
+{
+    memset(&s_host_game_state, 0, sizeof(s_host_game_state));
+    s_host_game_state.disp_status    = s_host_disp_status;
+    s_host_game_state.cur_brightness = &s_host_cur_brightness;
+
+    sGameState        = &s_host_game_state;
+    sDisplayEnabled   = &s_host_display_enabled;
+    sPauseFlag        = &s_host_pause_flag;
+    sResetFlag        = &s_host_reset_flag;
+    sDispCnt          = &s_host_disp_cnt;
+}
+#endif /* HOST_PORT */

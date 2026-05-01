@@ -52,7 +52,7 @@ ARM7_DATA_DIR    := arm7/data
 ARM7_BUILD_DIR   := $(BUILD_DIR)/arm7
 
 # Compiler flags (matching original SDK settings for NDS)
-ARM9_CFLAGS  := -march=armv5te -mtune=arm946e-s -mthumb-interwork \
+ARM9_CFLAGS  := -std=gnu11 -march=armv5te -mtune=arm946e-s -mthumb-interwork \
                 -O2 -Wall -fno-builtin -nostdlib \
                 -I$(ARM9_INCLUDE_DIR)
 ARM9_ASFLAGS := -march=armv5te -mthumb-interwork

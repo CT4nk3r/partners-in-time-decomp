@@ -43,6 +43,7 @@ KNOWN_GAME_CODES = [
     "AYWE",  # USA
     "AYWP",  # EUR
     "AYWJ",  # JPN
+    "ARMP",  # EUR (alternate code)
 ]
 
 
@@ -208,7 +209,7 @@ def generate_disassembly(extract_dir: Path):
             "-D",
             "-b", "binary",
             "-m", arch,
-            "--adjust-vma=0x02000000" if name == "arm9" else "--adjust-vma=0x037F8000",
+            f"--adjust-vma=0x{header['arm9_ram_address']:08X}" if name == "arm9" else f"--adjust-vma=0x{header['arm7_ram_address']:08X}",
             str(bin_path),
         ]
 

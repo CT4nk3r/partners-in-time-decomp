@@ -13,8 +13,8 @@ OUTPUT_ARCH(arm)
 
 MEMORY
 {
-    /* Main RAM - 4MB */
-    main_ram (rwx) : ORIGIN = 0x02000000, LENGTH = 4M
+    /* Main RAM - ARM9 loaded at 0x02004000 for this ROM */
+    main_ram (rwx) : ORIGIN = 0x02004000, LENGTH = 4M - 0x4000
 
     /* ITCM - 32KB instruction tightly-coupled memory */
     itcm (rwx) : ORIGIN = 0x01000000, LENGTH = 32K

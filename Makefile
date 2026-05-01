@@ -83,9 +83,13 @@ $(ARM9_BUILD_DIR)/%.o: $(ARM9_SRC_DIR)/%.c | $(ARM9_BUILD_DIR)
 $(ARM9_BUILD_DIR)/crt0.o: $(ARM9_ASM_DIR)/crt0.s | $(ARM9_BUILD_DIR)
 	$(AS) $(ARM9_ASFLAGS) $< -o $@
 
-# Create build directory
+# Create build directory (cross-platform)
 $(ARM9_BUILD_DIR):
+ifeq ($(OS),Windows_NT)
+	@if not exist "$(subst /,\,$@)" mkdir "$(subst /,\,$@)"
+else
 	@mkdir -p $@
+endif
 
 # ============================================================================
 # Utility targets
@@ -102,5 +106,9 @@ verify: $(ARM9_BUILD_DIR)/arm9.bin
 	fi
 
 clean:
+ifeq ($(OS),Windows_NT)
+	@if exist "$(subst /,\,$(BUILD_DIR))" rmdir /s /q "$(subst /,\,$(BUILD_DIR))"
+else
 	rm -rf $(BUILD_DIR)
+endif
 	@echo "Build directory cleaned."

@@ -151,7 +151,7 @@
 <body>
     <div class="container">
         <h1><span class="emoji">🍄</span> Mario &amp; Luigi: Partners in Time</h1>
-        <p class="subtitle">NDS Matching Decompilation Progress — Updated 2026-05-01 23:11 UTC</p>
+        <p class="subtitle">NDS Matching Decompilation Progress — Updated 2026-05-01 23:12 UTC</p>
 
         <div class="legal">
             <strong>⚠️ Legal Notice:</strong> This is a clean-room decompilation project.
@@ -161,31 +161,31 @@
         <div class="grid">
             <div class="card">
                 <h2>Functions Decompiled</h2>
-                <div class="stat green">888 <span class="unit">/ 1275</span></div>
+                <div class="stat green">889 <span class="unit">/ 1275</span></div>
                 <div class="progress-bar">
-                    <div class="progress-fill" style="width: 69.6%"></div>
+                    <div class="progress-fill" style="width: 69.7%"></div>
                 </div>
                 <div class="progress-label">
-                    <span>69.6% complete</span>
-                    <span>387 remaining</span>
+                    <span>69.7% complete</span>
+                    <span>386 remaining</span>
                 </div>
             </div>
             <div class="card">
                 <h2>Bytes Decompiled</h2>
-                <div class="stat blue">186,162 <span class="unit">/ 241,782 B</span></div>
+                <div class="stat blue">186,170 <span class="unit">/ 241,782 B</span></div>
                 <div class="progress-bar">
                     <div class="progress-fill" style="width: 77.0%"></div>
                 </div>
                 <div class="progress-label">
                     <span>77.0% of code</span>
-                    <span>55,620B remaining</span>
+                    <span>55,612B remaining</span>
                 </div>
             </div>
             <div class="card">
                 <h2>Source Files</h2>
                 <div class="stat purple">41</div>
                 <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: 4px;">
-                    35,186 lines of C code
+                    35,198 lines of C code
                 </p>
             </div>
             <div class="card">
@@ -217,13 +217,13 @@
                 <tbody>
             <tr>
                 <td>Tiny (<32B)</td>
-                <td>124</td>
+                <td>125</td>
                 <td>183</td>
                 <td>
                     <div class="progress-bar-small">
-                        <div class="progress-fill" style="width: 67.8%"></div>
+                        <div class="progress-fill" style="width: 68.3%"></div>
                     </div>
-                    <span class="pct">67.8%</span>
+                    <span class="pct">68.3%</span>
                 </td>
             </tr>
             <tr>
@@ -389,7 +389,7 @@
             <tr>
                 <td class="mono">misc_funcs.c</td>
                 <td>22</td>
-                <td>706</td>
+                <td>708</td>
             </tr>
             <tr>
                 <td class="mono">obj_manager.c</td>
@@ -448,13 +448,13 @@
             </tr>
             <tr>
                 <td class="mono">sdk_init_d.c</td>
-                <td>23</td>
-                <td>1211</td>
+                <td>24</td>
+                <td>1219</td>
             </tr>
             <tr>
                 <td class="mono">sdk_init_e.c</td>
                 <td>24</td>
-                <td>1295</td>
+                <td>1297</td>
             </tr>
             <tr>
                 <td class="mono">sdk_io.c</td>
@@ -491,7 +491,7 @@
         </div>
 
         <div class="section card">
-            <h2>Decompiled Functions (888)</h2>
+            <h2>Decompiled Functions (889)</h2>
             <table>
                 <thead>
                     <tr><th>Address</th><th>Name</th><th>Size</th><th>Source File</th></tr>
@@ -5538,6 +5538,12 @@
                 <td class="mono">sdk_init_d.c</td>
             </tr>
             <tr>
+                <td class="mono">0x02046E10</td>
+                <td>thunk_FUN_02047024</td>
+                <td>8B</td>
+                <td class="mono">sdk_init_d.c</td>
+            </tr>
+            <tr>
                 <td class="mono">0x02046E1C</td>
                 <td>FUN_02046e1c</td>
                 <td>48B</td>
@@ -5836,7 +5842,7 @@
     </div>
 
     <script>
-    const data = {"decompiledFuncs": 888, "remainingFuncs": 387, "decompiledBytes": 186162, "remainingBytes": 55620, "categories": {"tiny": {"label": "Tiny (<32B)", "done": 124, "total": 183}, "small": {"label": "Small (32-128B)", "done": 420, "total": 620}, "medium": {"label": "Medium (128-512B)", "done": 271, "total": 391}, "large": {"label": "Large (512-2KB)", "done": 63, "total": 70}, "huge": {"label": "Huge (>2KB)", "done": 10, "total": 11}}};
+    const data = {"decompiledFuncs": 889, "remainingFuncs": 386, "decompiledBytes": 186170, "remainingBytes": 55612, "categories": {"tiny": {"label": "Tiny (<32B)", "done": 125, "total": 183}, "small": {"label": "Small (32-128B)", "done": 420, "total": 620}, "medium": {"label": "Medium (128-512B)", "done": 271, "total": 391}, "large": {"label": "Large (512-2KB)", "done": 63, "total": 70}, "huge": {"label": "Huge (>2KB)", "done": 10, "total": 11}}};
 
     function drawDonut(canvasId, done, total, doneLabel, remainLabel) {
         const canvas = document.getElementById(canvasId);

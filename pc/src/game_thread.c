@@ -8,6 +8,7 @@
  */
 #include "nds_platform.h"
 #include "arm_compat.h"
+#include "nds_boot_hook.h"
 
 #include <stdio.h>
 #include <signal.h>
@@ -56,6 +57,13 @@ int game_thread_main(void* user) {
         g_in_protected = 0;
         nds_log("[game] game_start() FAULTED (signal %d) - "
                 "next stub needs implementing\n", sig);
+        /* game_start() clobbered DISPCNT/visible-plane bits before crashing
+         * (it called GX_SetVisiblePlane(0xFFFFFFFF, 0) early during init).
+         * Re-run the boot hook so the user still sees something on screen. */
+        if (!boot_hook_paired_screen()) {
+            (void)boot_hook_real_tiles();
+        }
+        nds_log("[game] re-armed boot screen after game_start fault\n");
     }
 
     nds_log("[game] entering vblank heartbeat fallback\n");
@@ -71,3 +79,4 @@ int game_thread_main(void* user) {
     nds_log("[game] thread exiting after %d heartbeat frames\n", frame);
     return 0;
 }
+

@@ -102,6 +102,88 @@ u32 sHeapTableBack = 0;
 /* ======== SDK name wrappers (Task 1) ======== */
 
 void GX_VBlankWait(void) { arm_swi_05_vblank_intr_wait(); }
+
+#ifdef HOST_PORT
+#  include "nds_platform.h"
+
+/* NDS display registers (top engine = main, sub engine = +0x1000). */
+#  define NDS_REG_DISPCNT_MAIN     0x04000000u
+#  define NDS_REG_DISPCNT_SUB      0x04001000u
+#  define NDS_REG_MASTER_BRIGHT_MAIN 0x0400006Cu
+#  define NDS_REG_MASTER_BRIGHT_SUB  0x0400106Cu
+
+/*
+ * GX_SwapDisplay — toggle which engine drives which screen.
+ *   POWCNT1 bit 15 (REG_POWCNT1 = 0x04000304) selects display swap.
+ * On host we have a fixed top/bottom mapping, so just record the bit.
+ */
+void GX_SwapDisplay(void) {
+    uint32_t pow = nds_reg_read32(0x04000304u);
+    nds_reg_write32(0x04000304u, pow ^ (1u << 15));
+}
+
+/*
+ * GX_SetMasterBrightness(screen, val):
+ *   screen=0 → main engine (REG_MASTER_BRIGHT @ 0x0400006C)
+ *   screen=1 → sub  engine (REG_MASTER_BRIGHT @ 0x0400106C)
+ *   screen=0xFFFFFFFF → both
+ *   val: low 5 bits = factor (0..16), bit 14..15 = mode
+ *        (0=off, 1=fade-to-white, 2=fade-to-black)
+ *
+ * Writing here lets a future renderer apply the brightness when game code
+ * fades in/out at title screens.
+ */
+void GX_SetMasterBrightness(u32 screen, u16 val) {
+    if (screen == 0u || screen == 0xFFFFFFFFu)
+        nds_reg_write16(NDS_REG_MASTER_BRIGHT_MAIN, val);
+    if (screen == 1u || screen == 0xFFFFFFFFu)
+        nds_reg_write16(NDS_REG_MASTER_BRIGHT_SUB,  val);
+}
+
+/*
+ * GX_SetVisiblePlane(mask, bits):
+ *   `mask` selects which engines (bit 0 = main, bit 1 = sub; 0xFFFFFFFF = both).
+ *   `bits` is the visible-plane bitmap: bits 8..15 of DISPCNT
+ *          (BG0..BG3, OBJ, win0, win1, objwin).
+ *
+ * Apply by RMW-ing DISPCNT bits 8..15.
+ */
+void GX_SetVisiblePlane(u32 mask, u16 bits) {
+    uint32_t plane = ((uint32_t)bits & 0xFFu) << 8;
+    if (mask & 1u) {
+        uint32_t v = nds_reg_read32(NDS_REG_DISPCNT_MAIN);
+        v = (v & ~(0xFFu << 8)) | plane;
+        nds_reg_write32(NDS_REG_DISPCNT_MAIN, v);
+    }
+    if (mask & 2u) {
+        uint32_t v = nds_reg_read32(NDS_REG_DISPCNT_SUB);
+        v = (v & ~(0xFFu << 8)) | plane;
+        nds_reg_write32(NDS_REG_DISPCNT_SUB, v);
+    }
+}
+
+/* GX_ResetVisiblePlane — clear visible-plane bits on both engines. */
+void GX_ResetVisiblePlane(void) {
+    uint32_t v;
+    v = nds_reg_read32(NDS_REG_DISPCNT_MAIN);
+    nds_reg_write32(NDS_REG_DISPCNT_MAIN, v & ~(0xFFu << 8));
+    v = nds_reg_read32(NDS_REG_DISPCNT_SUB);
+    nds_reg_write32(NDS_REG_DISPCNT_SUB,  v & ~(0xFFu << 8));
+}
+
+/*
+ * GX_UpdateDisplay / GX_FlushDisplay — on hardware these would post a
+ * GX command list to the geometry engine and wait for completion.  On
+ * host we drive the rasterizer from the SDL thread, so these are no-ops.
+ */
+void GX_UpdateDisplay(void) {}
+void GX_FlushDisplay(void)  {}
+void GX_DisableInterrupts(void) {}
+void GX_SetDispSelect(void) {}
+u32  GX_GetCurrentMode(void) { return 0; }
+
+#else /* !HOST_PORT */
+
 void GX_SwapDisplay(void) {}
 void GX_SetMasterBrightness(u32 screen, u16 val) { (void)screen; (void)val; }
 void GX_SetVisiblePlane(u32 mask, u16 bits) { (void)mask; (void)bits; }
@@ -111,6 +193,8 @@ void GX_FlushDisplay(void) {}
 void GX_ResetVisiblePlane(void) {}
 void GX_SetDispSelect(void) {}
 u32  GX_GetCurrentMode(void) { return 0; }
+
+#endif /* HOST_PORT */
 
 void FS_InitOverlay(void) {}
 u32  FS_LoadOverlay(u32 id, u32 flags, void *callback, u32 param) {

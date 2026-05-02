@@ -161,9 +161,25 @@ static void pump_input_to_io(void)
     nds_reg_write16(0x04000136u, build_keyinput_ext_bits());
 }
 
+/*
+ * Force BG0 visible in DISPCNT every frame so the boot-screen tiles
+ * stay on after game code calls GX_SetVisiblePlane(0xFFFFFFFF, 0)
+ * during init.  Disabled when MLPIT_LET_GAME_DISPLAY=1 so the user
+ * can see what the game actually does once it can render on its own.
+ */
+static void keep_boot_screen_visible(void)
+{
+    if (getenv("MLPIT_LET_GAME_DISPLAY")) return;
+    uint32_t dispcnt = nds_reg_read32(0x04000000u);
+    /* Mode 0 + BG0 enable (bit 8). Preserve other bits. */
+    dispcnt = (dispcnt & ~0x7u) | 0x100u;
+    nds_reg_write32(0x04000000u, dispcnt);
+}
+
 
 void platform_present(void) {
     pump_input_to_io();
+    keep_boot_screen_visible();
 
     static int s_frame_counter = 0;
     static int s_dump_at = -2;

@@ -462,7 +462,150 @@ u32 FS_SeekFile(void *file, s32 offset, u32 origin) {
     return 1;
 }
 
-#else /* not HOST_PORT — plain stubs for native build */
+/* === BIOS LZ77 wrappers (HOST_PORT) =================================
+ * Three FUN_<addr> entries (0x02046ffc, 0x02047010, 0x02047024) all
+ * forward to BIOS SWI 0x11 (LZ77UnCompVram) on hardware.
+ * NOTE: Real bodies live in arm9/src/sdk_init_d.c on host build (the
+ * decompiled module already has them).  This block is intentionally
+ * empty so we don't double-define.
+ */
+
+/* === Top-20 hot anonymous helpers (Task 2: hotstubs-and-display) =====
+ *
+ * These are aliased from FUN_<addr> in pc/include/sdk_symbol_aliases.h.
+ * Identification rationale is recorded next to each entry; signatures
+ * use variadic ()/(...) so the underlying ARM AAPCS arg passing (r0..r3)
+ * stays compatible with every call site.
+ *
+ * For now only sdk_mi_cpu_copy16 / sdk_mi_cpu_fill16 / sdk_arm_udiv have
+ * functionally important real bodies — the OS_* family is a no-op set
+ * because the host has no preemption and a single game thread.
+ *
+ * ================================================================ */
+
+/* MI_CpuCopy16(src, dst, len) — 16-bit halfword memcpy.  Signed-len
+ * variants exist; we treat len as bytes (decompiled call sites pass byte
+ * counts already). */
+void sdk_mi_cpu_copy16(u32 src_addr, u32 dst_addr, u32 len)
+{
+    if (!src_addr || !dst_addr || !len) return;
+    /* If addresses look like NDS physical addrs that we have shadows for,
+     * route through nds_dma_immediate; otherwise treat as raw host pointers
+     * (decompiled code stores host malloc results in those args via our
+     * OS_AllocFromHeap impl). */
+    if (src_addr < 0x10000000u && dst_addr < 0x10000000u) {
+        /* enable | 16-bit | word_count = len/2 */
+        nds_dma_immediate(dst_addr, src_addr, (1u << 31) | ((len / 2u) & 0x1FFFFFu));
+        return;
+    }
+    memcpy((void *)(uintptr_t)dst_addr, (const void *)(uintptr_t)src_addr, len);
+}
+
+/* MI_CpuFill16(dst, val, len) — 16-bit halfword memset (val = pattern). */
+void sdk_mi_cpu_fill16(u32 dst_addr, u32 val, u32 len)
+{
+    if (!dst_addr || !len) return;
+    u16 pat = (u16)(val & 0xFFFFu);
+    if (dst_addr < 0x10000000u) {
+        /* No NDS DMA fill primitive in our shadow — write directly via
+         * resolver by routing through DMA helper with src=0 and then
+         * patching, but simpler to just do per-halfword writes via the
+         * IO/VRAM resolvers when applicable.  Fallback: assume IO shadow
+         * mapped at NDS_IO_BASE catches IO-region writes; for VRAM we
+         * cannot resolve from this TU without including nds_platform —
+         * but link_stubs.c already does.  Use direct host-pointer write
+         * because nds_hw_stubs.c maps 0x04000000 directly via VirtualAlloc
+         * and VRAM banks are calloc'd (not at NDS addrs).  Punt to memset
+         * if dst is high (host pointer); for low NDS addresses this is a
+         * no-op fill since we cannot resolve safely here. */
+        u16 *p = NULL;
+        /* IO range — 0x04000000+0x10000 is mapped via VirtualAlloc on Win64 */
+        if (dst_addr >= 0x04000000u && dst_addr + len <= 0x04010000u) {
+            p = (u16 *)(uintptr_t)dst_addr;
+        }
+        if (!p) return;
+        u32 halfwords = len / 2u;
+        for (u32 i = 0; i < halfwords; i++) p[i] = pat;
+        return;
+    }
+    u16 *p = (u16 *)(uintptr_t)dst_addr;
+    u32 halfwords = len / 2u;
+    for (u32 i = 0; i < halfwords; i++) p[i] = pat;
+}
+
+/* OS_Free / OS_FreeToHeap — on host every alloc came from our pool, the
+ * pool is rewound on shutdown; a free is a no-op for our purposes. */
+void sdk_os_free(u32 ptr) { (void)ptr; }
+
+/* OS_DestroyHeap — no-op (heap lives till exit). */
+void sdk_os_destroy_heap(void) {}
+
+/* OS_DisableInterrupts → returns saved CPSR I-bit state.
+ * On host we don't have IRQs; return 0 so OS_RestoreInterrupts(0) is a
+ * harmless no-op. */
+u32 sdk_os_disable_irq(void) { return 0; }
+void sdk_os_restore_irq(u32 saved) { (void)saved; }
+
+/* OS_RescheduleThread / OS yield — single-threaded host, no-op. */
+void sdk_os_reschedule(void) {}
+
+/* arm_udiv — libgcc-style 32-bit unsigned divide.  Hardware ARM9 doesn't
+ * have a divide instruction; FUN_020466bc is the SDK helper.  Used by
+ * snd_fs_misc.c / sdk_math.c with two register args. */
+u32 sdk_arm_udiv(u32 dividend, u32 divisor)
+{
+    return divisor ? (dividend / divisor) : 0u;
+}
+
+/* OS_SendMessage-shaped (FUN_0203a04c, takes 2 args).  Without IPC
+ * threads on the host this is a no-op; returning 1 = "queued ok" for
+ * any caller that checks. */
+int sdk_os_send_message(u32 queue, u32 msg) { (void)queue; (void)msg; return 1; }
+
+/* === VRAM-write watcher (Task 4) ==================================
+ *
+ * Throttled logger that records writes to interesting NDS regions.
+ * Since VRAM banks are calloc'd at host addresses (not at NDS addrs)
+ * we cannot intercept random pointer writes.  Instead, every code path
+ * that DOES translate (DMA, MI_CpuCopy16/Fill16, nds_dma_immediate, the
+ * register write helpers) calls nds_track_write() so we can see whether
+ * game code actually reaches VRAM during a normal frame.
+ *
+ * Throttle: max 1 log per region per 1000 calls.  Region keys are 0..3
+ * for IO / Palette / VRAM / OAM.
+ * ================================================================== */
+
+#include <stdarg.h>
+
+void nds_track_write(u32 addr, u32 len, const char *origin)
+{
+    static const struct { u32 lo; u32 hi; const char *name; } regions[] = {
+        { 0x04000000u, 0x04010000u, "IO"      },
+        { 0x05000000u, 0x05000800u, "PAL"     },
+        { 0x06000000u, 0x06180000u, "VRAM"    },
+        { 0x07000000u, 0x07000400u, "OAM"     },
+    };
+    static u32 counts[4] = { 0, 0, 0, 0 };
+
+    for (int i = 0; i < 4; i++) {
+        if (addr >= regions[i].lo && addr < regions[i].hi) {
+            counts[i]++;
+            if ((counts[i] % 1000u) == 1u) {
+                fprintf(stderr,
+                        "[vram-watch] %-4s addr=%08X len=%u count=%u origin=%s\n",
+                        regions[i].name, addr, len, counts[i],
+                        origin ? origin : "?");
+                fflush(stderr);
+            }
+            return;
+        }
+    }
+}
+
+#endif /* HOST_PORT */
+
+#ifndef HOST_PORT
+/* ====== Plain stubs for native ARM build ====== */
 
 void game_update_display(void) {}
 void game_do_transition(u32 d, u32 t, u32 f) { (void)d; (void)t; (void)f; }

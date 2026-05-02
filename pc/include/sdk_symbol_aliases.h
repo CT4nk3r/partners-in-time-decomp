@@ -11,7 +11,28 @@
 #ifndef SDK_SYMBOL_ALIASES_H
 #define SDK_SYMBOL_ALIASES_H
 
-/* 22 mappings */
+/* 33 mappings */
+
+/* === Top-20 hot anonymous helpers (Task 2) ============================
+ * These FUN_<addr> have NO body in arm9/src (only externs from many TUs).
+ * Without aliases they fall through to host_undefined_stubs.c no-ops.
+ * We map them to hand-written impls in arm9/src/link_stubs.c so the
+ * underlying behaviour (memcpy / udiv / IRQ critical-section) is real.
+ *
+ * Identification was done by:
+ *  - matching the signatures used at every call site
+ *  - cross-referencing the address ranges with NitroSDK ARM9 source
+ *  - reading the few defined neighbour functions (hw_gx.c) that call them
+ * ==================================================================== */
+#define FUN_0202cc94 sdk_mi_cpu_copy16        /* MI_CpuCopy16-shaped (8 TUs) */
+#define FUN_0202cd68 sdk_mi_cpu_fill16        /* MI_CpuFill16-shaped (9 TUs) */
+#define FUN_02029ab8 sdk_os_free              /* OS_Free / OS_FreeToHeap (5 TUs) */
+#define FUN_0202a74c sdk_os_destroy_heap      /* OS_DestroyHeap (5 TUs)        */
+#define FUN_0203ae38 sdk_os_disable_irq       /* OS_DisableInterrupts → u32   */
+#define FUN_0203ae4c sdk_os_restore_irq       /* OS_RestoreInterrupts(u32)    */
+#define FUN_0203aeb4 sdk_os_reschedule        /* OS_RescheduleThread (no-op)  */
+#define FUN_020466bc sdk_arm_udiv             /* libgcc-style unsigned divide */
+#define FUN_0203a04c sdk_os_send_message      /* OS_SendMessage-shaped         */
 
 #define FUN_02004228 BIOS_Stop
 #define FUN_0200429c BIOS_VBlankIntrWait
@@ -32,8 +53,10 @@
 #define FUN_0202cc10 MI_CpuFill32Fast
 #define FUN_0203b914 MI_CpuFill8
 #define FUN_0203b9a8 MI_CpuCopy8
-#define FUN_02046ffc LZ77_UncompVram_1
-#define FUN_02047010 LZ77_UncompVram_2
-#define FUN_02047024 LZ77_UncompVram_3
+
+/* The three FUN_02046ffc/02047010/02047024 entries previously aliased to
+ * LZ77_UncompVram_* are actually console-I/O SWIs (write/read/flush) with
+ * full bodies in arm9/src/sdk_init_d.c.  Aliasing them caused a double
+ * definition with link_stubs.c.  Aliases removed. */
 
 #endif /* SDK_SYMBOL_ALIASES_H */

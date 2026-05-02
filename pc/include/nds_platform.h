@@ -64,6 +64,8 @@ uint8_t  nds_reg_read8(uint32_t addr);
 void nds_reg_write32(uint32_t addr, uint32_t val);
 void nds_reg_write16(uint32_t addr, uint16_t val);
 void nds_reg_write8(uint32_t addr, uint8_t val);
+/* Init the IO shadow (called lazily on first access; explicit call is optional) */
+void nds_hw_io_init(void);
 
 /* === Game thread (run decompiled game_start in background) === */
 void platform_signal_vblank(void);

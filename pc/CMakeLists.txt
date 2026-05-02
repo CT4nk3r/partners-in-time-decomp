@@ -24,6 +24,7 @@ set(PC_SOURCES
     src/nds_rom.c
     src/asset_pack.c
     src/asset_extractor.c
+    src/nds_boot_hook.c
 )
 
 # Decompiled ARM9 game code (compiled for host with HOST_PORT shim)

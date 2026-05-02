@@ -13,6 +13,7 @@
 #include "nds_rom.h"
 #include "asset_pack.h"
 #include "asset_extractor.h"
+#include "nds_boot_hook.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,6 +59,18 @@ static void render_placeholder(void) {
 }
 
 int main(int argc, char** argv) {
+    /* Parse CLI arguments before SDL init so --show-asset can be used
+     * in headless/scripted tests without a display.
+     * --show-asset N : load FAT file N raw bytes as 4bpp tiles and render.
+     * --list-assets  : print all asset IDs and exit (no window needed).
+     */
+    int show_asset_idx = -1;   /* -1 = normal boot */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--show-asset") == 0 && i + 1 < argc) {
+            show_asset_idx = atoi(argv[++i]);
+        }
+    }
+
     SDL_SetMainReady();
     if (!platform_init(argc, argv)) {
         fprintf(stderr, "platform_init failed\n");
@@ -111,9 +124,35 @@ int main(int argc, char** argv) {
         }
     }
 
-    /* Start the game thread. Currently runs a vblank heartbeat stub
-     * (see pc/src/game_thread.c for why we cannot yet call game_start()). */
-    platform_start_game_thread(game_thread_main, "mlpit_game");
+    /* ── VRAM boot hook ─────────────────────────────────────────────
+     * Populate VRAM + configure BG registers BEFORE the game thread
+     * starts, so the very first rendered frame shows something other
+     * than black — even if game_start() crashes immediately.
+     *
+     * --show-asset N: use FAT file N's raw bytes as 4bpp tile data.
+     * Normal boot:    use synthetic procedural tiles.
+     * ──────────────────────────────────────────────────────────── */
+    if (show_asset_idx >= 0) {
+        nds_log("[boot] --show-asset %d: loading asset as 4bpp tiles\n",
+                show_asset_idx);
+        if (!show_asset_in_vram(show_asset_idx)) {
+            nds_log("[boot] Asset %d not found, falling back to synthetic\n",
+                    show_asset_idx);
+            boot_hook_vram();
+        }
+    } else {
+        boot_hook_vram();
+    }
+
+    /* In --show-asset mode, skip the game thread so only our tile
+     * data is shown (makes the pipeline proof clean).             */
+    if (show_asset_idx < 0) {
+        /* Start the game thread. Currently runs a vblank heartbeat stub
+         * (see pc/src/game_thread.c for why we cannot yet call game_start()). */
+        platform_start_game_thread(game_thread_main, "mlpit_game");
+    } else {
+        nds_log("[show_asset] Game thread skipped — displaying asset tiles.\n");
+    }
 
     while (platform_poll_events()) {
         const NdsInput* input = platform_input();
@@ -122,13 +161,16 @@ int main(int argc, char** argv) {
         render_frame();
         platform_present();
 
-        /* Tell the game thread "vblank happened" - unblocks GX_VBlankWait. */
+        /* Tell the game thread "vblank happened" - unblocks GX_VBlankWait.
+         * Safe to call even when no game thread is running. */
         platform_signal_vblank();
 
         platform_sleep_us(16666);
     }
 
-    platform_stop_game_thread();
+    if (show_asset_idx < 0) {
+        platform_stop_game_thread();
+    }
     platform_shutdown();
     return 0;
 }

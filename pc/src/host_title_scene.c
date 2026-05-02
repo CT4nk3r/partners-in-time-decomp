@@ -290,3 +290,91 @@ void FUN_02077784(void *ptr, int type, int param)
             (unsigned)obj_nds, (unsigned)vtab_nds, (unsigned)OV8_TICK_ADDR);
     fflush(stderr);
 }
+
+/* ==================================================================
+ * FUN_020739ec — "file select" / next scene constructor (ov8)
+ * ==================================================================
+ *
+ * Called from alloc_construct_obj_h (FUN_02029128) during phase 3
+ * state 2 of the scene state machine, after the title screen
+ * transitions.  On real hardware this creates the file-select or
+ * story-intro scene.
+ *
+ * For the HOST_PORT we create a minimal scene node that ticks
+ * without crashing — proving the full scene transition pipeline
+ * works end-to-end.  Actual rendering will come in later phases.
+ */
+
+/* NDS addresses for the next scene (distinct from title screen) */
+#define OV8_NEXT_TICK_ADDR    0x020739A0u  /* synthetic tick for next scene */
+#define OV8_NEXT_DTOR_ADDR    0x020739A4u  /* synthetic dtor for next scene */
+
+static void host_next_scene_tick(uintptr_t node_addr, uintptr_t anchor_addr)
+{
+    (void)anchor_addr;
+    (void)node_addr;
+    /* Idle tick — the next scene just exists in the queue.
+     * Future: render file-select screen, handle input. */
+    static int logged = 0;
+    if (!logged) {
+        logged = 1;
+        fprintf(stderr,
+                "[next_scene] first tick at node=0x%08X — "
+                "file select placeholder active\n",
+                (unsigned)(u32)node_addr);
+        fflush(stderr);
+    }
+}
+
+static void host_next_scene_dtor(uintptr_t node_addr, uintptr_t unused)
+{
+    (void)unused;
+    fprintf(stderr, "[next_scene_dtor] node=0x%08X destroyed\n",
+            (unsigned)(u32)node_addr);
+}
+
+void FUN_020739ec(void *ptr, int type, int param)
+{
+    (void)ptr;
+    (void)type;
+    (void)param;
+
+    if (!nds_arm9_ram_is_mapped()) {
+        fprintf(stderr, "[FUN_020739ec] ARM9 RAM not mapped, skipping\n");
+        return;
+    }
+
+    u32 obj_nds = nds_bump_alloc(0x30);
+    fprintf(stderr,
+            "[FUN_020739ec] next scene ctor: obj=0x%08X type=%d param=%d\n",
+            (unsigned)obj_nds, type, param);
+
+    /* Insert into scene queue */
+    FUN_0202a74c_real(obj_nds, /*priority*/ 8, 0, 0);
+
+    /* Create and install vtable */
+    u32 vtab_nds = nds_bump_alloc(16);
+    volatile u32 *vtab = (volatile u32 *)(uintptr_t)vtab_nds;
+    vtab[0] = OV8_NEXT_DTOR_ADDR;
+    vtab[1] = OV8_NEXT_DTOR_ADDR;
+    vtab[2] = OV8_NEXT_TICK_ADDR;
+
+    /* Install vtable AFTER FUN_0202a74c_real (which overwrites node[0]) */
+    *(volatile u32 *)(uintptr_t)obj_nds = vtab_nds;
+
+    /* Register host functions with fnptr resolver */
+    host_fnptr_register(OV8_NEXT_TICK_ADDR, (void *)host_next_scene_tick);
+    host_fnptr_register(OV8_NEXT_DTOR_ADDR, (void *)host_next_scene_dtor);
+
+    /* Set field_2c = 0 (normal state) */
+    *(volatile u32 *)(uintptr_t)(obj_nds + 0x2c) = 0;
+
+    /* Set "needs update" flag so tick fires */
+    volatile u16 *flags_ptr = (volatile u16 *)(uintptr_t)(obj_nds + 0x12);
+    *flags_ptr |= 0x0001;
+
+    fprintf(stderr,
+            "[FUN_020739ec] next scene created: obj=0x%08X vtab=0x%08X\n",
+            (unsigned)obj_nds, (unsigned)vtab_nds);
+    fflush(stderr);
+}

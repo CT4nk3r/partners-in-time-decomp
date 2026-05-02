@@ -1614,8 +1614,8 @@ int FUN_0206f080() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0206f0
 int FUN_0206f600() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0206f600\n");} return 0; }
 int FUN_02070a94() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02070a94\n");} return 0; }
 int FUN_0207271c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0207271c\n");} return 0; }
-int FUN_020739ec() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020739ec\n");} return 0; }
-int FUN_02077784() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02077784\n");} return 0; }
+/* FUN_020739ec — now in host_title_scene.c (next scene constructor) */
+/* FUN_02077784 — now in host_title_scene.c (title screen constructor) */
 int FUN_020787b4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020787b4\n");} return 0; }
 
 /* === thunk_FUN_* stubs (3 symbols) === */

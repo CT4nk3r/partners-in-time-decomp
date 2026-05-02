@@ -107,6 +107,12 @@ typedef struct {
 static uint8_t          g_synth_buf[SYNTH_BUF_SIZE];
 static int              g_synth_init = 0;
 
+/* Module-level state for the real-tile/palette path so synth_buf_init
+ * can pick the right s/t size and palette bank without reloading. */
+static int g_real_tile_size_enum = 2;       /* default 32 px */
+static int g_real_pal_bank        = 0;
+static int g_loaded_real          = 0;
+
 static inline uint16_t *synth_count_ptr(void)
 {
     return (uint16_t *)(g_synth_buf + SYNTH_OFF_COUNT);
@@ -174,6 +180,118 @@ static void install_grayscale_palette(void)
         pal[i] = (uint16_t)((v << 10) | (v << 5) | v);
     }
     host_gxfifo_raster_install_palette(pal, 16);
+}
+
+/* ===== Track A: real palette + tile from FAT[0x45] archive ============
+ *
+ * The boot_hook_paired_screen path knows that asset 0x2045 is an offset-
+ * table archive whose sub-blocks at index 181 (tile sheet, 4bpp), 194
+ * (tilemap), and 177 (16x16-colour palette = 512 bytes) form a complete
+ * BG screen.  The synth-sprite Track A milestone re-uses sub[181]+sub[177]
+ * to drive the GX rasteriser with the same texture+palette pair the BG
+ * compositor uses, so the rasteriser-emitted quad shows in the same
+ * colour space as the game's own backgrounds.
+ *
+ * MLPIT_SYNTH_SPRITE_REAL_PAL=1 (default when the pack is loaded) selects
+ * this path.  MLPIT_SYNTH_SPRITE_PAL_BANK=N picks one of the 16 16-colour
+ * sub-palettes in sub[177] (default 0).
+ * ===================================================================== */
+
+static int sub_archive_get(uint32_t fat_id, uint32_t sub_index,
+                           const uint8_t **out, uint32_t *out_sz)
+{
+    void *data = NULL;
+    size_t sz = 0;
+    if (!pack_get_file(fat_id, &data, &sz) || !data || sz < 8) return 0;
+    const uint8_t *bytes = (const uint8_t *)data;
+    uint32_t first_off = (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) |
+                         ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24);
+    if (first_off < 4 || first_off > sz || (first_off & 3)) return 0;
+    uint32_t n_ent = first_off / 4;
+    if (sub_index >= n_ent) return 0;
+    uint32_t a = (uint32_t)bytes[sub_index*4]   | ((uint32_t)bytes[sub_index*4+1] << 8) |
+                 ((uint32_t)bytes[sub_index*4+2] << 16) | ((uint32_t)bytes[sub_index*4+3] << 24);
+    uint32_t b;
+    if (sub_index + 1 < n_ent) {
+        uint32_t k = (sub_index + 1) * 4;
+        b = (uint32_t)bytes[k] | ((uint32_t)bytes[k+1] << 8) |
+            ((uint32_t)bytes[k+2] << 16) | ((uint32_t)bytes[k+3] << 24);
+    } else {
+        b = (uint32_t)sz;
+    }
+    if (b <= a || b > sz) return 0;
+    *out    = bytes + a;
+    *out_sz = b - a;
+    return 1;
+}
+
+/* Install a 16-colour BGR555 palette from sub[pal_sub] of FAT[fat_id].
+ * Returns 1 on success.  The 512-byte sub block is laid out as 16 banks
+ * of 16 colours each; we copy all 16 banks into g_pal_vram so palette
+ * indices 0..15 in the rasteriser map to the first bank, 16..31 to the
+ * second, etc — matching the NDS PLTT_BASE convention. */
+static int install_real_palette_from_archive(uint32_t fat_id, uint32_t pal_sub)
+{
+    const uint8_t *pal_bytes = NULL;
+    uint32_t       pal_sz    = 0;
+    if (!sub_archive_get(fat_id, pal_sub, &pal_bytes, &pal_sz)) return 0;
+    if (pal_sz < 32) return 0;
+
+    uint16_t pal[256];
+    int n_entries = (int)(pal_sz / 2);
+    if (n_entries > 256) n_entries = 256;
+    for (int i = 0; i < n_entries; i++) {
+        pal[i] = (uint16_t)(pal_bytes[i*2] | (pal_bytes[i*2 + 1] << 8));
+    }
+    /* Index 0 of each 16-colour bank stays as-is — the rasteriser
+     * already treats nibble==0 as transparent regardless of palette
+     * contents (see sample_texel sentinel). */
+    host_gxfifo_raster_install_palette(pal, (size_t)n_entries);
+
+    fprintf(stderr,
+            "[synth-sprite] real palette installed from FAT[0x%X]/sub[%u] "
+            "(%uB, %d entries)\n",
+            (unsigned)fat_id, (unsigned)pal_sub, (unsigned)pal_sz, n_entries);
+    return 1;
+}
+
+/* Install a real 4bpp tile sheet from sub[tile_sub] of FAT[fat_id].
+ * Loads up to 64x64 px (8x8 tiles = 2 KiB) so a single TEXIMAGE_PARAM
+ * with s_size=t_size=3 (=64) can sample the whole region.  The
+ * NDS-tile->linear de-tile is performed in place. */
+static int install_real_tile_from_archive(uint32_t fat_id, uint32_t tile_sub,
+                                          int *out_tile_size_px)
+{
+    const uint8_t *tile_bytes = NULL;
+    uint32_t       tile_sz    = 0;
+    if (!sub_archive_get(fat_id, tile_sub, &tile_bytes, &tile_sz)) return 0;
+
+    /* Decide texture size: 128x128 if we have >= 8 KiB, 64x64 if >= 2 KiB,
+     * 32x32 if >= 512 B.  Larger = more glyphs visible at once. */
+    int side_tiles, tile_size_enum;
+    if (tile_sz >= 16 * 16 * 32) { side_tiles = 16; tile_size_enum = 4; } /* 128 px */
+    else if (tile_sz >= 8 * 8 * 32) { side_tiles = 8;  tile_size_enum = 3; } /* 64  px */
+    else if (tile_sz >= 4 * 4 * 32) { side_tiles = 4;  tile_size_enum = 2; } /* 32  px */
+    else return 0;
+
+    int side_px = side_tiles * 8;
+    int detiled_bytes = (side_px * side_px) / 2; /* 4bpp */
+    if ((size_t)detiled_bytes > 16 * 1024) return 0; /* safety */
+
+    uint8_t *detiled = (uint8_t *)calloc(1, (size_t)detiled_bytes);
+    if (!detiled) return 0;
+    detile_4bpp_8x8_block(tile_bytes, detiled, side_tiles, side_tiles);
+    host_gxfifo_raster_install_texture(detiled, (size_t)detiled_bytes);
+    free(detiled);
+
+    if (out_tile_size_px) *out_tile_size_px = tile_size_enum;
+
+    fprintf(stderr,
+            "[synth-sprite] real tile sheet installed from FAT[0x%X]/sub[%u] "
+            "(%uB, %dx%d px texture, s/t enum=%d)\n",
+            (unsigned)fat_id, (unsigned)tile_sub, (unsigned)tile_sz,
+            side_px, side_px, tile_size_enum);
+    return 1;
 }
 
 /* Try to load a real ROM tile.  Returns 1 on success, 0 if no asset
@@ -260,20 +378,29 @@ static void synth_buf_init(void)
     memset(g_synth_buf, 0, sizeof(g_synth_buf));
     *synth_count_ptr() = 1;
 
+    /* Texture pixel size derived from the loaded sheet (default 32 px;
+     * REAL path may bump to 64 or 128). */
+    int s_enum = g_real_tile_size_enum;
+    int tex_px = 8 << (s_enum & 7);
+
+    /* Display the texture at native size centred on the top screen so
+     * the original tile structure is visible at 1:1.  If the texture is
+     * smaller than the screen height, place it in the middle. */
+    int sx = (256 - tex_px) / 2; if (sx < 0) sx = 0;
+    int sy = (192 - tex_px) / 2; if (sy < 0) sy = 0;
+
     synth_sprite_t *d = synth_descriptors();
-    /* Single 32x32 sprite centred on the top screen.  TEXIMAGE_PARAM
-     * size enum: 0=8, 1=16, 2=32, 3=64.  We loaded a 32x32 texture so
-     * s_size = t_size = 2. */
-    d[0].x         = 64;
-    d[0].y         = 32;
-    d[0].width     = 128;
-    d[0].height    = 128;
-    d[0].tex_s_size = 2;
-    d[0].tex_t_size = 2;
+    d[0].x          = (int16_t)sx;
+    d[0].y          = (int16_t)sy;
+    d[0].width      = (uint8_t)(tex_px > 255 ? 255 : tex_px);
+    d[0].height     = (uint8_t)(tex_px > 255 ? 255 : tex_px);
+    d[0].tex_s_size = (uint16_t)s_enum;
+    d[0].tex_t_size = (uint16_t)s_enum;
     d[0].tex_vram_off_8b = 0;
-    d[0].pltt_idx  = 0;
-    d[0].color     = 0x7FFFu;
-    d[0].reserved  = 0;
+    /* PLTT_BASE in 16-byte units; pal_bank N = 16 colours into bank N. */
+    d[0].pltt_idx   = (uint16_t)g_real_pal_bank;
+    d[0].color      = 0x7FFFu;
+    d[0].reserved   = 0;
     g_synth_init = 1;
 }
 
@@ -316,17 +443,45 @@ static void emit_descriptor(const synth_sprite_t *d)
     host_gxfifo_push(GX_END_VTXS, 0);
 }
 
+/* Module-level state for the real-tile/palette path so synth_buf_init
+ * can pick the right s/t size and palette bank without reloading.
+ * Definitions live near the synth-buf globals at the top of the file. */
+
 void mlpit_synth_sprite_emit_frame(void)
 {
     static int s_loaded = 0;
     if (!s_loaded) {
-        if (!load_rom_tile_into_texture()) install_fallback_texture();
-        install_grayscale_palette();
+        const char *no_real = getenv("MLPIT_SYNTH_SPRITE_NO_REAL_PAL");
+        const char *fat_env = getenv("MLPIT_SYNTH_SPRITE_REAL_FAT");
+        const char *til_env = getenv("MLPIT_SYNTH_SPRITE_REAL_TILE_SUB");
+        const char *pal_env = getenv("MLPIT_SYNTH_SPRITE_REAL_PAL_SUB");
+        const char *bnk_env = getenv("MLPIT_SYNTH_SPRITE_PAL_BANK");
+        uint32_t r_fat  = (uint32_t)(fat_env ? strtoul(fat_env, NULL, 0) : 0x45);
+        uint32_t r_tile = (uint32_t)(til_env ? strtoul(til_env, NULL, 0) : 181);
+        uint32_t r_pal  = (uint32_t)(pal_env ? strtoul(pal_env, NULL, 0) : 177);
+        g_real_pal_bank = (int)(bnk_env ? strtoul(bnk_env, NULL, 0) : 0);
+
+        int real_ok = 0;
+        if (!no_real && pack_is_loaded()) {
+            int sz_enum = 2;
+            if (install_real_tile_from_archive(r_fat, r_tile, &sz_enum)
+             && install_real_palette_from_archive(r_fat, r_pal)) {
+                g_real_tile_size_enum = sz_enum;
+                g_loaded_real = 1;
+                real_ok = 1;
+            }
+        }
+
+        if (!real_ok) {
+            if (!load_rom_tile_into_texture()) install_fallback_texture();
+            install_grayscale_palette();
+        }
         synth_buf_init();
         s_loaded = 1;
         fprintf(stderr,
-                "[synth-sprite] texture+palette installed, "
+                "[synth-sprite] %s texture+palette installed, "
                 "%u sprite(s) ready\n",
+                g_loaded_real ? "REAL" : "FALLBACK",
                 (unsigned)*synth_count_ptr());
     }
 

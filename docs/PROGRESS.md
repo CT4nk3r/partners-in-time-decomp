@@ -137,6 +137,43 @@ re-decomp: the natural-C analysis block at the top of
 `arm9/src/FUN_0200fcb4.c` documents the exact entity-struct layout
 a future session needs to populate to retire the synth path.
 
+### 08 — Real game palette wired + natural FUN_0200FCB4 vertex stream
+
+![Real palette from FAT[0x45]/sub[177]](progress/08_real_palette.png)
+
+Two parallel improvements landed in this session:
+
+**Track A — palette wiring.**  `host_synth_sprite.c` now loads the
+4bpp tile sheet from `FAT[0x45]/sub[181]` (32 KiB, the same atlas
+used by the `boot_hook_paired_screen` BG triple) and the matching
+4bpp palette from `FAT[0x45]/sub[177]` (16 sub-palettes × 16
+BGR555 colours = 512 B), installs both into the rasteriser, and
+emits a quad sized to the real texture (128×128 px, s/t enum=4).
+`MLPIT_SYNTH_SPRITE_PAL_BANK=N` selects one of the 16 banks; bank 4
+contains the Mario-red / pink hues used in this milestone shot.
+Result: the previous monochrome glyph grid (milestone 07) is
+replaced by real game tile data displayed in the *real game palette*.
+
+**Track C — natural FCB4 vertex stream.**  `host_factory_instantiate.c`
+now populates the entity's `+0x40` (sprite_payloads), `+0x44`
+(sprite_descriptors), `+0x48` (anim_frame_table), and `+0x4c`
+(sprite_attr_table) sub-regions of `AUX_ANIM_LUT` with valid stub
+entries — `payloads[0] = { first_vtx_idx=0, vtx_count=4 }` so the
+bail at `L_02010028` is no longer hit.  Verified with
+`MLPIT_INSTANTIATE_REAL=1 MLPIT_GXFIFO_OBSERVER=1`: the natural
+`FUN_0200FCB4` now emits the full GX command sequence
+(`TEXIMAGE_PARAM`, `PLTT_BASE`, `BEGIN_VTXS`, per-vertex
+`MTX_TRANS`+`VTX_16`+`TEXCOORD`, …) instead of bailing immediately.
+The MTX_TRANS values increment monotonically per vertex,
+confirming the per-vertex emit loop is iterating, not stuck.
+
+The natural-FCB4 commands still bypass our software rasteriser
+(they go to the IO shadow at `0x040004xx`, observed by the
+polling sampler in `host_gxfifo_observer.c`).  Bridging that into
+`host_gxfifo_push()` so the natural path actually rasterises is
+the next session's task; for now the synth emitter remains the
+production drawing path.
+
 ## Component Status
 
 | Component                       | Status |

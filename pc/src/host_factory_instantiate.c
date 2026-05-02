@@ -167,6 +167,58 @@ void host_factory_instantiate(void)
         e32[0x48/4] = AUX_ANIM_LUT_NDS;
         e32[0x4c/4] = AUX_ANIM_LUT_NDS;
 
+        /* ------- Track C: populate the natural FCB4 sprite tables -------
+         *
+         * FUN_0200FCB4 reads vtx_count from
+         *   payloads[descs[anim_frame_idx + sprite_base_idx].sprite_idx].vtx_count
+         * and bails at L_02010028 when vtx_count == 0.  Currently AUX_ANIM_LUT
+         * is zero-initialised so the bail fires.  Populate four well-defined
+         * sub-regions of AUX_ANIM_LUT so a single quad is emitted:
+         *
+         *   sprite_payloads     @ AUX_ANIM_LUT + 0x0000  (entity[+0x40])
+         *     payloads[0] = { first_vtx_idx=0, vtx_count=4 }   // 4 verts = 1 quad
+         *
+         *   sprite_descriptors  @ AUX_ANIM_LUT + 0x0040  (entity[+0x44])
+         *     descs[0]    = { sprite_idx=0, attrs=0 }
+         *
+         *   anim_frame_table    @ AUX_ANIM_LUT + 0x0080  (entity[+0x48])
+         *     u16[0] = 0   (so frame_idx = sprite_base_idx + 0)
+         *
+         *   sprite_attr_table   @ AUX_ANIM_LUT + 0x00c0  (entity[+0x4c],
+         *                       12-byte stride; vis_or_kind at [0] must be
+         *                       non-zero so the animator does NOT skip).
+         *     attr[0] = { vis_or_kind=1, x_off=0, y_off=0, ... }
+         *
+         * Repoint each entity[+0x40..+0x4c] slot at its dedicated sub-region
+         * so the natural FCB4 path resolves vtx_count > 0 and emits
+         * TEXCOORD/VTX_16 per-corner instead of bailing at L_02010028.
+         */
+        uint32_t payloads_addr  = AUX_ANIM_LUT_NDS + 0x0000;
+        uint32_t descs_addr     = AUX_ANIM_LUT_NDS + 0x0040;
+        uint32_t animtbl_addr   = AUX_ANIM_LUT_NDS + 0x0080;
+        uint32_t attrtbl_addr   = AUX_ANIM_LUT_NDS + 0x00C0;
+
+        e32[0x40/4] = payloads_addr;
+        e32[0x44/4] = descs_addr;
+        e32[0x48/4] = animtbl_addr;
+        e32[0x4c/4] = attrtbl_addr;
+
+        volatile uint16_t *payloads = (volatile uint16_t *)(uintptr_t)payloads_addr;
+        payloads[0] = 0;       /* first_vtx_idx */
+        payloads[1] = 4;       /* vtx_count = 4 -> single quad */
+
+        volatile uint16_t *descs = (volatile uint16_t *)(uintptr_t)descs_addr;
+        descs[0] = 0;          /* sprite_idx -> payloads[0] */
+        descs[1] = 0;          /* attrs (no rot/scale) */
+
+        /* Already zero from memset; explicit for documentation. */
+        *(volatile uint16_t *)(uintptr_t)animtbl_addr = 0;
+
+        volatile uint8_t *attr = (volatile uint8_t *)(uintptr_t)attrtbl_addr;
+        attr[0] = 1; attr[1] = 0;   /* vis_or_kind = 1 (non-skip) */
+        /* x_off/y_off (s16) at +0x02/+0x04 left at zero. */
+        /* ---------------------------------------------------------------- */
+
         /* +0x54, +0x56 scale (1.0 in 4.12 fixed = 0x1000) */
         *(volatile int16_t *)(uintptr_t)(INSTANCE_NDS_ADDR + 0x54) = 0x1000;
         *(volatile int16_t *)(uintptr_t)(INSTANCE_NDS_ADDR + 0x56) = 0x1000;

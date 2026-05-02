@@ -32,6 +32,21 @@ file(GLOB ARM9_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../arm9/src/*.c")
 
 add_executable(mlpit_pc ${PC_SOURCES} ${ARM9_SOURCES})
 
+# Copy runtime DLLs next to the exe so users can double-click without PATH setup.
+# (MinGW + SDL2 produce dynamically linked binaries; missing DLLs = silent exit.)
+if (WIN32)
+    foreach (DLL SDL2.dll libgcc_s_seh-1.dll libwinpthread-1.dll libstdc++-6.dll)
+        find_file(${DLL}_PATH NAMES ${DLL}
+                  PATHS C:/msys64/mingw64/bin
+                  NO_DEFAULT_PATH)
+        if (${DLL}_PATH)
+            add_custom_command(TARGET mlpit_pc POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${${DLL}_PATH}" "$<TARGET_FILE_DIR:mlpit_pc>/${DLL}")
+        endif()
+    endforeach()
+endif()
+
 target_include_directories(mlpit_pc PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../arm9/include

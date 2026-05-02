@@ -439,3 +439,104 @@ int show_asset_in_vram(int fat_index)
             fat_index, size, num_tiles);
     return 1;
 }
+
+/* ── boot_hook_paired_screen ─────────────────────────────────────
+ *
+ * Try to render an actual identifiable game screen by loading a known
+ * triple of (tilemap, tile sheet, palette) sub-blocks from FAT[0x45]
+ * (asset 0x2045 — a 793-entry offset-table archive that contains, among
+ * other things, complete BG screen sets).
+ *
+ * Heuristic mapping (verified by inspection):
+ *   sub[181]  32 768 B  →  8bpp tile sheet (512 tiles × 64 B)
+ *   sub[178]   4 096 B  →  64×32 tilemap   (sequential indices in BG order)
+ *   sub[185]     512 B  →  256-colour BGR555 palette (8bpp)
+ *
+ * On success, configures BG0 in 8bpp mode (BG0CNT bit 7 = 1) with
+ * screen_size = 1 (64×32 = 4 KB tilemap) and returns 1.
+ *
+ * Returns 0 if the asset pack is not loaded or any sub-block is the
+ * wrong shape — caller should then fall back to boot_hook_real_tiles().
+ * ──────────────────────────────────────────────────────────────── */
+
+/* Resolve one sub-block of an offset-table archive.
+ * Sets *out_data / *out_size on success, returns 1. */
+static int archive_get_subblock(uint32_t fat_id, uint32_t sub_index,
+                                const uint8_t **out_data, uint32_t *out_size)
+{
+    void *data = NULL; size_t sz = 0;
+    if (!pack_get_file(fat_id, &data, &sz) || !data || sz < 8) return 0;
+    const uint8_t *bytes = (const uint8_t *)data;
+    uint32_t first_off = (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) |
+                         ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24);
+    if (first_off < 4 || first_off > sz || (first_off & 3)) return 0;
+    uint32_t n_ent = first_off / 4;
+    if (sub_index >= n_ent) return 0;
+    uint32_t a = (uint32_t)bytes[sub_index*4]   | ((uint32_t)bytes[sub_index*4+1] << 8) |
+                 ((uint32_t)bytes[sub_index*4+2] << 16) | ((uint32_t)bytes[sub_index*4+3] << 24);
+    uint32_t b;
+    if (sub_index + 1 < n_ent) {
+        uint32_t k = (sub_index + 1) * 4;
+        b = (uint32_t)bytes[k] | ((uint32_t)bytes[k+1] << 8) |
+            ((uint32_t)bytes[k+2] << 16) | ((uint32_t)bytes[k+3] << 24);
+    } else {
+        b = (uint32_t)sz;
+    }
+    if (b <= a || b > sz) return 0;
+    *out_data = bytes + a;
+    *out_size = b - a;
+    return 1;
+}
+
+int boot_hook_paired_screen(void)
+{
+    if (!pack_is_loaded()) return 0;
+
+    const uint8_t *tiles = NULL, *map = NULL, *pal = NULL;
+    uint32_t       tiles_sz = 0, map_sz = 0, pal_sz = 0;
+
+    /* FAT id 0x45 (asset 0x2045) — verified screen archive. */
+    if (!archive_get_subblock(0x45, 181, &tiles, &tiles_sz) || tiles_sz < 32 * 1024) return 0;
+    if (!archive_get_subblock(0x45, 178, &map,   &map_sz)   || map_sz   != 4096)     return 0;
+    if (!archive_get_subblock(0x45, 185, &pal,   &pal_sz)   || pal_sz   < 32)        return 0;
+
+    uint8_t *bank_a = (uint8_t *)nds_vram_bank('A');
+    uint8_t *bank_e = (uint8_t *)nds_vram_bank('E');
+    if (!bank_a || !bank_e) return 0;
+
+    /* 8bpp tiles: 64 B per tile. char block 0 holds 512 tiles in 32 KB. */
+    memset(bank_a, 0, SCREEN_BASE_OFFSET + 4096);
+    memcpy(bank_a + CHAR_BASE_OFFSET, tiles, 32 * 1024);
+
+    /* Tilemap: 64×32 entries (4 KB).  Goes into the screen-base block.
+     * For screen_size=1 (64×32) the renderer indexes two adjacent 2 KB
+     * blocks: block_x=0 → screen_base, block_x=1 → screen_base+0x800.
+     * Our 4 KB map already has them packed in that order. */
+    memcpy(bank_a + SCREEN_BASE_OFFSET, map, 4096);
+
+    /* 256-colour palette: 512 B → palette_main slot 0. */
+    uint32_t pal_copy = pal_sz < 512 ? pal_sz : 512;
+    memcpy(bank_e, pal, pal_copy);
+    if (pal_copy < 512) memset(bank_e + pal_copy, 0, 512 - pal_copy);
+
+    /*
+     * BG0CNT for 8bpp 64×32 text BG:
+     *   bits[1:0]   = 0   priority 0
+     *   bits[5:2]   = 0   char_base = 0  (tiles at VRAM+0x0000)
+     *   bit 7       = 1   8bpp colour mode
+     *   bits[12:8]  = 16  screen_base = 16 → map at VRAM+0x8000
+     *   bits[15:14] = 1   screen_size 1 → 64×32 tilemap
+     */
+    nds_reg_write16(REG_BG0CNT, (uint16_t)(0x1080u | (1u << 14)));
+    nds_reg_write16(REG_BG1CNT, 0);
+    nds_reg_write16(REG_BG2CNT, 0);
+    nds_reg_write16(REG_BG3CNT, 0);
+
+    /* DISPCNT: BG mode 0 + BG0 visible. */
+    nds_reg_write32(REG_DISPCNT, 0x0100u);
+
+    nds_log("[boot_hook] Paired screen loaded: tiles=FAT[0x45].sub[181] (32K), "
+            "map=sub[178] (4K, 64x32), palette=sub[185] (%uB, 8bpp)\n",
+            (unsigned)pal_copy);
+    return 1;
+}

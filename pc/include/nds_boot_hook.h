@@ -44,6 +44,7 @@ int boot_hook_real_tiles(void);
  * Returns 1 on success, 0 if the asset is not found.
  */
 int show_asset_in_vram(int fat_index);
+int boot_hook_paired_screen(void);
 
 #ifdef __cplusplus
 }

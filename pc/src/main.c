@@ -141,8 +141,9 @@ int main(int argc, char** argv) {
             boot_hook_vram();
         }
     } else {
-        /* Try to show real game tiles (FAT[0x62]); fall back to synthetic */
-        if (!boot_hook_real_tiles()) {
+        /* Try paired tile/map/palette screen first; on failure fall back to
+         * the raw FAT[0x62] tile sheet, then to the synthetic test pattern. */
+        if (!boot_hook_paired_screen() && !boot_hook_real_tiles()) {
             boot_hook_vram();
         }
     }

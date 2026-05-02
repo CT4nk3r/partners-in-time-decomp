@@ -29,28 +29,62 @@ import struct
 ARM9_LOAD_BASE = 0x02004000
 
 
-# Slot manifest: each entry is (ram_addr, size_bytes, c_label).
-# - For pointer/scalar slots, size is 4 (or 2/1 for halfword/byte).
-# - For blob slots (e.g. config arrays), size is the blob length.
+# Slot manifest: each entry is a dict-like tuple. Entry kinds:
 #
-# The generated header exposes:
-#   * #define HOSTDATA_<LABEL>  <hex value>      (for size 1/2/4)
-#   * static const u8 HOSTDATA_<LABEL>_BYTES[]   (always)
+#   ("scalar", ram_addr, size, c_label)
+#       Emits   #define HOSTDATA_<label> 0xVALUE  (size 1/2/4)
+#       Emits   static const u8 HOSTDATA_<label>_BYTES[size] = { ... }
 #
-# Callers in host_data_init.c can pick whichever form fits.
+#   ("blob",   ram_addr, size, c_label)
+#       Emits only the bytes array (no #define). Use for tables /
+#       config blobs / structs whose value is the bytes themselves.
+#
+#   ("ptr_blob", ptr_ram_addr, blob_size, c_label)
+#       Reads the 4-byte pointer at ptr_ram_addr from arm9.bin, then
+#       extracts blob_size bytes from the address that pointer points
+#       to (still inside arm9.bin range). Emits:
+#         #define HOSTDATA_<label>_PTR 0xVALUE   (the original RAM addr)
+#         static const u8 HOSTDATA_<label>_BYTES[blob_size] = { ... }
+#       The blob can be installed as the host pointer for that slot.
 SLOTS = [
-    # game_init.c clGameMain factory slots (FUN_02005b70 family).
-    (0x02005D28, 4,  "DAT_02005D28"),  # sGameState slot ptr (we override)
-    (0x02005D2C, 4,  "DAT_02005D2C"),  # clGameMain alloc size = 0x58C
-    (0x02005D30, 4,  "DAT_02005D30"),  # cfg-blob intra-struct offset = 0x57C
-    (0x02005D34, 4,  "DAT_02005D34"),  # config blob ptr = 0x02048F44
-    (0x02005D38, 4,  "DAT_02005D38"),  # display-mode flag ptr = 0x02059C8C
-    (0x02005D68, 4,  "DAT_02005D68"),  # scene-jump fn ptr = 0x0202A56C
+    # ---- game_init.c clGameMain factory slots (FUN_02005b70 family) ----
+    ("scalar", 0x02005D28, 4,  "DAT_02005D28"),  # sGameState slot ptr
+    ("scalar", 0x02005D2C, 4,  "DAT_02005D2C"),  # alloc size = 0x58C
+    ("scalar", 0x02005D30, 4,  "DAT_02005D30"),  # cfg-blob offset = 0x57C
+    ("scalar", 0x02005D34, 4,  "DAT_02005D34"),  # cfg blob ptr
+    ("scalar", 0x02005D38, 4,  "DAT_02005D38"),  # disp-flag ptr
+    ("scalar", 0x02005D68, 4,  "DAT_02005D68"),  # scene-jump = 0x0202A56C
 
-    # Default config blob (32 bytes at 0x02048F44, pointed to by
-    # DAT_02005D34). FUN_02005b70 reads up to puVar2[6] / +0xC bytes -
-    # 32 bytes is generous and matches the natural .data alignment.
-    (0x02048F44, 32, "CONFIG_BLOB_02048F44"),
+    # Default config blob (32 bytes at 0x02048F44).
+    ("blob",   0x02048F44, 32, "CONFIG_BLOB_02048F44"),
+
+    # ---- display_system.c .data slots (FUN_020192f8 family) ----
+    # DAT_02019730 = 0x02059C68 - same word as DAT_02005D28 (host
+    # overrides this with the live slot pointer at runtime).
+    ("scalar", 0x02019730, 4,  "DAT_02019730"),
+    # DAT_02019744 / 02019768 are scalar offsets (0x41C / 0x464).
+    ("scalar", 0x02019744, 4,  "DAT_02019744"),
+    ("scalar", 0x02019768, 4,  "DAT_02019768"),
+
+    # Pointer-typed slots: extract both the original RAM ptr value
+    # and a backing blob from the pointer target. 128 bytes covers
+    # the small lookup tables that FUN_020192f8 indexes for param_1=0.
+    ("ptr_blob", 0x02019734, 128, "DISP_TBL_02019734"),
+    ("ptr_blob", 0x02019738, 64,  "DISP_TBL_02019738"),
+    ("ptr_blob", 0x0201973C, 64,  "DISP_TBL_0201973C"),
+    ("ptr_blob", 0x02019740, 64,  "DISP_TBL_02019740"),
+    ("ptr_blob", 0x02019748, 128, "DISP_TBL_02019748"),
+    ("ptr_blob", 0x0201974C, 64,  "DISP_TBL_0201974C"),
+    ("ptr_blob", 0x02019750, 64,  "DISP_TBL_02019750"),
+    ("ptr_blob", 0x02019754, 64,  "DISP_TBL_02019754"),
+    ("ptr_blob", 0x02019758, 128, "DISP_TBL_02019758"),
+    ("ptr_blob", 0x0201975C, 64,  "DISP_TBL_0201975C"),
+    ("ptr_blob", 0x02019760, 64,  "DISP_TBL_02019760"),
+    ("ptr_blob", 0x02019764, 64,  "DISP_TBL_02019764"),
+    ("ptr_blob", 0x0201976C, 128, "DISP_TBL_0201976C"),
+    ("ptr_blob", 0x02019770, 64,  "DISP_TBL_02019770"),
+    ("ptr_blob", 0x02019774, 64,  "DISP_TBL_02019774"),
+    ("ptr_blob", 0x02019778, 64,  "DISP_TBL_02019778"),
 ]
 
 
@@ -72,29 +106,62 @@ def emit_header(arm9_path: str, out_path: str) -> None:
     lines.append(f"#define HOSTDATA_ARM9_LOAD_BASE 0x{ARM9_LOAD_BASE:08X}u")
     lines.append("")
 
-    for ram_addr, size, label in SLOTS:
-        off = ram_addr - ARM9_LOAD_BASE
+    def read_chunk(addr, size, what):
+        off = addr - ARM9_LOAD_BASE
         if off < 0 or off + size > len(arm9):
             raise SystemExit(
-                f"slot {label} 0x{ram_addr:08X} (+{size}) out of arm9.bin "
-                f"range (size {len(arm9)})")
-        chunk = arm9[off:off + size]
+                f"{what} 0x{addr:08X} (+{size}) out of arm9.bin range "
+                f"(size {len(arm9)})")
+        return arm9[off:off + size]
 
-        lines.append(f"/* {label}: ram=0x{ram_addr:08X} size={size} */")
-        if size in (1, 2, 4):
+    def fmt_bytes(name, chunk):
+        byte_str = ", ".join(f"0x{b:02X}" for b in chunk)
+        return (f"static const unsigned char HOSTDATA_{name}_BYTES"
+                f"[{len(chunk)}] = {{ {byte_str} }};")
+
+    n_emitted = 0
+    for entry in SLOTS:
+        kind = entry[0]
+        if kind == "scalar":
+            _, ram_addr, size, label = entry
+            chunk = read_chunk(ram_addr, size, label)
+            lines.append(f"/* {label}: scalar ram=0x{ram_addr:08X} size={size} */")
             if size == 1:
                 value = chunk[0]
+                fmtw = 2
             elif size == 2:
                 (value,) = struct.unpack_from("<H", chunk, 0)
-            else:
+                fmtw = 4
+            elif size == 4:
                 (value,) = struct.unpack_from("<I", chunk, 0)
-            lines.append(f"#define HOSTDATA_{label} 0x{value:0{size*2}X}u")
-
-        byte_str = ", ".join(f"0x{b:02X}" for b in chunk)
-        lines.append(
-            f"static const unsigned char HOSTDATA_{label}_BYTES[{size}] = "
-            f"{{ {byte_str} }};")
-        lines.append("")
+                fmtw = 8
+            else:
+                raise SystemExit(f"scalar size must be 1/2/4: {entry}")
+            lines.append(f"#define HOSTDATA_{label} 0x{value:0{fmtw}X}u")
+            lines.append(fmt_bytes(label, chunk))
+            lines.append("")
+            n_emitted += 1
+        elif kind == "blob":
+            _, ram_addr, size, label = entry
+            chunk = read_chunk(ram_addr, size, label)
+            lines.append(f"/* {label}: blob ram=0x{ram_addr:08X} size={size} */")
+            lines.append(fmt_bytes(label, chunk))
+            lines.append("")
+            n_emitted += 1
+        elif kind == "ptr_blob":
+            _, ptr_addr, blob_size, label = entry
+            ptr_chunk = read_chunk(ptr_addr, 4, label + "_PTR")
+            (target,) = struct.unpack_from("<I", ptr_chunk, 0)
+            chunk = read_chunk(target, blob_size, label)
+            lines.append(
+                f"/* {label}: ptr@0x{ptr_addr:08X} -> 0x{target:08X} "
+                f"({blob_size} bytes) */")
+            lines.append(f"#define HOSTDATA_{label}_PTR 0x{target:08X}u")
+            lines.append(fmt_bytes(label, chunk))
+            lines.append("")
+            n_emitted += 1
+        else:
+            raise SystemExit(f"unknown slot kind: {entry}")
 
     lines.append("#endif /* HOST_DATA_INIT_GENERATED_H */")
     lines.append("")
@@ -103,7 +170,7 @@ def emit_header(arm9_path: str, out_path: str) -> None:
         f.write("\n".join(lines))
 
     print(f"[extract_data_inits] wrote {out_path} "
-          f"({len(SLOTS)} slots from {arm9_path})")
+          f"({n_emitted} slots from {arm9_path})")
 
 
 def main(argv):

@@ -26,6 +26,7 @@ set(PC_SOURCES
     src/asset_extractor.c
     src/nds_boot_hook.c
     src/host_data_init.c
+    src/host_display_data_init.c
     src/asset_viewer.c
 )
 

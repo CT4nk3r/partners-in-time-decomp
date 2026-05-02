@@ -19,6 +19,10 @@
  */
 
 #include "types.h"
+#ifdef HOST_PORT
+#include <stdio.h>
+#include <stdint.h>
+#endif
 
 /* Forward declarations for external functions */
 extern u32 FUN_02029c1c(u32, u32, u32, u32);
@@ -292,10 +296,19 @@ void FUN_02005b70(u16 *param_1)
     u32 uVar5;
     int iVar6;
 
+#ifdef HOST_PORT
+    fflush(stderr); fprintf(stderr, "[FUN_02005b70] enter param_1=%p DAT_02005d28=%p *DAT_02005d28=%p\n",
+            (void*)param_1, (void*)DAT_02005d28,
+            DAT_02005d28 ? (void*)(uintptr_t)*DAT_02005d28 : (void*)0xDEAD);
+#endif
     if (*DAT_02005d28 == 0) {
         iVar4 = FUN_02029c1c(DAT_02005d2c, 1, 0, 0);
         uVar5 = DAT_02005d2c;
         *DAT_02005d28 = iVar4;
+#ifdef HOST_PORT
+        fflush(stderr); fprintf(stderr, "[FUN_02005b70] alloc returned 0x%x size=0x%x\n",
+                (unsigned)iVar4, (unsigned)uVar5);
+#endif
         FUN_0202cc10((void *)iVar4, 0, uVar5);
         puVar2 = DAT_02005d34;
         iVar4 = DAT_02005d30;
@@ -337,8 +350,17 @@ void FUN_02005b70(u16 *param_1)
         *(u8 *)(iVar4 + 0x514) =
             (*(u8 *)(iVar4 + 0x514) & 0xbf) |
             (u8)((((u32)*(u16 *)(iVar4 + 0x57c) << 0x1c) >> 0x1f) << 6);
+#ifdef HOST_PORT
+        fflush(stderr); fprintf(stderr, "[FUN_02005b70] reached pre-FUN_020192f8\n"); fflush(stderr);
+#endif
         FUN_020192f8(0);
+#ifdef HOST_PORT
+        fflush(stderr); fprintf(stderr, "[FUN_02005b70] FUN_020192f8 returned\n"); fflush(stderr);
+#endif
         FUN_02018ed0();
+#ifdef HOST_PORT
+        fflush(stderr); fprintf(stderr, "[FUN_02005b70] FUN_02018ed0 returned\n"); fflush(stderr);
+#endif
         return;
     }
     return;

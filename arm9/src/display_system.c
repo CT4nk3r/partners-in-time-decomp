@@ -7,6 +7,9 @@
  * Decompiled from 0x02018d14-0x0201b568 region (24 functions)
  */
 #include "types.h"
+#ifdef HOST_PORT
+#include <stdio.h>
+#endif
 
 /* Forward declarations */
 extern void FUN_0203a04c(u32, u32);
@@ -168,7 +171,7 @@ extern void FUN_02026388(u8 *, u32, int, int, int, int, u32, u32, int, int, int,
 extern void FUN_02025810(u8 *, u8 *, int, int);
 extern u16 FUN_0202609c(u32, u32, int, int, int, u32, u32, int, u32, int);
 extern int FUN_020464b0(int, u32);
-extern void FUN_0202cc10(int, int, ...);
+extern void FUN_0202cc10(int, int, int);
 extern void FUN_0202cd68(u32, u32, int);
 extern void FUN_0202cc94(u32, u32, int);
 extern void FUN_0203b808(u32, int, int);
@@ -183,6 +186,52 @@ extern u32 DAT_020192e8;
 extern int DAT_020192ec;
 extern int DAT_020192f0;
 extern int DAT_020192f4;
+#ifdef HOST_PORT
+/* HOST_PORT: rewire DAT_02019730..d to host-side full-width globals
+ * defined in pc/src/host_display_data_init.c. The host_undefined_stubs.c
+ * versions are 4-byte uint32_t which collide adjacent slots when read
+ * as 8-byte pointers on a 64-bit host. Renaming via #define lets the
+ * linker pick our 8-byte definitions instead. */
+#include <stdint.h>
+#define DAT_02019730 g_disp_DAT_02019730
+#define DAT_02019734 g_disp_DAT_02019734
+#define DAT_02019738 g_disp_DAT_02019738
+#define DAT_0201973c g_disp_DAT_0201973c
+#define DAT_02019740 g_disp_DAT_02019740
+#define DAT_02019744 g_disp_DAT_02019744
+#define DAT_02019748 g_disp_DAT_02019748
+#define DAT_0201974c g_disp_DAT_0201974c
+#define DAT_02019750 g_disp_DAT_02019750
+#define DAT_02019754 g_disp_DAT_02019754
+#define DAT_02019758 g_disp_DAT_02019758
+#define DAT_0201975c g_disp_DAT_0201975c
+#define DAT_02019760 g_disp_DAT_02019760
+#define DAT_02019764 g_disp_DAT_02019764
+#define DAT_02019768 g_disp_DAT_02019768
+#define DAT_0201976c g_disp_DAT_0201976c
+#define DAT_02019770 g_disp_DAT_02019770
+#define DAT_02019774 g_disp_DAT_02019774
+#define DAT_02019778 g_disp_DAT_02019778
+extern int *DAT_02019730;
+extern short *DAT_02019734;
+extern intptr_t DAT_02019738;
+extern intptr_t DAT_0201973c;
+extern intptr_t DAT_02019740;
+extern intptr_t DAT_02019744;
+extern short *DAT_02019748;
+extern intptr_t DAT_0201974c;
+extern intptr_t DAT_02019750;
+extern intptr_t DAT_02019754;
+extern short *DAT_02019758;
+extern intptr_t DAT_0201975c;
+extern intptr_t DAT_02019760;
+extern intptr_t DAT_02019764;
+extern intptr_t DAT_02019768;
+extern short *DAT_0201976c;
+extern intptr_t DAT_02019770;
+extern intptr_t DAT_02019774;
+extern intptr_t DAT_02019778;
+#else
 extern int *DAT_02019730;
 extern short *DAT_02019734;
 extern int DAT_02019738;
@@ -202,6 +251,7 @@ extern short *DAT_0201976c;
 extern int DAT_02019770;
 extern int DAT_02019774;
 extern int DAT_02019778;
+#endif
 extern int DAT_0201977c;
 extern int DAT_02019780;
 extern int DAT_02019784;
@@ -333,10 +383,21 @@ void FUN_020192f8(int param_1)
   int unaff_r7;
   int iVar8;
   int iVar9;
-  
-  FUN_0202cc10(*DAT_02019730 + 0x3f8,0);
+
+#ifdef HOST_PORT
+  fflush(stderr); fprintf(stderr,
+    "[FUN_020192f8] enter p=%d *DAT_02019730=0x%x DAT_02019744=0x%x DAT_02019768=0x%x\n",
+    param_1, (unsigned)*DAT_02019730, (unsigned)DAT_02019744, (unsigned)DAT_02019768); fflush(stderr);
+#endif
+  FUN_0202cc10(*DAT_02019730 + 0x3f8,0,0x100);
+#ifdef HOST_PORT
+  fflush(stderr); fprintf(stderr, "[FUN_020192f8] after first MI_CpuFill32Fast\n"); fflush(stderr);
+#endif
   iVar8 = 0;
   do {
+#ifdef HOST_PORT
+    fflush(stderr); fprintf(stderr, "[FUN_020192f8] loop iVar8=%d\n", iVar8); fflush(stderr);
+#endif
     psVar5 = DAT_0201976c;
     psVar4 = DAT_02019758;
     psVar3 = DAT_02019748;
@@ -453,7 +514,7 @@ u32 * FUN_02019794(u32 *param_1)
   return param_1;
 }
 
-// FUN_02019808 @ 0x02019808 (128 bytes) - VBlank handler — process dirty flags
+// FUN_02019808 @ 0x02019808 (128 bytes) - VBlank handler ï¿½ process dirty flags
 void FUN_02019808(int param_1)
 
 {

@@ -149,7 +149,52 @@ void *OS_AllocFromHeap(u32 heap_id, int size, HeapBlock *block, int direction)
  */
 void *OS_Alloc(u32 size, u32 heap_id)
 {
+#ifdef HOST_PORT
+    /* The real heap requires OS_InitHeap + sHeapTable + an 8KB
+     * sHeapBuffer that we don't yet wire up on host. Carve from a
+     * low-memory arena so the returned pointers fit in the u32 slots
+     * the decompiled code uses (e.g. *DAT_02005d28 = (u32)alloc_result;
+     * later cast back to pointer). On 64-bit Windows libc malloc
+     * hands back addresses far above 4GiB which silently truncate.
+     *
+     * Strategy: lazily VirtualAlloc one big region whose base address
+     * fits in 32 bits, then bump-allocate from it. Never freed - this
+     * is a one-shot leak suitable for boot-up factories. */
+    extern void *VirtualAlloc(void *, unsigned long long, unsigned long, unsigned long);
+    extern void *memset(void *, int, unsigned long long);
+
+    static unsigned char *s_arena = 0;
+    static unsigned long s_off = 0;
+    static const unsigned long ARENA_SIZE = 4u * 1024u * 1024u; /* 4 MiB */
+
+    if (!s_arena) {
+        /* MEM_RESERVE|MEM_COMMIT = 0x3000, PAGE_READWRITE = 0x04. */
+        for (unsigned long base = 0x10000000u; base < 0x80000000u && !s_arena;
+             base += 0x01000000u) {
+            s_arena = (unsigned char *)VirtualAlloc(
+                (void *)(unsigned long long)base, ARENA_SIZE,
+                0x3000u, 0x04u);
+        }
+        if (!s_arena) {
+            s_arena = (unsigned char *)VirtualAlloc(
+                (void *)0, ARENA_SIZE, 0x3000u, 0x04u);
+        }
+    }
+    if (!s_arena) {
+        return NULL;
+    }
+
+    u32 sz = (size + 7u) & ~7u;
+    if (s_off + sz > ARENA_SIZE) {
+        return NULL;
+    }
+    unsigned char *p = s_arena + s_off;
+    s_off += sz;
+    memset(p, 0, sz);
+    return p;
+#else
     return OS_AllocFromHeap(heap_id, size, NULL, 0);
+#endif
 }
 
 /**

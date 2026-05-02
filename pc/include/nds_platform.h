@@ -97,6 +97,14 @@ void bg_render_sync_vram(void);
 void bg_render_top(uint16_t* fb);
 void bg_render_bottom(uint16_t* fb);
 
+/* === VRAM-write watcher (Task 4) ===
+ * Throttled tracker — see arm9/src/link_stubs.c for the body.  Call this
+ * from any code path that translates an NDS address to a host pointer
+ * (DMA, MI_*, register writes) so we can see what regions the running
+ * game actually touches per frame.
+ */
+void nds_track_write(uint32_t addr, uint32_t len, const char *origin);
+
 #ifdef __cplusplus
 }
 #endif

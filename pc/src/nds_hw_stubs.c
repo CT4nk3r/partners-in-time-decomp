@@ -230,6 +230,7 @@ void nds_dma_immediate(uint32_t dst_nds, uint32_t src_nds, uint32_t ctrl)
     if (src_nds == 0) {
         /* Fill with zeros */
         memset(dst_host, 0, byte_len);
+        nds_track_write(dst_nds, byte_len, "dma_fill");
         nds_log("[dma] fill_zero dst=%08X len=%u\n", dst_nds, byte_len);
         return;
     }
@@ -238,6 +239,7 @@ void nds_dma_immediate(uint32_t dst_nds, uint32_t src_nds, uint32_t ctrl)
     if (!src_host) return;
 
     memcpy(dst_host, src_host, byte_len);
+    nds_track_write(dst_nds, byte_len, "dma_copy");
     nds_log("[dma] immediate: src=%08X dst=%08X bytes=%u\n",
             src_nds, dst_nds, byte_len);
 }
@@ -274,6 +276,7 @@ void nds_reg_write32(uint32_t addr, uint32_t val) {
     int off = io_offset(addr);
     if (off < 0) return;
     memcpy(g_io_shadow + off, &val, 4);
+    nds_track_write(addr, 4, "reg_w32");
 
     /* DMA control register hook */
     if (val & DMA_ENABLE_BIT) {
@@ -292,6 +295,7 @@ void nds_reg_write16(uint32_t addr, uint16_t val) {
     int off = io_offset(addr);
     if (off < 0) return;
     memcpy(g_io_shadow + off, &val, 2);
+    nds_track_write(addr, 2, "reg_w16");
 }
 
 void nds_reg_write8(uint32_t addr, uint8_t val) {
@@ -299,4 +303,5 @@ void nds_reg_write8(uint32_t addr, uint8_t val) {
     int off = io_offset(addr);
     if (off < 0) return;
     g_io_shadow[off] = val;
+    nds_track_write(addr, 1, "reg_w8");
 }

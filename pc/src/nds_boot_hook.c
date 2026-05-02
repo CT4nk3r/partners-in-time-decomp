@@ -490,7 +490,7 @@ static int archive_get_subblock(uint32_t fat_id, uint32_t sub_index,
 }
 
 /* Parameterised loader used by top, sub, and MLPIT_BOOT_TRIPLE override.
- * engine: 0 = top (bank A, palette E[0..]), 1 = sub (bank C, palette E[0x400..])
+ * engine: 0 = top (bank A, palette E[0..]), 1 = sub (bank D, palette E[0x400..])
  * Returns 1 on success. */
 static int paired_screen_load(int engine, uint32_t fat_id,
                               uint32_t sub_tiles, uint32_t sub_map,
@@ -505,7 +505,12 @@ static int paired_screen_load(int engine, uint32_t fat_id,
     if (!archive_get_subblock(fat_id, sub_map,   &map,   &map_sz)   || map_sz   != 4096)     return 0;
     if (!archive_get_subblock(fat_id, sub_pal,   &pal,   &pal_sz)   || pal_sz   < 32)        return 0;
 
-    char vram_bank = (engine == 0) ? 'A' : 'C';
+    /* Sub engine: write to bank D (the conventional sub-engine BG VRAM
+     * bank — see GBATEK VRAMCNT_D = 0x84 maps D at 0x06200000).
+     * Old behaviour wrote to bank C, which on real hardware is a main-
+     * engine BG bank, and caused the bottom screen to mirror the top in
+     * the SDL composite (see milestone 02). */
+    char vram_bank = (engine == 0) ? 'A' : 'D';
     uint32_t pal_off = (engine == 0) ? 0u : 0x400u;
     uint32_t dispcnt_reg = (engine == 0) ? 0x04000000u : 0x04001000u;
     uint32_t bg0cnt_reg  = (engine == 0) ? REG_BG0CNT  : 0x04001008u;

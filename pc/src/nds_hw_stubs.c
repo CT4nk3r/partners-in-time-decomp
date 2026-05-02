@@ -80,7 +80,8 @@ static void *nds_addr_to_host(uint32_t addr, uint32_t len)
         addr + len <= NDS_IO_BASE + NDS_IO_SIZE)
         return g_io_shadow + (addr - NDS_IO_BASE);
 
-    /* Palette RAM 0x05000000 (main engine: first 512 B of bank E) */
+    /* Palette RAM 0x05000000 (main engine: first 512 B of bank E,
+     * sub engine palette at 0x05000400 — also lives in bank E, offset 0x400). */
     {
         void *e = nds_vram_bank('E');
         uint32_t esz = nds_vram_bank_size('E');
@@ -104,12 +105,35 @@ static void *nds_addr_to_host(uint32_t addr, uint32_t len)
             return (uint8_t *)b + (addr - 0x06020000u);
     }
 
-    /* VRAM bank C 0x06040000 – (sub engine) */
+    /* VRAM bank C 0x06040000 – (continuation of main engine BG) */
     {
         void *c = nds_vram_bank('C');
         uint32_t csz = nds_vram_bank_size('C');
         if (c && addr >= 0x06040000u && addr + len <= 0x06040000u + csz)
             return (uint8_t *)c + (addr - 0x06040000u);
+    }
+
+    /* ── Sub-engine BG VRAM 0x06200000 – 0x0621FFFF (typically bank D) ── */
+    {
+        void *d = nds_vram_bank('D');
+        uint32_t dsz = nds_vram_bank_size('D');
+        if (d && addr >= 0x06200000u && addr + len <= 0x06200000u + dsz)
+            return (uint8_t *)d + (addr - 0x06200000u);
+    }
+
+    /* ── Sub-engine OBJ VRAM 0x06600000 – 0x0661FFFF (banks H/I when
+     *    mapped to sub OBJ; we route H first, fall through to I).      */
+    {
+        void *h = nds_vram_bank('H');
+        uint32_t hsz = nds_vram_bank_size('H');
+        if (h && addr >= 0x06600000u && addr + len <= 0x06600000u + hsz)
+            return (uint8_t *)h + (addr - 0x06600000u);
+    }
+    {
+        void *i = nds_vram_bank('I');
+        uint32_t isz = nds_vram_bank_size('I');
+        if (i && addr >= 0x06608000u && addr + len <= 0x06608000u + isz)
+            return (uint8_t *)i + (addr - 0x06608000u);
     }
 
     /* OAM RAM: main 0x07000000-0x070003FF, sub 0x07000400-0x070007FF.

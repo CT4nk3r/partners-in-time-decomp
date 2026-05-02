@@ -53,6 +53,32 @@ yet composited per-engine correctly.
 
 **Commit:** `ffe98c7`
 
+### 03 — Per-engine VRAM split (top ≠ bottom)
+
+![Per-engine split](progress/03_per_engine_split.png)
+
+Sub-engine VRAM is now backed by bank D (mapped at NDS `0x06200000`,
+the canonical sub BG VRAM bank), and the SDL composite reads the two
+engines from independent mirrors:
+
+* `bg_render_top` → `g_vram_main`  (banks A + B at `0x06000000+`)
+* `bg_render_bottom` → `g_vram_sub` (bank D at `0x06200000+`)
+
+`MLPIT_TEST_SHADOW_OAM=1` now paints two distinct synthetic OBJ
+descriptors into the **sub** shadow buffer at `0x020603C0` as well as
+the original three into the main shadow at `0x0205FFC0`:
+
+| Engine | OBJ | Pos     | Size  |
+|--------|-----|---------|-------|
+| MAIN   | 0   | 40,40   | 16×16 |
+| MAIN   | 1   | 90,70   | 32×32 |
+| MAIN   | 2   | 150,130 | 64×32 |
+| SUB    | 0   | 200,20  | 8×8   |
+| SUB    | 1   | 60,100  | 32×64 |
+
+The screenshot confirms each set is rasterised on its respective
+half — top and bottom no longer mirror.
+
 ## Component Status
 
 | Component                       | Status |
@@ -66,7 +92,7 @@ yet composited per-engine correctly.
 | NDS→host fnptr trampoline       | ✅ ~1 050 entries, vtable indirect calls work |
 | 2D OAM pipeline (shadow → hw)   | ✅ Verified end-to-end (milestone 01) |
 | BG VRAM tile fetch              | ✅ Real tile data reaches VRAM (milestone 02) |
-| Per-engine compositing          | 🔲 Sub engine duplicates main (milestone 02 bug) |
+| Per-engine compositing          | ✅ Sub backed by bank D, top ≠ bottom (milestone 03) |
 | GXFIFO → SDL 3D rasteriser      | 🔲 Not yet wired |
 | Real scene struct populated     | 🔲 Natural init path still SIGSEGVs deeper in `game_start` |
 | Audio (NDS APU shim)            | 🔲 Not started |
@@ -74,9 +100,6 @@ yet composited per-engine correctly.
 
 ## Current Blockers
 
-- **Per-engine VRAM compositing** — sub engine reads from main's VRAM bank.
-  Fix: separate `g_vram_main` / `g_vram_sub` mirrors in `pc/src/nds_hw_io.c`
-  and route the SDL composite per-engine.
 - **No live scene struct** — `FUN_02065A10` ticks every frame but its scene
   pointer is null, so it never walks any entities. Two paths forward:
   fix the deeper `game_start` SIGSEGV so the natural init populates the

@@ -75,7 +75,12 @@ void host_oam_upload_tick(int frame_idx) {
 
     /* Test mode: paint synthetic sprites directly into shadow OAM each
      * frame, so we can verify the entire upload-→-rasterise pipeline
-     * end-to-end without depending on overlay code populating it. */
+     * end-to-end without depending on overlay code populating it.
+     *
+     * Main shadow OAM (0x0205FFC0): 3 boxes, top-left / centre / large.
+     * Sub  shadow OAM (0x020603C0): 2 distinct boxes at different sizes
+     * and positions, so a successful per-engine VRAM split is visually
+     * unambiguous (top half ≠ bottom half). */
     if (getenv("MLPIT_TEST_SHADOW_OAM")) {
         uint8_t *shadow_main_w = (uint8_t *)(uintptr_t)NDS_SHADOW_OAM_MAIN;
         memset(shadow_main_w, 0, NDS_OAM_BYTES);
@@ -100,6 +105,30 @@ void host_oam_upload_tick(int frame_idx) {
         shadow_main_w[16]=a0; shadow_main_w[17]=a0>>8;
         shadow_main_w[18]=a1; shadow_main_w[19]=a1>>8;
         shadow_main_w[20]=a2; shadow_main_w[21]=a2>>8;
+
+        /* Distinct sub-engine descriptors so a per-engine split is
+         * visually obvious: 8x8 top-right corner + 32x64 vertical bar. */
+        uint8_t *shadow_sub_w  = (uint8_t *)(uintptr_t)NDS_SHADOW_OAM_SUB;
+        memset(shadow_sub_w, 0, NDS_OAM_BYTES);
+        /* SUB OBJ 0: 8x8 at (200, 20) — would clip badly on top half */
+        a0 = (uint16_t)((0u << 14) | (0u << 8) | (20u & 0xFF));
+        a1 = (uint16_t)((0u << 14) | (200u & 0x1FF));
+        a2 = 0x0055;
+        shadow_sub_w[0]=a0; shadow_sub_w[1]=a0>>8;
+        shadow_sub_w[2]=a1; shadow_sub_w[3]=a1>>8;
+        shadow_sub_w[4]=a2; shadow_sub_w[5]=a2>>8;
+        /* SUB OBJ 1: 32x64 vertical at (60, 100) */
+        a0 = (uint16_t)((2u << 14) | (0u << 8) | (100u & 0xFF));
+        a1 = (uint16_t)((3u << 14) | (60u & 0x1FF));
+        a2 = 0x00C9;
+        shadow_sub_w[8]=a0; shadow_sub_w[9]=a0>>8;
+        shadow_sub_w[10]=a1; shadow_sub_w[11]=a1>>8;
+        shadow_sub_w[12]=a2; shadow_sub_w[13]=a2>>8;
+
+        /* Force the sub-display flag at +0x834 to 0 so the upload below
+         * actually runs.  Without this the upload guard short-circuits. */
+        *(volatile uint32_t *)(uintptr_t)
+            (NDS_SUB_DISPLAY_FLAG_BASE + NDS_SUB_DISPLAY_FLAG_OFFS) = 0;
     }
 
     const uint8_t *shadow_main = (const uint8_t *)(uintptr_t)NDS_SHADOW_OAM_MAIN;

@@ -31,6 +31,22 @@
 #define BG_TILE_BLOCK_SIZE 0x4000
 #define TILE_4BPP_SIZE     32
 
+/*
+ * Per-engine VRAM mirror layout
+ *
+ *   Main engine BG VRAM @ NDS 0x06000000:  banks A (128 KB) + B (128 KB)
+ *     → g_vram_main[256 KB]
+ *
+ *   Sub  engine BG VRAM @ NDS 0x06200000:  bank D (128 KB) primary, with
+ *                                          bank C as a legacy fallback so
+ *                                          old boot-hook content (which used
+ *                                          to write bank C for sub) is still
+ *                                          visible until it's migrated.
+ *     → g_vram_sub[128 KB]
+ *
+ *   Main palette  @ NDS 0x05000000:  first  512 B of bank E
+ *   Sub  palette  @ NDS 0x05000400:  second 512 B of bank E
+ */
 static uint8_t g_palette_main[512];
 static uint8_t g_palette_sub[512];
 static uint8_t g_vram_main[256 * 1024];
@@ -40,10 +56,27 @@ void bg_render_sync_vram(void) {
     void *bank_a = nds_vram_bank('A');
     void *bank_b = nds_vram_bank('B');
     void *bank_c = nds_vram_bank('C');
+    void *bank_d = nds_vram_bank('D');
 
+    /* Main engine: A then B contiguous. */
     if (bank_a) memcpy(g_vram_main,              bank_a, 128 * 1024);
     if (bank_b) memcpy(g_vram_main + 128 * 1024, bank_b, 128 * 1024);
-    if (bank_c) memcpy(g_vram_sub,               bank_c, 128 * 1024);
+
+    /* Sub engine: prefer bank D (the conventional sub BG VRAM bank).
+     * If bank D is all-zero (nothing has been written yet) and bank C
+     * is non-zero, fall back to bank C so legacy content stays visible
+     * during the migration. */
+    if (bank_d) {
+        memcpy(g_vram_sub, bank_d, 128 * 1024);
+    }
+    if (bank_c) {
+        int d_empty = 1;
+        if (bank_d) {
+            const uint8_t *p = (const uint8_t *)bank_d;
+            for (int i = 0; i < 4096; i++) { if (p[i]) { d_empty = 0; break; } }
+        }
+        if (d_empty) memcpy(g_vram_sub, bank_c, 128 * 1024);
+    }
 
     void *bank_e = nds_vram_bank('E');
     if (bank_e) {

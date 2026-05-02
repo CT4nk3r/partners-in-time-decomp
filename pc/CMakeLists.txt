@@ -28,6 +28,8 @@ set(PC_SOURCES
     src/host_data_init.c
     src/host_display_data_init.c
     src/asset_viewer.c
+    src/nds_arm9_ram.c
+    ${CMAKE_BINARY_DIR}/generated/nds_dat_init_generated.c
 )
 
 # Decompiled ARM9 game code (compiled for host with HOST_PORT shim)
@@ -92,6 +94,28 @@ else()
 endif()
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/host_data_init.c
     PROPERTIES OBJECT_DEPENDS ${_data_init_header})
+
+# DAT_<addr> wholesale .data initializer: parse host_undefined_stubs.c
+# for every `DAT_<addr>` declaration, emit (1) a header with extern
+# decls + a (nds_addr, &symbol, size) table and (2) a C source that
+# memcpys bytes from the VirtualAlloc'd arm9.bin shadow into each
+# host-side global.  No ROM bytes enter the build tree - the table is
+# just addresses.
+set(_dat_gen_script "${CMAKE_CURRENT_SOURCE_DIR}/../tools/scripts/gen_dat_init_from_stubs.py")
+set(_dat_table_h    "${CMAKE_BINARY_DIR}/generated/dat_init_table.h")
+set(_dat_init_src   "${CMAKE_BINARY_DIR}/generated/nds_dat_init_generated.c")
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} ${_dat_gen_script}
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/host_undefined_stubs.c
+            ${_dat_table_h}
+            ${_dat_init_src}
+    RESULT_VARIABLE _dat_rc
+)
+if(NOT _dat_rc EQUAL 0)
+    message(FATAL_ERROR "gen_dat_init_from_stubs.py failed (rc=${_dat_rc})")
+endif()
+set_source_files_properties(${_dat_init_src}
+    PROPERTIES OBJECT_DEPENDS "${_dat_table_h};${_dat_gen_script};${CMAKE_CURRENT_SOURCE_DIR}/src/host_undefined_stubs.c")
 
 target_compile_definitions(mlpit_pc PRIVATE
     HOST_PORT=1

@@ -71,3 +71,6 @@ trace_run*.log
 
 pc/workspace/
 
+
+run*.log
+

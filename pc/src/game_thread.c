@@ -47,6 +47,16 @@ int game_thread_main(void* user) {
     nds_log("[game] initializing host game state...\n");
     game_state_host_init();
 
+    /* HOST_PORT: map ARM9 main RAM at 0x02000000 from arm9.bin so that
+     * any decomp path reading via raw NDS pointer literal sees real
+     * .data values.  Must run before any decompiled code executes. */
+    nds_arm9_ram_init();
+
+    /* HOST_PORT: copy .data initial values from the mapped arm9.bin into
+     * every C-level DAT_<addr> global (1267 of them).  Generated table
+     * lives in build/generated/dat_init_table.h. */
+    nds_apply_dat_inits();
+
     /* HOST_PORT: install the .data literals FUN_02005b70 needs (slot ptr,
      * alloc size, default config, display flag).  Must run before any
      * call into FUN_02005b70 / game_state_host_engage_real. */

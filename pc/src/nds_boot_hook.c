@@ -501,7 +501,7 @@ static int paired_screen_load(int engine, uint32_t fat_id,
     const uint8_t *tiles = NULL, *map = NULL, *pal = NULL;
     uint32_t       tiles_sz = 0, map_sz = 0, pal_sz = 0;
 
-    if (!archive_get_subblock(fat_id, sub_tiles, &tiles, &tiles_sz) || tiles_sz < 32 * 1024) return 0;
+    if (!archive_get_subblock(fat_id, sub_tiles, &tiles, &tiles_sz) || tiles_sz < 4096) return 0;
     if (!archive_get_subblock(fat_id, sub_map,   &map,   &map_sz)   || map_sz   != 4096)     return 0;
     if (!archive_get_subblock(fat_id, sub_pal,   &pal,   &pal_sz)   || pal_sz   < 32)        return 0;
 
@@ -523,7 +523,9 @@ static int paired_screen_load(int engine, uint32_t fat_id,
     if (!bank || !bank_e) return 0;
 
     memset(bank, 0, SCREEN_BASE_OFFSET + 4096);
-    memcpy(bank + CHAR_BASE_OFFSET, tiles, 32 * 1024);
+    /* Cap tiles copy at the char-block size to avoid clobbering the screen base. */
+    uint32_t tiles_copy = tiles_sz < SCREEN_BASE_OFFSET ? tiles_sz : SCREEN_BASE_OFFSET;
+    memcpy(bank + CHAR_BASE_OFFSET, tiles, tiles_copy);
     memcpy(bank + SCREEN_BASE_OFFSET, map, 4096);
 
     uint32_t pal_copy = pal_sz < 512 ? pal_sz : 512;

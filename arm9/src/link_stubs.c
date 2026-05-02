@@ -300,12 +300,21 @@ void DC_StoreRange(const void *addr, u32 size)        { (void)addr; (void)size; 
 void IC_InvalidateRange(const void *addr, u32 size)  { (void)addr; (void)size; }
 
 /* MI_DmaCopy32 / MI_DmaFill32 — synchronous 32-bit DMA copy/fill */
+#ifdef HOST_PORT
+extern void host_log_vram_dma(const char *kind, const void *src, void *dst, u32 size);
+#endif
 void MI_DmaCopy32(u32 ch, const void *src, void *dst, u32 size) {
     (void)ch;
+#ifdef HOST_PORT
+    host_log_vram_dma("MI_DmaCopy32", src, dst, size);
+#endif
     if (src && dst && size) memcpy(dst, src, size);
 }
 void MI_DmaFill32(u32 ch, void *dst, u32 val, u32 size) {
     (void)ch;
+#ifdef HOST_PORT
+    host_log_vram_dma("MI_DmaFill32", NULL, dst, size);
+#endif
     if (dst && size) {
         u32 words = size / 4;
         for (u32 i = 0; i < words; i++) ((u32 *)dst)[i] = val;
@@ -313,6 +322,9 @@ void MI_DmaFill32(u32 ch, void *dst, u32 val, u32 size) {
 }
 void MI_DmaCopy16(u32 ch, const void *src, void *dst, u32 size) {
     (void)ch;
+#ifdef HOST_PORT
+    host_log_vram_dma("MI_DmaCopy16", src, dst, size);
+#endif
     if (src && dst && size) memcpy(dst, src, size);
 }
 
@@ -766,12 +778,28 @@ void func_0x01ff84c0(u32 ch, u32 dst, u32 src, u32 ctrl) {
 }
 void DC_FlushRange(const void *a, u32 s)   { (void)a; (void)s; }
 void DC_InvalidateRange(const void *a, u32 s){ (void)a; (void)s; }
+#ifdef HOST_PORT
+extern void host_log_vram_dma(const char *kind, const void *src, void *dst, u32 size);
+#endif
 void MI_DmaCopy32(u32 c, const void *s2, void *d, u32 sz) {
-    (void)c; (void)s2; (void)d; (void)sz;
+    (void)c;
+#ifdef HOST_PORT
+    host_log_vram_dma("MI_DmaCopy32(stub)", s2, d, sz);
+#endif
+    (void)s2; (void)d; (void)sz;
 }
-void MI_DmaFill32(u32 c, void *d, u32 v, u32 sz) { (void)c; (void)d; (void)v; (void)sz; }
+void MI_DmaFill32(u32 c, void *d, u32 v, u32 sz) {
+#ifdef HOST_PORT
+    host_log_vram_dma("MI_DmaFill32(stub)", NULL, d, sz);
+#endif
+    (void)c; (void)d; (void)v; (void)sz;
+}
 void MI_DmaCopy16(u32 c, const void *s2, void *d, u32 sz) {
-    (void)c; (void)s2; (void)d; (void)sz;
+    (void)c;
+#ifdef HOST_PORT
+    host_log_vram_dma("MI_DmaCopy16(stub)", s2, d, sz);
+#endif
+    (void)s2; (void)d; (void)sz;
 }
 
 /* === BIOS LZ77 wrappers ============================================

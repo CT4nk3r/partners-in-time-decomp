@@ -174,6 +174,68 @@ polling sampler in `host_gxfifo_observer.c`).  Bridging that into
 the next session's task; for now the synth emitter remains the
 production drawing path.
 
+### 09 — Natural VRAM-population audit + scene-style triple variants
+
+![Natural VRAM audit](progress/09_natural_vram_audit.png)
+
+This session instrumented the natural game-init path with a VRAM-
+target tap (`MLPIT_LOG_DECOMP=1`) on every SWI 0x0B / 0x11 / 0x12 /
+0x13 (CpuSet / LZ77 / Huff / RLE) and every `MI_DmaCopy*` /
+`MI_DmaFill*` shim.  Over a 180-frame natural-boot trace, **zero
+decomp-tap events fired**: the currently-decompiled code never
+issues a VRAM-targeted decompression, because `game_setup_overlay`
+is still a host stub (`pc/src/host_game_setup_overlay.c`) — the real
+boot-asset loaders live behind that stub in code that has not yet
+been transliterated.  This is the documented Track A blocker:
+loading Nintendo / AlphaDream / title-screen logos via the natural
+code path requires decompiling the initial-scene-overlay
+constructor first (`FUN_02004EF8` family).
+
+Track C audit: of the SDK GX surface, only `GX_VBlankWait`,
+`GX_SwapDisplay`, `GX_SetMasterBrightness`, `GX_SetVisiblePlane`
+and `GX_ResetVisiblePlane` have real bodies (HOST_PORT branch in
+`arm9/src/link_stubs.c`).  `GX_SetBank*` is unimplemented but a
+zero-hits ripgrep across `arm9/src/` confirms **no decompiled code
+calls `GX_SetBank*`** — the decompiled writers go straight to the
+VRAMCNT MMIO at `0x04000240..0x04000248`, which is already routed
+through `nds_hw_io.c`.  No host work is needed until a future
+decomp pass re-symbolicates a VRAMCNT writer back to its SDK name.
+
+Tactic-side win: relaxed `paired_screen_load`'s tile-sheet size
+gate (was `>= 32 KB`, now `>= 4 KB`) so the 12 candidate triples
+in `FAT[0x45]` that use the smaller 19 584 B and 17 344 B sheets
+(sub[368], sub[520]) become selectable via `MLPIT_BOOT_TRIPLE`.
+A scoring sweep (12 triples, 80-frame screenshots, distinct-
+colour + chroma metric) showed `45:368:378:369` produces the most
+scene-like top-screen image yet — 157 distinct colours, orange /
+brown / cyan banded composition vs. the font/UI atlas's vertical
+stripes (milestone 08 showed `45:181:194:177` = 104 distinct, all
+glyph-grid).  All sweep PNGs are committed to
+`docs/progress/09_triple_sweep/` for future identification work.
+The selected image is **not** a recognisable Nintendo / AlphaDream /
+title-screen logo — the 19 584 B tilesheet is too small to contain
+all map-referenced tile indices, so the visible composition is a
+real-data partial-decode (real palette + real tiles, but tile-IDs
+in the high range fetch undefined memory and contribute the
+noise).  Hence: no GitHub issue opened (recognisable-game-art
+threshold not crossed).
+
+Net session deliverables:
+
+* `MLPIT_LOG_DECOMP=1` instrumentation on the LZ77 / Huff / RLE /
+  CpuSet / DMA paths, with throttled (max-64) per-call traces of
+  any VRAM-region-destined transfer.
+* Loosened `paired_screen_load` size gate so 19 584 / 17 344 B
+  candidate tilesheets are selectable.
+* `tools/scripts/find_boot_screen_combos.py` + the loosened gate
+  unlock 12 additional triples (37 → 49 selectable in `FAT[0x45]`).
+* Documented Track A blocker: no decomp-tap events ⇒ natural code
+  path's boot-asset loaders are below the not-yet-decompiled
+  `game_setup_overlay` boundary.
+* Documented Track C audit: `GX_SetBank*` stubbed but
+  zero-referenced; VRAMCNT writes already routed through host I/O
+  shadow.
+
 ## Component Status
 
 | Component                       | Status |

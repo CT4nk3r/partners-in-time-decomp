@@ -14,8 +14,73 @@
 #include "arm_compat.h"
 #include "nds_platform.h"
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+
+/*
+ * Diagnostic taps for natural-path asset loaders.
+ *
+ * Track A (natural-vram-population session): the only references in
+ * decompiled arm9/src/ to LZ77 / CpuSet are stubs -- the real game
+ * boot loaders that decompress tilesheets/palettes/tilemaps into VRAM
+ * have not been decompiled yet (only ~236 of 1275 functions are done
+ * and they don't contain the boot-asset fetch path).  When MLPIT_LOG_DECOMP=1
+ * we print a one-line summary every time SWI 0x11/0x12/0x13 or SWI 0x0B
+ * (CpuSet) targets either main-engine BG VRAM (0x06000000-0x0607FFFF),
+ * sub-engine BG VRAM (0x06200000-0x0621FFFF), engine-A/B palette RAM
+ * (0x05000000-0x050007FF) or extended palette VRAM via banks E/F/G.
+ * If the natural code path triggers any of these the log surfaces
+ * the call site (return-addr unavailable here, but the trace pinpoints
+ * which decompressed asset just landed and where).
+ */
+#define VRAM_BG_MAIN_LO  0x06000000u
+#define VRAM_BG_MAIN_HI  0x0607FFFFu
+#define VRAM_BG_SUB_LO   0x06200000u
+#define VRAM_BG_SUB_HI   0x0621FFFFu
+#define VRAM_OBJ_MAIN_LO 0x06400000u
+#define VRAM_OBJ_MAIN_HI 0x0643FFFFu
+#define VRAM_PAL_LO      0x05000000u
+#define VRAM_PAL_HI      0x050007FFu
+
+static int decomp_log_enabled(void) {
+    static int s_state = -1;
+    if (s_state < 0) s_state = getenv("MLPIT_LOG_DECOMP") ? 1 : 0;
+    return s_state;
+}
+
+static const char *vram_region_name(uintptr_t a) {
+    if (a >= VRAM_BG_MAIN_LO && a <= VRAM_BG_MAIN_HI)   return "BG_MAIN";
+    if (a >= VRAM_BG_SUB_LO  && a <= VRAM_BG_SUB_HI)    return "BG_SUB";
+    if (a >= VRAM_OBJ_MAIN_LO&& a <= VRAM_OBJ_MAIN_HI)  return "OBJ_MAIN";
+    if (a >= VRAM_PAL_LO     && a <= VRAM_PAL_HI)       return "PAL";
+    return NULL;
+}
+
+static void log_vram_target(const char *kind, const void *src, void *dst,
+                            uint32_t size_or_mode) {
+    if (!decomp_log_enabled()) return;
+    uintptr_t da = (uintptr_t)dst;
+    /* Mask to NDS address space so host pointers (high) appear as
+     * their NDS-equivalent low 32 bits when the runtime maps RAM at
+     * the canonical NDS base via VirtualAlloc.  Otherwise this mask
+     * has no effect on already-low addresses. */
+    uintptr_t da_nds = da & 0xFFFFFFFFu;
+    const char *region = vram_region_name(da_nds);
+    if (!region) return;
+    static int s_count = 0;
+    if (s_count++ < 64) {
+        fprintf(stderr,
+                "[decomp-tap] %s src=%p dst=0x%08X region=%s sz/mode=0x%X\n",
+                kind, src, (unsigned)da_nds, region, (unsigned)size_or_mode);
+    }
+}
+
+/* Public hook used by link_stubs.c MI_DmaCopy* shims. */
+void host_log_vram_dma(const char *kind, const void *src, void *dst, u32 size) {
+    log_vram_target(kind, src, dst, (uint32_t)size);
+}
 
 /* ===== BIOS / SWI ===== */
 
@@ -30,6 +95,7 @@ void arm_swi_05_vblank_intr_wait(void) {
 }
 
 void arm_swi_0b_cpuset(const void *src, void *dst, u32 mode) {
+    log_vram_target("SWI_0B_CpuSet", src, dst, mode);
     /* SWI 0x0B = CpuSet (memcpy/memfill).
      * mode bits:
      *   [20:0]  = word/halfword count
@@ -96,6 +162,7 @@ u32  arm_cp15_get_insn_region(void)           { return g_insn_region; }
  */
 void arm_swi_11_lz77_decomp(const void *src, void *dst)
 {
+    log_vram_target("SWI_11_LZ77", src, dst, 0);
     const uint8_t *s = (const uint8_t *)src;
     uint8_t       *d = (uint8_t *)dst;
 
@@ -143,6 +210,7 @@ void arm_swi_11_lz77_decomp(const void *src, void *dst)
  */
 void arm_swi_12_huff_decomp(const void *src, void *dst)
 {
+    log_vram_target("SWI_12_Huff", src, dst, 0);
     const uint8_t *s = (const uint8_t *)src;
     uint8_t       *d = (uint8_t *)dst;
 
@@ -231,6 +299,7 @@ void arm_swi_12_huff_decomp(const void *src, void *dst)
  */
 void arm_swi_13_rle_decomp(const void *src, void *dst)
 {
+    log_vram_target("SWI_13_RLE", src, dst, 0);
     const uint8_t *s = (const uint8_t *)src;
     uint8_t       *d = (uint8_t *)dst;
 

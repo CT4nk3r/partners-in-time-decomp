@@ -122,6 +122,8 @@ int game_thread_main(void* user) {
     host_test_node_register();
     host_scene_queue_log_state("post_init");
     host_scene_queue_inject_fake();
+    extern void host_factory_instantiate(void);
+    host_factory_instantiate();
     host_scene_queue_log_state("post_inject");
 
     /* HOST_PORT: install the .data literals FUN_02005b70 needs (slot ptr,

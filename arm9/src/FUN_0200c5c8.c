@@ -31,8 +31,13 @@ void *FUN_0200c5c8(void *this)
 {
     *(unsigned int *)this = 0x02050B6Cu;
 
-    void (**vt)(void *) = *(void (***)(void *))this;
-    if (vt && vt[48]) vt[48](this);
+    {
+        unsigned int *vt = *(unsigned int **)this;
+        if (vt) {
+            unsigned int target = vt[48];
+            if (target) nds_call_1arg(target, (uintptr_t)this);
+        }
+    }
 
     nds_call_1arg(0x02008ee4u, (uintptr_t)this);
     return this;

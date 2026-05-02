@@ -310,6 +310,17 @@ void FUN_0202a33c_safe(void)
                         u32 vtable = *(volatile u32 *)(uintptr_t)node;
                         if (vtable && nds_addr_in_arm9(vtable)) {
                             u32 fn_addr = *(volatile u32 *)(uintptr_t)(vtable + 8);
+                            static int s_first = 0;
+                            if (!s_first) {
+                                s_first = 1;
+                                fprintf(stderr,
+                                        "[FUN_0202a33c_safe] FIRST_DISPATCH "
+                                        "node=0x%08X vtable=0x%08X fn=0x%08X "
+                                        "flags=0x%04X\n",
+                                        (unsigned)node, (unsigned)vtable,
+                                        (unsigned)fn_addr, (unsigned)flags);
+                                fflush(stderr);
+                            }
                             nds_call_2arg(fn_addr,
                                           (uintptr_t)node,
                                           (uintptr_t)anchor);

@@ -46,9 +46,16 @@ void *FUN_0200c58c(void *this)
 {
     *(unsigned int *)this = 0x02050B6Cu;
 
-    /* Virtual call: (*((void(**)(void*))*(void**)this)[48])(this). */
-    void (**vt)(void *) = *(void (***)(void *))this;
-    if (vt && vt[48]) vt[48](this);
+    /* Virtual call: (*((void(**)(void*))*(void**)this)[48])(this).
+     * vtable entries are NDS-domain code addresses which we cannot call
+     * directly on x86_64 — route through the host fnptr resolver. */
+    {
+        unsigned int *vt = *(unsigned int **)this;
+        if (vt) {
+            unsigned int target = vt[48];
+            if (target) nds_call_1arg(target, (uintptr_t)this);
+        }
+    }
 
     nds_call_1arg(0x02008ee4u, (uintptr_t)this);
     nds_call_1arg(0x02025becu, (uintptr_t)this);

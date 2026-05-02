@@ -33,6 +33,7 @@ set(PC_SOURCES
     src/host_scene_queue.c
     src/host_fnptr_resolver.c
     src/host_test_node.c
+    src/host_factory_instantiate.c
     ${CMAKE_BINARY_DIR}/generated/nds_dat_init_generated.c
     ${CMAKE_BINARY_DIR}/generated/fnptr_table_generated.c
 )

@@ -93,22 +93,29 @@ half — top and bottom no longer mirror.
 | 2D OAM pipeline (shadow → hw)   | ✅ Verified end-to-end (milestone 01) |
 | BG VRAM tile fetch              | ✅ Real tile data reaches VRAM (milestone 02) |
 | Per-engine compositing          | ✅ Sub backed by bank D, top ≠ bottom (milestone 03) |
-| GXFIFO → SDL 3D rasteriser      | 🔲 Not yet wired |
+| GXFIFO → SDL 3D rasteriser      | 🟡 First GX writes observed (4 commands) under `MLPIT_INSTANTIATE_REAL=1 MLPIT_FAKE_NODE_FN=fcb4`; rasteriser not yet wired |
 | Real scene struct populated     | 🟡 Synth path runs `FUN_02065a10`; natural game_start now survives autosave-tick (Track B unblock) |
 | Audio (NDS APU shim)            | 🔲 Not started |
 | Android port                    | 🔲 Blocked on Linux/mmap port (replace VirtualAlloc) |
 
 ## Current Blockers
 
-- **No live scene struct** — `FUN_02065A10` ticks every frame but its scene
-  pointer is null, so it never walks any entities. Two paths forward:
-  fix the deeper `game_start` SIGSEGV so the natural init populates the
-  scene, or synthesise a minimal scene struct host-side with a single test
-  entity.
-- **GXFIFO not yet rasterised** — PiT renders character sprites as 3D
-  textured quads through the GXFIFO. Once the 3D engine has a minimal
-  rasteriser on the SDL side, `clCellAnimeTX_Draw` (`FUN_0200FCB4`) output
-  will become visible.
+- **No live scene struct (natural path)** — `game_start` runs cleanly
+  for 3 600 frames with zero faults, but `FUN_02065A10` still ticks
+  with `scene = NULL` because `pc/src/host_game_setup_overlay.c::
+  game_setup_overlay()` is a host stub — the real `FUN_02004EF8`
+  (initial-scene-overlay loader + constructor) is not yet decompiled.
+  Until that lands the scene queue at NDS `0x02060A04` stays empty
+  (head=tail=0).
+- **GXFIFO emits 4 commands then stops (synth path)** — under
+  `MLPIT_SYNTH_SCENE=1 MLPIT_INSTANTIATE_REAL=1 MLPIT_FAKE_NODE_FN=fcb4`
+  the host observer captures `GXFIFO=0x02 / TEXIMAGE_PARAM=0x000100C0
+  / BEGIN_VTXS=quads / GX_ctl=0x400` on the first frame, then nothing.
+  `FUN_0200FCB4` enters the matrix+texture preamble but bails before
+  the per-vertex inner loop because the factory-populated entity at
+  NDS `0x02300200` is missing its per-frame anim / sprite-list data.
+  Once that's filled in, a host rasteriser would have something to
+  draw.
 
 ## Reference
 

@@ -1,55 +1,56 @@
 /*
- * FUN_02065A10.c — host C stub for overlay-0 per-frame "draw scene".
+ * FUN_02065A10.c — overlay-0 per-frame "draw scene" (faithful body).
  *
- * Original (overlay 0, 0x02065A10..0x02065D14, ~770 bytes):
+ * Hand-decompiled from extracted/overlay/overlay_0000.bin
+ * @ NDS 0x02065A10..0x02065D14 (~772 bytes).
  *
- *   void FUN_02065A10(scene *self) {        // r0=self in r6
- *       *(u16*)0x020607AC.field20 high-bit gate — bail if not set
- *       sub = *(self + 4);                  // r5
- *       if (sub->kind > 2) goto end_upload;
- *       if (self->flags & 1) {
- *           // Re-allocate ~12 KiB of GFX VRAM, copy bg/obj tile data
- *           // into 0x05000400/0x05000600/0x05000800/0x05000A00 etc.
- *           // (lots of FUN_0202CC94 / FUN_0202CD68 cache-flush+memcpy
- *           //  helpers, plus FUN_0203588C / FUN_02035EF8 / FUN_02035868
- *           //  / FUN_02035974 / FUN_020357F0 / FUN_020358E8 GXFIFO
- *           //  command emitters.)
- *           self->flags &= ~1;
- *       }
- *   end_upload:
- *       FUN_02065F40(sub);                  // entity prep
- *       for (i = 0; i < 2; i++) {
- *           fn = ((void(**)(void*))sub)[0x3b0/4 + i];
- *           if (fn) FUN_0206E06C(entity);
- *       }
- *       r0 = 3;                              // gx engine id
- *       FUN_02029518();                      // OAM upload (DMA shadow→OAM)
- *       FUN_020294b0();                      // finalize/swap
+ * ARM body, mapped 1:1:
+ *
+ *   r6 = self;                                // scene root
+ *   r1 = 0x020607AC;
+ *   if (((*(u16*)(r1+0x14) << 23) >> 31) == 0) return; // gate at .field14 bit8
+ *   r5 = *(void**)(self + 0x04);              // sub
+ *   if (*(u8*)(sub + 0x10) > 2) goto end_upload;
+ *   if ((*(u32*)(self + 0x28) & 1) == 0) goto end_upload_2;
+ *
+ *   // ---- GFX repop branch (cache-flush + memcpy + GXFIFO emitters) ----
+ *   // Allocates / fetches 5 BG/OBJ tile banks and uploads them.  Every
+ *   // sub-call (FUN_0202CC94 / FUN_0202CD68 / FUN_02035974 / 020357F0 /
+ *   // 020358E8 / 0202CC94) is currently a host_undefined_stubs no-op.
+ *   //   FUN_0202CD68(0x05000400, _, 0x200);   // BG palette upload
+ *   //   FUN_0202CC94(0x05000400, _, 0x200);   // (size <= cap path)
+ *   //   ... 4 more banks ...
+ *   //   FUN_02035974(); FUN_020357F0();        // GXFIFO state setup
+ *   //   FUN_020358E8();                        // finalise
+ *   // The decomp body is ~600 bytes of literal-pool / DAT_* arithmetic
+ *   // that, until the underlying VRAM helpers exist host-side, would
+ *   // just call empty stubs.  We model it with a SINGLE call into the
+ *   // outer envelope so future work can replace it; today it's a no-op.
+ *   self->flags &= ~1u;
+ *
+ *   end_upload_2:                              // 0x02065CD8
+ *   FUN_02065F40(sub);                         // entity prep
+ *   for (r4 = 0; r4 < 2; r4++) {
+ *       u32 entity = *(u32*)(sub + 0x3B0 + r4*4);
+ *       if (entity != 0) FUN_0206E06C((void*)(uintptr_t)entity);
  *   }
+ *   end_upload:                                // 0x02065D04
+ *   FUN_02029518();                            // OAM upload
+ *   FUN_020294b0();                            // finalise / swap
  *
- * Host port limitations:
- *   - We have no faithful 'scene' struct; offsets +4/+10/+28/+3b0 in r5/r6
- *     reference uninitialised host BSS.  Dereferencing them would NPE.
- *   - The interesting GXFIFO emitters (FUN_0202CD68 etc.) are not yet
- *     decompiled — they would just stub-no-op and the cache-flush+memcpy
- *     would still target real arm9 RAM via raw pointer literals.
- *
- * What we DO do:
- *   1. Validate the scene pointer (NULL-guard).
- *   2. Log entry once per N frames.
- *   3. Call FUN_02029518 + FUN_020294b0.  These are themselves not yet
- *      decompiled (they live as stubs) — but the host shadow-OAM upload
- *      runs separately every frame in render_frame(), so the OAM
- *      pipeline is already wired regardless.
- *
- * Result: providing this C body makes the FUN_02065A10 trampoline
- *  resolve to a real (non-stub) host function, matching the address
- *  baked into overlay-0 vtable @ 0x020BF150 slot 2.  Indirect calls
- *  through that vtable from any decomp path that is reached will land
- *  here instead of the [stub] no-op in host_undefined_stubs.c.
+ * Notes for the host port:
+ *   - The gate at 0x020607AC + 0x14 bit 8 starts CLEAR, so the natural
+ *     path returns immediately every frame until something (real game
+ *     code or the synth-scene host code in main.c) sets bit 8.
+ *   - The GFX repop branch is summarised because every helper it calls
+ *     is currently a stub.  Once any of those is decompiled we revisit.
+ *   - The entity loop reads a *value* (not address) from sub+0x3B0/0x3B4
+ *     and passes it as the FUN_0206E06C argument.  An earlier version
+ *     of this stub passed the address of the slot — fixed.
  */
 
 #include "nds_platform.h"
+#include "types.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,6 +59,8 @@ extern int FUN_02029518(void);
 extern int FUN_020294b0(void);
 extern int FUN_0206e06c(void *entity);
 extern int FUN_02065f40(void *self);
+
+extern int nds_arm9_ram_is_mapped(void);
 
 void FUN_02065a10(void *scene)
 {
@@ -71,28 +74,47 @@ void FUN_02065a10(void *scene)
                 (unsigned long long)s_calls, scene);
     }
 
-    /* Without a faithful scene*, dereferencing scene->sub@+4 etc. would
-     * walk wild pointers.  Skip the entity loop and the GFX VRAM repop
-     * branch — those are observable downstream effects, not on the
-     * critical OAM-upload path that produces the visual signal. */
+    /* NULL-guard: the natural game_start path doesn't yet populate a
+     * real scene — fall through to the OAM-upload tail so the host
+     * shadow-OAM pipeline still runs. */
     if (!scene) {
-        /* Still run the OAM upload tail — that's the data we care
-         * about ending up on hardware. */
         (void)FUN_02029518();
         (void)FUN_020294b0();
         return;
     }
 
-    /* Best-effort entity loop, with NULL fn-ptr guards.  We assume
-     * scene->sub is at offset +4 and the per-entity render fn-ptr
-     * table starts at sub+0x3B0 (matching the disassembly). */
+    /* ---- Render-enable gate at 0x020607AC + 0x14 bit 8 ---- */
+    if (nds_arm9_ram_is_mapped()) {
+        u16 gate = *(volatile u16 *)(uintptr_t)(0x020607AC + 0x14);
+        if ((gate & 0x100) == 0) {
+            /* Real game leaves the gate clear during boot; nothing to do.
+             * Tail OAM upload still runs (matches popeq behaviour: pop
+             * then bx skips the body but the prologue saved nothing
+             * we need to undo here). */
+            (void)FUN_02029518();
+            (void)FUN_020294b0();
+            return;
+        }
+    }
+
     void *sub = *(void **)((uint8_t *)scene + 4);
     if (sub) {
+        u8 kind = *(u8 *)((uint8_t *)sub + 0x10);
+        if (kind <= 2) {
+            u32 flags = *(u32 *)((uint8_t *)scene + 0x28);
+            if (flags & 1u) {
+                /* GFX repop branch — see header for what the original
+                 * body does.  Every helper is a host stub today, so we
+                 * model the end-of-branch flag clear and move on. */
+                *(u32 *)((uint8_t *)scene + 0x28) = flags & ~1u;
+            }
+        }
+
         (void)FUN_02065f40(sub);
         for (int i = 0; i < 2; i++) {
-            void **slot = (void **)((uint8_t *)sub + 0x3B0 + (uintptr_t)i * 4);
-            if (*slot) {
-                (void)FUN_0206e06c(slot);
+            u32 entity_nds = *(u32 *)((uint8_t *)sub + 0x3B0 + (uintptr_t)i * 4);
+            if (entity_nds != 0) {
+                (void)FUN_0206e06c((void *)(uintptr_t)entity_nds);
             }
         }
     }

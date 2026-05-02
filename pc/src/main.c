@@ -44,26 +44,64 @@ static void render_frame(void) {
         }
         /* MLPIT_SYNTH_SCENE=1: hand-built minimal scene struct to
          * exercise FUN_02065a10's entity loop end-to-end.  Layout
-         * mirrors the offsets the stub dereferences:
+         * mirrors the offsets the function dereferences (verified
+         * against the overlay-0 disassembly):
+         *   gate at NDS 0x020607AC + 0x14 bit 8 — must be set.
          *   scene[+0x04]  = sub pointer
          *   scene[+0x28]  = flags (bit 0 = repop GFX)
          *   sub[+0x10]    = kind (must be 0..2 to enter render path)
-         *   sub[+0x3B0]   = fn-ptr table base (2 slots used)
+         *   sub[+0x3B0]   = entity ptr slot 0
+         *   sub[+0x3B4]   = entity ptr slot 1
          *
-         * Buffers are static & zero-initialised so any later +offset
-         * read returns 0 rather than garbage. */
+         * The entity at slot 0 is placed at NDS 0x02300200 so it
+         * survives the Win64 32-bit pointer truncation in any decomp
+         * function we reach.  Under MLPIT_FAKE_NODE_FN=fcb4 the per-
+         * entity dispatcher (FUN_0206E06C) forwards to FUN_0200FCB4
+         * so the GXFIFO path is exercised. */
         static uint8_t s_scene[0x100];
         static uint8_t s_sub  [0x400];
         static int     s_synth_initialised = 0;
         if (getenv("MLPIT_SYNTH_SCENE") && !s_synth_initialised) {
+            extern int nds_arm9_ram_is_mapped(void);
+            /* Defer the one-shot init until the game thread has
+             * mmapped the NDS ARM9 RAM region — otherwise the gate
+             * write at 0x020607AC + 0x14 lands in unmapped memory
+             * and the entity_nds placement is silently skipped. */
+            if (!nds_arm9_ram_is_mapped()) {
+                /* Try again next frame. */
+            } else {
             s_synth_initialised = 1;
             *(void **)(s_scene + 0x04) = s_sub;
             *(uint32_t *)(s_scene + 0x28) = 0; /* don't enter GFX repop branch */
             *(uint32_t *)(s_sub  + 0x10) = 0; /* kind = 0 */
-            /* Leave fn-ptr table at sub+0x3B0 NULL — FUN_02065a10 guards
-             * against NULL slots before calling FUN_0206e06c. */
-            fprintf(stderr, "[render-synth] scene=%p sub=%p (kind=0, flags=0)\n",
-                    (void*)s_scene, (void*)s_sub);
+
+            /* Set the render-enable gate at 0x020607AC + 0x14 bit 8.
+             * Without this FUN_02065a10 returns immediately. */
+            uint32_t entity_nds = 0;
+            volatile uint16_t *gate =
+                (volatile uint16_t *)(uintptr_t)(0x020607AC + 0x14);
+            *gate = (uint16_t)(*gate | 0x100);
+
+            /* Park a 256-byte zero-initialised entity stub at
+             * NDS 0x02300200 (well beyond ov0/ov6 footprint).
+             * If MLPIT_INSTANTIATE_REAL=1 was set, host_factory_instantiate
+             * has already populated this slab with a real vtable + aux
+             * buffers — DON'T clear it, just point at it. */
+            entity_nds = 0x02300200u;
+            if (!getenv("MLPIT_INSTANTIATE_REAL")) {
+                memset((void *)(uintptr_t)entity_nds, 0, 256);
+                /* Flag bytes some FCB4 paths read at +0x00..+0x10. */
+                *(uint16_t *)(uintptr_t)(entity_nds + 0x00) = 0x0001;
+                *(uint16_t *)(uintptr_t)(entity_nds + 0x02) = 0x0001;
+            }
+            *(uint32_t *)(s_sub + 0x3B0) = entity_nds;
+            *(uint32_t *)(s_sub + 0x3B4) = 0; /* leave slot 1 NULL */
+
+            fprintf(stderr,
+                    "[render-synth] scene=%p sub=%p entity_nds=0x%08X "
+                    "(kind=0, flags=0, gate=set)\n",
+                    (void*)s_scene, (void*)s_sub, (unsigned)entity_nds);
+            }
         }
         void *scene_arg = getenv("MLPIT_SYNTH_SCENE") ? (void*)s_scene : NULL;
         FUN_02065a10(scene_arg);

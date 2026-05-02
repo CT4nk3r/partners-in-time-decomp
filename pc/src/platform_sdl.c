@@ -224,6 +224,27 @@ void platform_present(void) {
 
     static int s_frame_counter = 0;
     static int s_dump_at = -2;
+    /* MLPIT_SCREENSHOT_FRAMES=60,180,300,...   per-frame snapshots.
+     * MLPIT_SCREENSHOT_PATH may contain a single %d which is replaced
+     * with the frame number; otherwise the same file is overwritten. */
+    #define MAX_SHOT_FRAMES 32
+    static int  s_shot_frames[MAX_SHOT_FRAMES];
+    static int  s_shot_count = 0;
+    static int  s_shot_init = 0;
+    if (!s_shot_init) {
+        s_shot_init = 1;
+        const char* mfs = getenv("MLPIT_SCREENSHOT_FRAMES");
+        if (mfs) {
+            const char* p = mfs;
+            while (*p && s_shot_count < MAX_SHOT_FRAMES) {
+                while (*p == ' ' || *p == ',') p++;
+                if (!*p) break;
+                int v = atoi(p);
+                if (v > 0) s_shot_frames[s_shot_count++] = v;
+                while (*p && *p != ',') p++;
+            }
+        }
+    }
     if (s_dump_at == -2) {
         const char* env = getenv("MLPIT_SCREENSHOT_FRAME");
         s_dump_at = env ? atoi(env) : -1;
@@ -240,6 +261,28 @@ void platform_present(void) {
         if (!path) path = "screenshot.ppm";
         dump_screenshot_ppm(path);
         fprintf(stderr, "[screenshot] frame %d -> %s\n", s_frame_counter, path);
+    }
+    for (int i = 0; i < s_shot_count; i++) {
+        if (s_frame_counter == s_shot_frames[i]) {
+            const char* path = getenv("MLPIT_SCREENSHOT_PATH");
+            char buf[512];
+            if (!path) path = "screenshot_%d.ppm";
+            if (strstr(path, "%d")) {
+                snprintf(buf, sizeof(buf), path, s_frame_counter);
+            } else {
+                /* No %d → suffix _<frame> before extension */
+                const char* dot = strrchr(path, '.');
+                if (dot) {
+                    int pre = (int)(dot - path);
+                    snprintf(buf, sizeof(buf), "%.*s_%d%s",
+                             pre, path, s_frame_counter, dot);
+                } else {
+                    snprintf(buf, sizeof(buf), "%s_%d", path, s_frame_counter);
+                }
+            }
+            dump_screenshot_ppm(buf);
+            fprintf(stderr, "[screenshot] frame %d -> %s\n", s_frame_counter, buf);
+        }
     }
     {
         const char* exit_env = getenv("MLPIT_EXIT_AT_FRAME");

@@ -62,7 +62,16 @@ extern void FUN_0200762c(void);
 extern u32  FUN_02029c1c(u32 size, u32 dir, u32 type, u32 flag);
 extern u32 *FUN_02006304(u32 *param_1, u32 param_2, u16 *param_3);
 extern void FUN_02005d54(int param_1, u8 param_2);
+extern void FUN_0202a74c_real(u32 node_addr, u8 priority, u32 r2_unused, u32 r3_param);
 extern int  nds_arm9_ram_is_mapped(void);
+
+/* Scene-tick vtable installed by FUN_02006304: 0x0204FFDC.  Slot 2
+ * (offset +8) = FUN_02005D6C — the per-frame scene tick that dispatches
+ * by phase byte at obj+0x10 (state byte at obj+0x28).  See arm9_full
+ * disassembly @ 0x0204FFDC.  We install this directly to mirror the
+ * real ctor without invoking FUN_02004F7C / FUN_02005B70 (whose
+ * archive / clGameMain init paths still fault on host). */
+#define SCENE_VTABLE_DATA_NDS  0x0204FFDCu
 
 /* Original NDS .data slots used by FUN_02004EF8.  These all live inside
  * arm9.bin's .data section (mapped at 0x02004000+ on host via
@@ -121,37 +130,49 @@ void game_setup_overlay(u32 overlay_id, u32 flags)
         /* Step 4: alloc 44-byte scene-anchor object (now actually
          * returns a real pointer because FUN_02029c1c forwards to
          * OS_Alloc — see pc/src/host_undefined_stubs.c). */
-        u32 obj_u32 = FUN_02029c1c(0x2c, 1, SCENE_VTABLE_NDS, 0);
+        /* OS_Alloc on host returns a host-arena pointer (~0x10000000)
+         * which is not a valid NDS-mapped address — the scene queue
+         * tick treats nodes as NDS pointers, so we must allocate from
+         * the NDS-mapped 0x02300000 region instead.  We bump-allocate
+         * from a fixed slab past arm9.bin's high water mark; not freed. */
+        static u32 s_scene_arena_off = 0x02301000u;
+        u32 obj_u32 = s_scene_arena_off;
+        s_scene_arena_off += 0x40u;  /* round 0x2c up to 0x40 */
+        memset((void *)(uintptr_t)obj_u32, 0, 0x40);
         fprintf(stderr,
-                "[setup_overlay] alloc(44) -> 0x%08X\n",
+                "[setup_overlay] alloc(44) -> 0x%08X (NDS arena)\n",
                 (unsigned)obj_u32);
 
         u32 *obj = NULL;
         if (obj_u32 != 0) {
             obj = (u32 *)(uintptr_t)obj_u32;
-            /* Step 5 (FUN_02006304 ctor) is SKIPPED on host: its body
-             * runs FUN_02004f7c which performs heavy archive-loading
-             * through a chain of helpers that ultimately call vtable
-             * methods whose function pointers contain ARM .text
-             * addresses (e.g. (**(piVar2+4))() in FUN_02004f7c).  None
-             * of those helpers are wired through the host fnptr
-             * resolver yet, so each call would jump into raw ARM bytes.
-             *
-             * We approximate the ctor's externally-visible effects
-             * sufficient for scene_jmp dispatch:
-             *   - vtable slot 0 stays NULL (no host vtable for type
-             *     0x0204FF64 yet); FUN_02005d54 doesn't dereference it.
-             *   - obj[+0x10] = 0   (zeroed by OS_Alloc anyway)
-             *   - obj[+0x28] = 8   (param_2 of the ctor, becomes the
-             *                       "scene state" byte FUN_02005d54 stores)
-             */
-            *(volatile u8 *)((uintptr_t)obj + 0x28) = 8;
 
-            /* Tail-call FUN_02005d54 → (*DAT_02005d68) =
-             * host_scene_jmp_trampoline → FUN_0202A56C(obj, 0).  This
-             * is the scene_jmp edge we want to verify fires through a
-             * properly-allocated anchor object. */
-            FUN_02005d54((int)(uintptr_t)obj, 8);
+            /* === Replicate FUN_02006304 effects without FUN_02004F7C /
+             * FUN_02005B70 (those still fault on host).  The replicated
+             * ctor just needs to:
+             *   1. Insert obj into the scene queue (FUN_0202A74C)
+             *   2. Install scene vtable at obj[0]
+             *   3. Set state byte (obj+0x28) and phase byte (obj+0x10)
+             *      via FUN_02005D54.
+             *
+             * The tick processor (FUN_0202A33C, wired in main loop via
+             * FUN_0202a33c_safe) then walks the queue, calls
+             * vtable[2]=FUN_02005D6C(obj), which dispatches by phase=0
+             * to state-9 (or whatever caller set) — the boot-asset
+             * loader path that hits LZ77→VRAM. */
+
+            FUN_0202a74c_real(obj_u32, /*priority*/ 8, /*r2*/ 0,
+                              /*r3=user param*/ 0);
+
+            /* Install the real scene vtable so vtable[2] = FUN_02005D6C
+             * resolves naturally through the host fnptr trampoline. */
+            obj[0] = SCENE_VTABLE_DATA_NDS;
+
+            /* obj+0x10 = phase byte (=0 dispatches to state switch);
+             * obj+0x28 = state byte.  FUN_02005D54 sets both via the
+             * trampoline DAT_02005D68 = FUN_0202A56C (which OR-sets
+             * obj[18] |= 3 for "needs update / scheduled"). */
+            FUN_02005d54((int)(uintptr_t)obj, /*state*/ 9);
             fprintf(stderr,
                     "[setup_overlay] FUN_02005d54 returned\n");
         }

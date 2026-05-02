@@ -1343,7 +1343,19 @@ int FUN_0202958c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020295
 int FUN_02029964() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029964\n");} return 0; }
 int FUN_02029ab8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029ab8\n");} return 0; }
 int FUN_02029bf8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029bf8\n");} return 0; }
-int FUN_02029c1c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029c1c\n");} return 0; }
+/* Forward FUN_02029c1c (OS_Alloc front wrapper) to the real host arena
+ * allocator in arm9/src/heap.c, so callers like FUN_02005b70 receive
+ * a pointer that fits in 32 bits and lives inside our VirtualAlloc'd
+ * 4 MiB region.  Without this every alloc returned 0 and *DAT_02005d28
+ * stayed NULL. */
+extern void *OS_Alloc(unsigned int size, unsigned int heap_id);
+unsigned int FUN_02029c1c(unsigned int size, unsigned int dir,
+                          unsigned int type, unsigned int flag) {
+    (void)dir; (void)type; (void)flag;
+    static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029c1c -> OS_Alloc forwarder\n");}
+    void *p = OS_Alloc(size, 0);
+    return (unsigned int)(uintptr_t)p;
+}
 int FUN_02029e20() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029e20\n");} return 0; }
 int FUN_02029ffc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029ffc\n");} return 0; }
 int FUN_0202a034() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202a034\n");} return 0; }

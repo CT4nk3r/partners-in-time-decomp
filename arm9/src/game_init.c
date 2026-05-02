@@ -104,7 +104,7 @@ void host_game_init_install_globals(u32 *slot,
 #endif
 
 /* Forward declaration for functions defined later in this file */
-static void FUN_02004e38(u32 param_1, u16 param_2, u16 param_3, u16 *param_4);
+void FUN_02004e38(u32 param_1, u16 param_2, u16 param_3, u16 *param_4);
 
 // FUN_02004914 @ 0x02004914 (164 bytes) — LZ decompression with cache invalidation
 void FUN_02004914(int param_1)

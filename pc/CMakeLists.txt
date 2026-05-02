@@ -27,6 +27,7 @@ set(PC_SOURCES
     src/nds_boot_hook.c
     src/host_data_init.c
     src/host_display_data_init.c
+    src/host_game_setup_overlay.c
     src/asset_viewer.c
     src/nds_arm9_ram.c
     ${CMAKE_BINARY_DIR}/generated/nds_dat_init_generated.c

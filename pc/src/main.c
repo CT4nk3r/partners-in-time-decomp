@@ -4,11 +4,15 @@
  * Initializes SDL2, opens a window, runs the main loop, and (eventually)
  * dispatches to the decompiled game's main loop.
  *
- * For now this is just an SDL2 scaffold that displays placeholder framebuffers
- * for the top and bottom screens.
+ * Boot flow (Ship-of-Harkinian style):
+ *   1. Try assets/mlpit.assets  → load and run (no ROM needed)
+ *   2. ROM found?  → extract to assets/mlpit.assets, then load
+ *   3. Neither?    → print hint, run with stub data
  */
 #include "nds_platform.h"
 #include "nds_rom.h"
+#include "asset_pack.h"
+#include "asset_extractor.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,8 +68,31 @@ int main(int argc, char** argv) {
     nds_log("Decompilation: 1275/1275 ARM9 functions\n");
     nds_log("Press ESC or close window to quit.\n");
 
-    /* Try to load the NDS ROM (optional - game still runs without it) */
-    rom_load("roms/baserom.nds");
+    /* ── Asset pack boot flow ───────────────────────────────────────
+     * 1. Prefer the pre-extracted pack (normal every-run path).
+     * 2. No pack → try to auto-extract from the ROM (first-run setup).
+     * 3. No ROM either → print a helpful hint and run with stub data.
+     * ──────────────────────────────────────────────────────────── */
+    if (pack_load("assets/mlpit.assets")) {
+        nds_log("[boot] Asset pack loaded — no ROM needed.\n");
+    } else {
+        nds_log("[boot] No asset pack found. Checking for ROM...\n");
+        nds_log("[boot] First run: extracting assets from ROM "
+                "(this will take a few seconds)...\n");
+        if (extract_assets("roms/baserom.nds", "assets/mlpit.assets")) {
+            nds_log("[boot] Extraction complete. Loading asset pack...\n");
+            pack_load("assets/mlpit.assets");
+            nds_log("[boot] Asset pack loaded.\n");
+        } else {
+            nds_log("[boot] No asset pack or ROM found — running with stub data.\n");
+            nds_log("[boot] To enable game assets:\n");
+            nds_log("[boot]   1. cp /path/to/your.nds roms/baserom.nds   (one time)\n");
+            nds_log("[boot]   2. Re-run — assets auto-extract to assets/mlpit.assets\n");
+            nds_log("[boot]   3. Delete roms/baserom.nds after extraction (optional)\n");
+            /* ROM fallback: keeps rom_data() callers working if ROM is present */
+            rom_load("roms/baserom.nds");
+        }
+    }
 
     /* Start the game thread. Currently runs a vblank heartbeat stub
      * (see pc/src/game_thread.c for why we cannot yet call game_start()). */

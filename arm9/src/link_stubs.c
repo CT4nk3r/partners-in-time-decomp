@@ -10,7 +10,8 @@
 #include "arm_compat.h"
 
 #ifdef HOST_PORT
-extern int rom_read_overlay(int overlay_id);
+#  include "asset_pack.h"
+#  include "nds_rom.h"
 #endif
 
 /* ======== CRT0 helper functions (called from crt0.s) ======== */
@@ -115,7 +116,10 @@ void FS_InitOverlay(void) {}
 u32  FS_LoadOverlay(u32 id, u32 flags, void *callback, u32 param) {
     (void)flags; (void)callback; (void)param;
 #ifdef HOST_PORT
-    rom_read_overlay((int)id);
+    if (pack_is_loaded())
+        pack_get_overlay(id, NULL, NULL);   /* prefetch from pack */
+    else
+        rom_read_overlay((int)id);          /* ROM fallback       */
 #endif
     return id + 1; /* non-zero handle */
 }

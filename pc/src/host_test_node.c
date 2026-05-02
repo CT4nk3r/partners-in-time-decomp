@@ -19,6 +19,7 @@
 extern int   nds_arm9_ram_is_mapped(void);
 extern void *nds_vram_bank(char bank);
 extern uint32_t nds_vram_bank_size(char bank);
+extern void *nds_oam_ram(int is_sub);
 
 #define BG_VRAM_TOP_BASE   0x06000000u  /* main engine BG, 512 KiB window */
 #define TEST_TILE_BYTES    0x80         /* 4bpp 8x8 tile = 32 bytes; 4 tiles */
@@ -66,6 +67,25 @@ void host_draw_test_node(uintptr_t node_self, uintptr_t anchor)
                 (unsigned)g_tick, (unsigned long)node_self,
                 (unsigned)BG_VRAM_TOP_BASE, (unsigned)off);
         fflush(stderr);
+    }
+
+    /* Task 6: also populate OAM[0] so obj_render() draws a placeholder
+     * box.  Sprite is 16x16, position scrolls with g_tick so motion is
+     * visible.  attr0: y, shape=square; attr1: x, size=1 (16x16);
+     * attr2: tile id (any non-zero so the entry is "visible"). */
+    {
+        uint8_t *oam = (uint8_t *)nds_oam_ram(0);
+        if (oam) {
+            int x = 32 + ((g_tick / 4) & 0x7f);
+            int y = 64 + ((g_tick / 8) & 0x3f);
+            uint16_t attr0 = (uint16_t)(y & 0xff) | (0u << 14);   /* shape=square */
+            uint16_t attr1 = (uint16_t)(x & 0x1ff) | (1u << 14);  /* size=1 -> 16x16 */
+            uint16_t attr2 = 0x0001;                              /* tile id 1 */
+            oam[0] = (uint8_t)attr0; oam[1] = (uint8_t)(attr0 >> 8);
+            oam[2] = (uint8_t)attr1; oam[3] = (uint8_t)(attr1 >> 8);
+            oam[4] = (uint8_t)attr2; oam[5] = (uint8_t)(attr2 >> 8);
+            oam[6] = 0; oam[7] = 0;
+        }
     }
 }
 

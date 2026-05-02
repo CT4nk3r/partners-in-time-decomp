@@ -380,10 +380,14 @@ void game_update_display(void) {
      * this is the closest "real" effect to what the SDL display flush would
      * do (it always re-arms the visible-plane bit). */
     uint32_t dispcnt = nds_reg_read32(0x04000000u);
-    nds_reg_write32(0x04000000u, dispcnt | 0x8000u);
+    /* Task 6: force OBJ engine enable (DISPCNT bit 12) so obj_render() will
+     * walk OAM and paint placeholders.  Toggle off via MLPIT_NO_OBJ_ENABLE=1
+     * to compare baseline behaviour. */
+    uint32_t obj_force = (getenv("MLPIT_NO_OBJ_ENABLE") == 0) ? 0x1000u : 0u;
+    nds_reg_write32(0x04000000u, dispcnt | 0x8000u | obj_force);
     /* And ensure sub engine shows something too. */
     uint32_t dispcnt_sub = nds_reg_read32(0x04001000u);
-    nds_reg_write32(0x04001000u, dispcnt_sub | 0x8000u);
+    nds_reg_write32(0x04001000u, dispcnt_sub | 0x8000u | obj_force);
 
     /* Per-session-task: drive the linked-list scene-queue processor each
      * frame.  On real hardware FUN_02005444 (game_start) BLs FUN_0202a33c

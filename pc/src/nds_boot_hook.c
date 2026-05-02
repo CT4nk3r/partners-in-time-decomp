@@ -525,13 +525,24 @@ static int paired_screen_load(int engine, uint32_t fat_id,
     memcpy(bank_e + pal_off, pal, pal_copy);
     if (pal_copy < 512) memset(bank_e + pal_off + pal_copy, 0, 512 - pal_copy);
 
-    nds_reg_write16(bg0cnt_reg, (uint16_t)(0x1080u | (1u << 14)));
+    /*
+     * BG0CNT for 4bpp 64×32 text BG (this archive's tilemaps reference
+     * pal_bank 0..14 in their entries, so the BG must be 4bpp; the 512-byte
+     * palette blob is 16 × 16-colour sub-palettes, not a single 256-colour
+     * one):
+     *   bits[1:0]   = 0   priority 0
+     *   bits[5:2]   = 0   char_base = 0  (32 B per 4bpp tile, 1024 max)
+     *   bit 7       = 0   4bpp colour mode
+     *   bits[12:8]  = 16  screen_base = 16 → map at VRAM+0x8000
+     *   bits[15:14] = 1   screen_size 1 → 64×32 tilemap
+     */
+    nds_reg_write16(bg0cnt_reg, (uint16_t)(0x1000u | (1u << 14)));
     nds_reg_write16(bg1cnt_reg, 0);
     nds_reg_write16(bg2cnt_reg, 0);
     nds_reg_write16(bg3cnt_reg, 0);
     nds_reg_write32(dispcnt_reg, 0x0100u);
 
-    nds_log("[boot_hook] Paired screen %s: FAT[0x%X] tiles=sub[%u] map=sub[%u] pal=sub[%u] (%uB)\n",
+    nds_log("[boot_hook] Paired screen %s: FAT[0x%X] tiles=sub[%u] map=sub[%u] pal=sub[%u] (%uB, 4bpp)\n",
             engine == 0 ? "TOP" : "SUB", fat_id, sub_tiles, sub_map, sub_pal,
             (unsigned)pal_copy);
     return 1;

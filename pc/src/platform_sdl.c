@@ -87,7 +87,40 @@ void platform_shutdown(void) {
 uint16_t* platform_top_framebuffer(void)    { return g_top_fb; }
 uint16_t* platform_bottom_framebuffer(void) { return g_bot_fb; }
 
+static void dump_screenshot_ppm(const char* path) {
+    FILE* f = fopen(path, "wb");
+    if (!f) return;
+    int w = NDS_SCREEN_WIDTH;
+    int h = NDS_SCREEN_HEIGHT * 2;
+    fprintf(f, "P6\n%d %d\n255\n", w, h);
+    for (int s = 0; s < 2; ++s) {
+        const uint16_t* fb = (s == 0) ? g_top_fb : g_bot_fb;
+        for (int i = 0; i < NDS_SCREEN_WIDTH * NDS_SCREEN_HEIGHT; ++i) {
+            uint16_t p = fb[i];
+            uint8_t r = (uint8_t)(((p      ) & 0x1F) * 255 / 31);
+            uint8_t g = (uint8_t)(((p >>  5) & 0x1F) * 255 / 31);
+            uint8_t b = (uint8_t)(((p >> 10) & 0x1F) * 255 / 31);
+            uint8_t rgb[3] = { r, g, b };
+            fwrite(rgb, 1, 3, f);
+        }
+    }
+    fclose(f);
+}
+
 void platform_present(void) {
+    static int s_frame_counter = 0;
+    static int s_dump_at = -2;
+    if (s_dump_at == -2) {
+        const char* env = getenv("MLPIT_SCREENSHOT_FRAME");
+        s_dump_at = env ? atoi(env) : -1;
+    }
+    s_frame_counter++;
+    if (s_dump_at > 0 && s_frame_counter == s_dump_at) {
+        const char* path = getenv("MLPIT_SCREENSHOT_PATH");
+        if (!path) path = "screenshot.ppm";
+        dump_screenshot_ppm(path);
+        fprintf(stderr, "[screenshot] frame %d -> %s\n", s_frame_counter, path);
+    }
     SDL_UpdateTexture(g_top_tex, NULL, g_top_fb, NDS_SCREEN_WIDTH * 2);
     SDL_UpdateTexture(g_bot_tex, NULL, g_bot_fb, NDS_SCREEN_WIDTH * 2);
 

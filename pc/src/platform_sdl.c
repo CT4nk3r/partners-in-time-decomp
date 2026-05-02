@@ -168,17 +168,19 @@ static void pump_input_to_io(void)
         const char *env = getenv("MLPIT_AUTO_START_FRAME");
         s_auto_start_frame = env ? atoi(env) : -1;
     }
-    /* Simulate Start press for 2 frames starting at the target frame */
+    /* Simulate Start press for a window of frames starting at the target.
+     * Use a wider window (10 frames) to avoid race conditions between the
+     * main thread writing the register and the game thread reading it. */
     if (s_auto_start_frame > 0 &&
         s_pump_frame >= s_auto_start_frame &&
-        s_pump_frame < s_auto_start_frame + 3) {
+        s_pump_frame < s_auto_start_frame + 10) {
         g_input.start = 1;
     }
-    /* Second auto-press: file select cursor defaults to NEW GAME (item 3).
-     * Just send Start at +150 frames to confirm selection. */
+    /* Second auto-press: file select START.
+     * Use a very wide 100-frame window to guarantee the game thread sees it. */
     int second_press = s_auto_start_frame > 0 ? s_auto_start_frame + 150 : -1;
     if (second_press > 0) {
-        if (s_pump_frame >= second_press && s_pump_frame < second_press + 3) {
+        if (s_pump_frame >= second_press && s_pump_frame < second_press + 100) {
             g_input.start = 1;
         }
     }
@@ -187,7 +189,10 @@ static void pump_input_to_io(void)
     nds_reg_write16(0x04000136u, build_keyinput_ext_bits());
 
     /* Clear auto-press after writing so it doesn't stick */
-    if (s_auto_start_frame > 0 && s_pump_frame >= s_auto_start_frame + 3) {
+    if (s_auto_start_frame > 0 && s_pump_frame >= s_auto_start_frame + 10) {
+        g_input.start = 0;
+    }
+    if (second_press > 0 && s_pump_frame >= second_press + 100) {
         g_input.start = 0;
     }
 }

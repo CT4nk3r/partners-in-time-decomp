@@ -155,6 +155,17 @@ static void dma_execute(int ch)
 
     if (byte_len == 0) return;
 
+    /* Task 2 (shadow-buffers-dma): unthrottled highlight when this DMA
+     * channel is targeting palette / VRAM / OAM. */
+    int dst_is_pal  = (dst_nds >= 0x05000000u && dst_nds <  0x05000800u);
+    int dst_is_vram = (dst_nds >= 0x06000000u && dst_nds <  0x06180000u);
+    int dst_is_oam  = (dst_nds >= 0x07000000u && dst_nds <  0x07000400u);
+    if (dst_is_pal || dst_is_vram || dst_is_oam) {
+        const char *region = dst_is_pal ? "PAL" : dst_is_vram ? "VRAM" : "OAM";
+        nds_log("[dma-graphics] ch%d %s dst=%08X src=%08X bytes=%u\n",
+                ch, region, dst_nds, src_nds, byte_len);
+    }
+
     void *dst_host = nds_addr_to_host(dst_nds, byte_len);
     if (!dst_host) {
         /* dst is not in any known NDS region — skip silently */
@@ -224,6 +235,20 @@ void nds_dma_immediate(uint32_t dst_nds, uint32_t src_nds, uint32_t ctrl)
     uint32_t byte_len = count * (uint32_t)(is_32bit ? 4 : 2);
     if (byte_len == 0) return;
 
+    /* Task 2 (shadow-buffers-dma): unthrottled highlight log when DMA
+     * targets palette / VRAM / OAM physical regions — every transfer
+     * counts because these are the channel via which the game pushes
+     * graphics during VBlank. */
+    int dst_is_pal  = (dst_nds >= 0x05000000u && dst_nds <  0x05000800u);
+    int dst_is_vram = (dst_nds >= 0x06000000u && dst_nds <  0x06180000u);
+    int dst_is_oam  = (dst_nds >= 0x07000000u && dst_nds <  0x07000400u);
+    if (dst_is_pal || dst_is_vram || dst_is_oam) {
+        const char *region = dst_is_pal ? "PAL" : dst_is_vram ? "VRAM" : "OAM";
+        nds_log("[dma-graphics] %s dst=%08X src=%08X bytes=%u %s\n",
+                region, dst_nds, src_nds, byte_len,
+                is_32bit ? "32b" : "16b");
+    }
+
     void *dst_host = nds_addr_to_host(dst_nds, byte_len);
     if (!dst_host) return;
 
@@ -278,6 +303,24 @@ void nds_reg_write32(uint32_t addr, uint32_t val) {
     memcpy(g_io_shadow + off, &val, 4);
     nds_track_write(addr, 4, "reg_w32");
 
+    /* Task 7 (shadow-buffers-dma): log VRAMCNT_A..H_I (0x04000240..) and
+     * the engine-A/B DISPCNT once each, so we can audit how the game
+     * routes VRAM banks to engines.  Throttle to first 8 distinct
+     * addresses in the range to avoid spam. */
+    if ((addr >= 0x04000240u && addr <= 0x04000249u) ||
+        addr == 0x04000304u /* POWCNT1 */ ||
+        addr == 0x04000242u /* VRAMCNT_C/D pair */) {
+        static uint32_t logged_addrs[16] = {0};
+        static int n = 0;
+        int seen = 0;
+        for (int i = 0; i < n; i++) if (logged_addrs[i] == addr) { seen = 1; break; }
+        if (!seen && n < 16) {
+            logged_addrs[n++] = addr;
+            nds_log("[vramcnt] addr=0x%08X val=0x%08X (first write)\n",
+                    addr, val);
+        }
+    }
+
     /* DMA control register hook */
     if (val & DMA_ENABLE_BIT) {
         for (int ch = 0; ch < (int)DMA_NUM_CHANNELS; ch++) {
@@ -296,6 +339,20 @@ void nds_reg_write16(uint32_t addr, uint16_t val) {
     if (off < 0) return;
     memcpy(g_io_shadow + off, &val, 2);
     nds_track_write(addr, 2, "reg_w16");
+
+    /* Task 7: also catch 16-bit writes to VRAMCNT (most NDS code uses
+     * REG_VRAMCNT_A as a u8/u16 so 16-bit writes are the common case). */
+    if (addr >= 0x04000240u && addr <= 0x04000249u) {
+        static uint32_t logged_addrs[16] = {0};
+        static int n = 0;
+        int seen = 0;
+        for (int i = 0; i < n; i++) if (logged_addrs[i] == addr) { seen = 1; break; }
+        if (!seen && n < 16) {
+            logged_addrs[n++] = addr;
+            nds_log("[vramcnt] w16 addr=0x%08X val=0x%04X (first write)\n",
+                    addr, val);
+        }
+    }
 }
 
 void nds_reg_write8(uint32_t addr, uint8_t val) {
@@ -304,4 +361,24 @@ void nds_reg_write8(uint32_t addr, uint8_t val) {
     if (off < 0) return;
     g_io_shadow[off] = val;
     nds_track_write(addr, 1, "reg_w8");
+
+    /* Task 7: VRAMCNT writes are commonly u8 (the SDK's GX_SetBank* helpers
+     * compile to STRB).  Log first occurrence per address. */
+    if (addr >= 0x04000240u && addr <= 0x04000249u) {
+        static uint32_t logged_addrs[16] = {0};
+        static int n = 0;
+        int seen = 0;
+        for (int i = 0; i < n; i++) if (logged_addrs[i] == addr) { seen = 1; break; }
+        if (!seen && n < 16) {
+            logged_addrs[n++] = addr;
+            const char *bank_names = "ABCDEFGHI";
+            char bank = (addr - 0x04000240u) < 9 ? bank_names[addr - 0x04000240u] : '?';
+            int mst = val & 7;
+            int ofs = (val >> 3) & 3;
+            int en  = (val >> 7) & 1;
+            nds_log("[vramcnt] w8 BANK_%c addr=0x%08X val=0x%02X "
+                    "MST=%d OFS=%d EN=%d\n",
+                    bank, addr, val, mst, ofs, en);
+        }
+    }
 }

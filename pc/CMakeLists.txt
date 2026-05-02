@@ -156,6 +156,10 @@ else()
     target_compile_options(mlpit_pc PRIVATE ${SDL2_CFLAGS_OTHER})
 endif()
 
+if(WIN32)
+    target_link_libraries(mlpit_pc PRIVATE dbghelp)
+endif()
+
 # Suppress noisy warnings from decompiled code
 target_compile_options(mlpit_pc PRIVATE
     -Wall

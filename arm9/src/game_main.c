@@ -15,6 +15,9 @@
 
 #include "types.h"
 #include "game_main.h"
+#ifdef HOST_PORT
+#include <stdio.h>
+#endif
 
 // External SDK functions (to be decompiled separately)
 extern void OS_MemClear(void *ptr, u32 offset, u32 size);
@@ -115,25 +118,36 @@ void game_init(void)
  */
 NORETURN void game_start(void)
 {
+    fprintf(stderr, "[game_start] step 1: game_init()\n"); fflush(stderr);
     game_init();
 
+    fprintf(stderr, "[game_start] step 2: GX_SetMasterBrightness\n"); fflush(stderr);
     GX_SetMasterBrightness(0, 0x5800);
+    fprintf(stderr, "[game_start] step 3: GX_SwapDisplay\n"); fflush(stderr);
     GX_SwapDisplay();
+    fprintf(stderr, "[game_start] step 4: read sGameState=%p sDispCnt=%p\n",
+            (void*)sGameState, (void*)sDispCnt); fflush(stderr);
     GX_SetVisiblePlane(
         sGameState->disp_mask,
         ((*sDispCnt | sGameState->disp_flag) ^ sGameState->disp_xor)
             & sGameState->disp_xor & 0xFFFF
     );
+    fprintf(stderr, "[game_start] step 5: GX_UpdateDisplay\n"); fflush(stderr);
     GX_UpdateDisplay();
+    fprintf(stderr, "[game_start] step 6: GX_SwapDisplay #2\n"); fflush(stderr);
     GX_SwapDisplay();
+    fprintf(stderr, "[game_start] step 7: GX_SetVisiblePlane #2\n"); fflush(stderr);
     GX_SetVisiblePlane(
         sGameState->disp_mask,
         ((*sDispCnt | sGameState->disp_flag) ^ sGameState->disp_xor)
             & sGameState->disp_xor & 0xFFFF
     );
 
+    fprintf(stderr, "[game_start] step 8: sGameState->running=1\n"); fflush(stderr);
     sGameState->running = 1;
+    fprintf(stderr, "[game_start] step 9: game_setup_overlay\n"); fflush(stderr);
     game_setup_overlay(0xFFFFFFFF, 0);
+    fprintf(stderr, "[game_start] step 10: entering outer loop\n"); fflush(stderr);
 
     // Main game loop — runs forever
     for (;;) {

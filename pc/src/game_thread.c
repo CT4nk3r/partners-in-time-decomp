@@ -16,6 +16,12 @@
 #include <setjmp.h>
 #include <string.h>
 
+#ifdef _WIN32
+#  define WIN32_LEAN_AND_MEAN
+#  include <windows.h>
+#  include <dbghelp.h>
+#endif
+
 /* Task 1+3 (shadow-buffers-dma): the decompiled game stages display
  * updates into u16 arrays at NDS RAM 0x0201977c..0x02019790 before
  * DMAing them to real VRAM/OAM/PAL during VBlank.  Our VirtualAlloc'd
@@ -72,8 +78,91 @@ extern void host_display_data_init_install(void); /* installs DAT_02019730..d */
 static jmp_buf g_crash_jmp;
 static volatile sig_atomic_t g_in_protected = 0;
 
+/* Captured by the SEH vectored exception handler (Win64) before the C
+ * runtime hands control to the SIGSEGV signal handler.  Lets us print
+ * the actual faulting address + a small symbolic backtrace. */
+static volatile uintptr_t g_fault_addr = 0;
+static volatile uintptr_t g_fault_rip  = 0;
+static char     g_fault_btext[2048];
+static volatile int g_fault_btext_len  = 0;
+
+/* Progressive trace from FUN_0200fcb4 — last checkpoint reached. */
+volatile int g_mlpit_fcb4_last_cp = 0;
+volatile int g_mlpit_fcb4_max_cp  = 0;
+void mlpit_fcb4_trace(int cp) {
+    g_mlpit_fcb4_last_cp = cp;
+    if (cp > g_mlpit_fcb4_max_cp) {
+        g_mlpit_fcb4_max_cp = cp;
+        /* No fprintf — too spammy with 516 labels. */
+    }
+}
+
+#ifdef _WIN32
+static LONG CALLBACK mlpit_vex_handler(PEXCEPTION_POINTERS info) {
+    if (!g_in_protected) return EXCEPTION_CONTINUE_SEARCH;
+    if (!info || !info->ExceptionRecord) return EXCEPTION_CONTINUE_SEARCH;
+    DWORD code = info->ExceptionRecord->ExceptionCode;
+    if (code != EXCEPTION_ACCESS_VIOLATION &&
+        code != EXCEPTION_ILLEGAL_INSTRUCTION &&
+        code != EXCEPTION_INT_DIVIDE_BY_ZERO &&
+        code != EXCEPTION_STACK_OVERFLOW) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+    g_fault_rip = (uintptr_t)info->ContextRecord->Rip;
+    if (info->ExceptionRecord->NumberParameters >= 2 &&
+        code == EXCEPTION_ACCESS_VIOLATION) {
+        g_fault_addr = (uintptr_t)info->ExceptionRecord->ExceptionInformation[1];
+    } else {
+        g_fault_addr = g_fault_rip;
+    }
+
+    /* Build a small backtrace into g_fault_btext.  We use CaptureStackBackTrace
+     * (no symbol resolution required) — symbols are resolved via dbghelp. */
+    void *frames[24];
+    USHORT n = CaptureStackBackTrace(0, 24, frames, NULL);
+    HANDLE proc = GetCurrentProcess();
+    static int sym_inited = 0;
+    if (!sym_inited) {
+        SymSetOptions(SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES |
+                      SYMOPT_UNDNAME);
+        SymInitialize(proc, NULL, TRUE);
+        sym_inited = 1;
+    }
+    int off = 0;
+    char tmp[8 + sizeof(SYMBOL_INFO) + 256];
+    SYMBOL_INFO *sym = (SYMBOL_INFO *)tmp;
+    for (USHORT i = 0; i < n && off < (int)sizeof(g_fault_btext) - 200; i++) {
+        sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+        sym->MaxNameLen   = 255;
+        DWORD64 disp = 0;
+        const char *name = "<unknown>";
+        if (SymFromAddr(proc, (DWORD64)(uintptr_t)frames[i], &disp, sym)) {
+            name = sym->Name;
+        }
+        off += snprintf(g_fault_btext + off, sizeof(g_fault_btext) - off,
+                        "  #%-2u %p  %s+0x%llx\n",
+                        (unsigned)i, frames[i], name, (unsigned long long)disp);
+    }
+    g_fault_btext_len = off;
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
 static void crash_handler(int sig) {
     if (g_in_protected) {
+#ifdef _WIN32
+        if (g_fault_btext_len > 0) {
+            fputs("[crash] Win64 fault context:\n", stderr);
+            fprintf(stderr, "  signal=%d  fault_addr=0x%016llx  rip=0x%016llx\n",
+                    sig, (unsigned long long)g_fault_addr,
+                    (unsigned long long)g_fault_rip);
+            fprintf(stderr, "  fcb4_last_cp=0x%X  fcb4_max_cp=0x%X\n",
+                    g_mlpit_fcb4_last_cp, g_mlpit_fcb4_max_cp);
+            fputs(g_fault_btext, stderr);
+            fflush(stderr);
+            g_fault_btext_len = 0;
+        }
+#endif
         longjmp(g_crash_jmp, sig);
     }
     /* Outside protected region — let it crash normally. */
@@ -90,6 +179,9 @@ int game_thread_main(void* user) {
     signal(SIGABRT, crash_handler);
     signal(SIGFPE,  crash_handler);
     signal(SIGILL,  crash_handler);
+#ifdef _WIN32
+    AddVectoredExceptionHandler(1 /* first */, mlpit_vex_handler);
+#endif
 
     nds_log("[game] initializing host game state...\n");
     game_state_host_init();

@@ -229,12 +229,12 @@ void FUN_02008fc0(int param_1)
     val3 = render_state_3;
     val2 = render_state_2;
     val1 = render_state_1;
-    *(u32 *)(render_state_low + param_1 * 4) = 0;
-    *(u32 *)(val1 + param_1 * 4) = 0;
-    *(u32 *)(val2 + param_1 * 4) = 0;
-    *(u32 *)(val3 + param_1 * 4) = 0;
-    *(u32 *)(val4 + param_1 * 4) = 0;
-    *(u32 *)(val5 + param_1 * 4) = 0;
+    if (render_state_low) *(u32 *)(render_state_low + param_1 * 4) = 0;
+    if (val1) *(u32 *)(val1 + param_1 * 4) = 0;
+    if (val2) *(u32 *)(val2 + param_1 * 4) = 0;
+    if (val3) *(u32 *)(val3 + param_1 * 4) = 0;
+    if (val4) *(u32 *)(val4 + param_1 * 4) = 0;
+    if (val5) *(u32 *)(val5 + param_1 * 4) = 0;
     return;
 }
 
@@ -248,7 +248,8 @@ void FUN_02009100(u32 *param_1)
 // FUN_02009110 @ 0x02009110 (40 bytes) — Initialize VRAM table entry
 void FUN_02009110(u32 *param_1)
 {
-    *param_1 = *vram_table;
+    if (!param_1) return;
+    *param_1 = vram_table ? *vram_table : 0;
     *(u8 *)(param_1 + 4) = 0xff;
     param_1[2] = 0;
     param_1[1] = param_1[2];

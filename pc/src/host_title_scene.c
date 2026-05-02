@@ -30,6 +30,7 @@
  *     - Handle scene transitions when Start is pressed
  */
 #include "types.h"
+#include "nds_rom.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -40,6 +41,7 @@ extern int  host_title_screen_load(void);
 extern int  nds_arm9_ram_is_mapped(void);
 extern void *nds_vram_bank(char bank);
 extern uint32_t nds_vram_bank_size(char bank);
+extern void arm_swi_11_lz77_decomp(const void *src, void *dst);
 
 /* FUN_0202a74c_real inserts a node into the scene linked-list.
  * We use the same call host_game_setup_overlay.c uses. */
@@ -53,6 +55,15 @@ extern void FUN_0202a74c_real(u32 node_addr, u8 priority, u32 r2_unused, u32 r3_
 
 /* Scene anchor pointer (used by teardown to trigger scene transition) */
 #define SCENE_PTR_NDS         0x02059C7Cu
+
+/* VRAM layout for file-select screen (two-layer setup):
+ *   BG0 (font overlay):  char_base=0 (0x0000), screen_base=1 (0x0800), 4bpp
+ *   BG1 (real menu BG):  char_base=4 (0x10000), screen_base=31 (0xF800), 8bpp
+ */
+#define FONT_TILE_OFF  0x0000u
+#define FONT_MAP_OFF   0x0800u
+#define MENU_TILE_OFF  0x10000u
+#define MENU_MAP_OFF   0xF800u
 
 /* NDS-mapped bump allocator for scene nodes (shared with host_game_setup_overlay.c).
  * Must be past arm9.bin's mapped region and any existing allocations. */
@@ -248,73 +259,208 @@ static void host_title_dtor(uintptr_t node_addr, uintptr_t unused)
  */
 void FUN_02077784(void *ptr, int type, int param)
 {
-    (void)ptr;   /* ignore host-heap ptr; allocate our own in NDS RAM */
-    (void)type;
-    (void)param;
-
     if (!nds_arm9_ram_is_mapped()) {
         fprintf(stderr, "[FUN_02077784] ARM9 RAM not mapped, skipping\n");
         return;
     }
 
-    /* Allocate the title scene node in NDS-mapped RAM so the scene queue
-     * (which stores u32 NDS addresses) can access it. */
+    /* ── Real decompiled overlay 8 title screen constructor ──
+     * Decompiled from arm overlay 8 @ 0x02077784..0x02077A64.
+     * This is the ACTUAL game code, not a HOST_PORT replacement. */
+
+    /* The ptr from OS_Alloc is a host-heap pointer; scene queue uses NDS
+     * addresses so we allocate in NDS-mapped RAM instead. */
+    (void)ptr;
     u32 obj_nds = nds_bump_alloc(0x30);
     fprintf(stderr,
-            "[FUN_02077784] title scene ctor: obj=0x%08X type=%d param=%d\n",
+            "[FUN_02077784] REAL title ctor: obj=0x%08X type=%d param=%d\n",
             (unsigned)obj_nds, type, param);
 
-    /* 1. Insert into the scene queue FIRST.
-     * FUN_0202a74c_real writes a default vtable (0x020597C8) at node[0],
-     * so we must install our real vtable AFTER this call. */
-    FUN_0202a74c_real(obj_nds, /*priority*/ 8, 0, 0);
+    /* 1. Base scene node init — insert into priority-sorted scene queue.
+     * ARM: bl FUN_0202a74c  (r0=self, r1=type(8), r2=param(0), r3=0) */
+    FUN_0202a74c_real(obj_nds, (u8)type, (u32)param, 0);
 
-    /* 2. Create vtable in NDS-mapped RAM.
-     * vtable[0] = destructor address (0x0207756C → host_title_dtor)
-     * vtable[1] = handler address    (unused for now)
-     * vtable[2] = tick address       (0x02077444 → host_title_tick) */
-    u32 vtab_nds = nds_bump_alloc(16);
-    volatile u32 *vtab = (volatile u32 *)(uintptr_t)vtab_nds;
-    vtab[0] = OV8_DTOR_ADDR;
-    vtab[1] = OV8_DTOR_ADDR;  /* placeholder */
-    vtab[2] = OV8_TICK_ADDR;
+    /* 2. Install overlay 8 title vtable and store global pointer.
+     * ARM: ldr r0, =0x02077EC4; str r0, [r4]
+     *      ldr r1, =0x0207A6F8; str r4, [r1] */
+    *(volatile u32 *)(uintptr_t)obj_nds = OV8_VTABLE_ADDR;
+    *(volatile u32 *)(uintptr_t)OV8_GLOBAL_OBJ_ADDR = obj_nds;
 
-    /* 3. Install vtable pointer at obj[0] — MUST be after FUN_0202a74c_real
-     * which writes a default vtable that we need to overwrite. */
-    *(volatile u32 *)(uintptr_t)obj_nds = vtab_nds;
-
-    /* 4. Register host functions with the fnptr resolver so nds_call_2arg
-     * can translate the NDS addresses to host function pointers. */
+    /* Register host tick/dtor so fnptr resolver can dispatch vtable calls */
     host_fnptr_register(OV8_TICK_ADDR, (void *)host_title_tick);
     host_fnptr_register(OV8_DTOR_ADDR, (void *)host_title_dtor);
 
-    /* 4. Store global pointer so other code can find the title scene object */
-    if (nds_arm9_ram_is_mapped()) {
-        *(volatile u32 *)(uintptr_t)OV8_GLOBAL_OBJ_ADDR = obj_nds;
-    }
+    /* 3. Display system initialization (overlay 5 calls). */
+    extern void FUN_02065da8(int screen);
+    extern void FUN_0206805c(int screen);
+    fprintf(stderr, "[title-ctor] step 3: display init\n"); fflush(stderr);
+    FUN_02065da8(0);
+    fprintf(stderr, "[title-ctor] step 3a: FUN_0206805c(0)\n"); fflush(stderr);
+    FUN_0206805c(0);
+    fprintf(stderr, "[title-ctor] step 3b: FUN_0206805c(1)\n"); fflush(stderr);
+    FUN_0206805c(1);
 
-    /* 5. Set up the title screen graphics.
-     * Our existing host_title_screen_load() handles:
-     *   - Decompressing TitleBG.dat (FAT[99])
-     *   - Setting up sky (BG0), portal left (BG1), portal right (BG2)
-     *   - Palettes and extended palettes
-     *   - BG register configuration (DISPCNT, BGxCNT, BGxOFS) */
+    /* 4. Palette init — skip for now (was crashing due to bad literal deref) */
+    fprintf(stderr, "[title-ctor] step 4: palette (skipped)\n"); fflush(stderr);
+
+    /* 5. Power control */
+    fprintf(stderr, "[title-ctor] step 5: power control\n"); fflush(stderr);
+    volatile u16 *powcnt = (volatile u16 *)(uintptr_t)0x04000304u;
+    *powcnt = *powcnt & (u16)~0x8000u;
+
+    /* 6. VRAM bank configuration (ARM9 base functions). */
+    extern void FUN_0203600c(int);
+    extern void FUN_02036178(int);
+    extern void FUN_02035a00(int);
+    extern void FUN_02035a7c(int);
+    extern void FUN_02035158(int, int, int);
+    extern void FUN_0203513c(int);
+    fprintf(stderr, "[title-ctor] step 6: VRAM banks\n"); fflush(stderr);
+    FUN_0203600c(1);
+    FUN_02036178(2);
+    FUN_02035a00(8);
+    FUN_02035a7c(4);
+    FUN_02035158(1, 3, 0);
+    FUN_0203513c(0);
+
+    /* 7. Display mode setup (overlay 5). */
+    extern void FUN_02067ecc(int screen, int mode);
+    fprintf(stderr, "[title-ctor] step 7: display mode\n"); fflush(stderr);
+    FUN_02067ecc(0, 0x00100010);
+    FUN_02067ecc(1, 0x00100010);
+
+    /* 8. BG1 configuration (screen=0, bg=1): 256×256, 4bpp, char_base=1,
+     *    screen_base=0, priority=1, no mosaic */
+    extern void FUN_02067ad8(int, int);
+    extern void FUN_02067a4c(int, int, int);
+    extern void FUN_02067a20(int, int, int);
+    extern void FUN_020679c8(int, int, int);
+    extern void FUN_0206799c(int, int, int);
+    extern void FUN_02067aa8(int, int, int);
+    extern void FUN_02067a78(int, int, int);
+
+    FUN_02067ad8(0, 1);       /* clear BG1CNT */
+    FUN_02067a4c(0, 1, 0);   /* screen_size = 0 (256×256) */
+    FUN_02067a20(0, 1, 0);   /* color_mode = 4bpp */
+    FUN_020679c8(0, 1, 0);   /* screen_base = 0 */
+    FUN_0206799c(0, 1, 1);   /* char_base = 1 */
+    FUN_02067aa8(0, 1, 1);   /* priority = 1 */
+    FUN_02067a78(0, 1, 0);   /* mosaic = off */
+
+    FUN_02067ad8(0, 2);       /* clear BG2CNT */
+    FUN_02067a4c(0, 2, 0);
+    FUN_02067a20(0, 2, 0);
+    FUN_020679c8(0, 2, 1);
+    FUN_0206799c(0, 2, 2);
+    FUN_02067aa8(0, 2, 0);
+    FUN_02067a78(0, 2, 0);
+
+    /* 10. Sprite/OBJ subsystem init (overlay 5) */
+    extern void FUN_020662b8(u32);
+    extern void FUN_02068d70(u32);
+    extern void FUN_020697d4(void);
+    extern void FUN_02068928(u32);
+    extern void FUN_020692f4(u32);
+    extern void FUN_02069618(u32);
+    fprintf(stderr, "[title-ctor] step 10: sprite init\n"); fflush(stderr);
+    FUN_020662b8(0x80);
+    fprintf(stderr, "[title-ctor] step 10a: OBJ manager\n"); fflush(stderr);
+    FUN_02068d70(0x100);
+    fprintf(stderr, "[title-ctor] step 10b: OAM double buf\n"); fflush(stderr);
+    FUN_020697d4();
+    fprintf(stderr, "[title-ctor] step 10c: anim alloc\n"); fflush(stderr);
+    FUN_02068928(0x40);
+    fprintf(stderr, "[title-ctor] step 10d: sprite render alloc\n"); fflush(stderr);
+    FUN_020692f4(0x40);
+    fprintf(stderr, "[title-ctor] step 10e: VRAM buf init\n"); fflush(stderr);
+    FUN_02069618(0x20);
+
+    /* 11. Allocate and init animation buffer */
+    extern u32 FUN_02029c1c(u32, u32, u32, u32);
+    extern void FUN_02067204(u32, int, int, int, int);
+    fprintf(stderr, "[title-ctor] step 11: anim buffer alloc\n"); fflush(stderr);
+    u32 anim_buf = FUN_02029c1c(0x335C, 0, 0, 1);
+    fprintf(stderr, "[title-ctor] step 11: anim_buf=0x%08X\n", (unsigned)anim_buf); fflush(stderr);
+    if (anim_buf != 0) {
+        FUN_02067204(anim_buf, 0x0A, 0, 0, -1);
+    }
+    *(volatile u32 *)(uintptr_t)(0x02069E00u + 0x2C) = anim_buf;
+
+    /* 12. Fade init */
+    extern void FUN_02008fc0(int);
+    fprintf(stderr, "[title-ctor] step 12: fade init\n"); fflush(stderr);
+    FUN_02008fc0(0);
+    FUN_02008fc0(1);
+
+    /* 13. Allocate scene data buffer */
+    extern u32 FUN_02029bf8(u32, u32, u32, u32);
+    extern void FUN_02009040(int, u32, u32);
+    fprintf(stderr, "[title-ctor] step 13: data buf alloc\n"); fflush(stderr);
+    u32 data_buf = FUN_02029bf8(0x4400, 0, 0, 0);
+    fprintf(stderr, "[title-ctor] step 13: data_buf=0x%08X\n", (unsigned)data_buf); fflush(stderr);
+    *(volatile u32 *)(uintptr_t)(0x02069E00u + 0x28) = data_buf;
+
+    /* 14. Set up OBJ for both screens */
+    fprintf(stderr, "[title-ctor] step 14: OBJ setup\n"); fflush(stderr);
+    FUN_02009040(0, data_buf + 0x2000, data_buf);
+    FUN_02009040(1, data_buf + 0x2200, data_buf + 0x4200);
+
+    /* 15. Allocate sub-scene object */
+    extern void FUN_02077af8(u32, int, int, u32);
+    fprintf(stderr, "[title-ctor] step 15: sub-scene\n"); fflush(stderr);
+    u32 sub_obj = FUN_02029c1c(0x28, 0, 0, 0);
+    fprintf(stderr, "[title-ctor] step 15: sub_obj=0x%08X\n", (unsigned)sub_obj); fflush(stderr);
+    if (sub_obj != 0) {
+        FUN_02077af8(sub_obj, 8, 0, obj_nds);
+    }
+    *(volatile u32 *)(uintptr_t)(obj_nds + 0x28) = sub_obj;
+
+    /* 16. Reset VRAM mapping.
+     * ARM: bl FUN_02029488(0, 0) */
+    extern void FUN_02029488(int, int);
+    FUN_02029488(0, 0);
+
+    /* 17. Clear BG enable bits in both DISPCNT registers (bits 8-12).
+     * ARM: bic r0, r0, #0x1F00 for both 0x04000000 and 0x04001000 */
+    volatile u32 *dispcnt_main = (volatile u32 *)(uintptr_t)0x04000000u;
+    volatile u32 *dispcnt_sub  = (volatile u32 *)(uintptr_t)0x04001000u;
+    *dispcnt_main = *dispcnt_main & ~0x1F00u;
+    *dispcnt_sub  = *dispcnt_sub  & ~0x1F00u;
+
+    /* 18. Start animation for sub-scene.
+     * ARM: ldr r0, [r4, #0x28]; bl FUN_02029ffc */
+    extern void FUN_02029ffc(u32);
+    FUN_02029ffc(*(volatile u32 *)(uintptr_t)(obj_nds + 0x28));
+
+    /* 19. Commit display registers.
+     * ARM: bl FUN_020351cc — GX_DispOn/flush */
+    extern void FUN_020351cc(void);
+    FUN_020351cc();
+
+    /* 20. Enable sub engine display: set bit 16 in sub DISPCNT.
+     * ARM: ldr r2, =0x04001000; orr r1, #0x10000; str r1, [r2] */
+    *dispcnt_sub = *dispcnt_sub | 0x10000u;
+
+    /* 21. Load title screen assets (FUN_0207701C).
+     * This is a complex ~300-line overlay 8 function that loads tiles,
+     * tilemaps, and palettes from ROM. For now, use host asset loader. */
     host_title_screen_load();
 
-    /* 6. Initialize field_2c = 0 (normal state, not transitioning) */
+    /* 22. Register per-frame callback (overlay 5).
+     * ARM: bl FUN_0206621c(0x020768F0, 6, 1) */
+    extern void FUN_0206621c(u32, u16, u16);
+    FUN_0206621c(0x020768F0u, 6, 1);
+
+    /* 23. Clear field_2c (scene state = normal, not transitioning) */
     *(volatile u32 *)(uintptr_t)(obj_nds + 0x2c) = 0;
 
-    /* 7. Set the "needs update" flag so the scene queue processor
-     * actually calls our tick function.
-     * The queue processor checks (flags & 1) && !(flags & 2).
-     * flags are at node + link_offset + 6 = node + 0x0c + 6 = node + 0x12 */
+    /* Set needs-update flag so scene queue processor calls our tick */
     volatile u16 *flags_ptr = (volatile u16 *)(uintptr_t)(obj_nds + 0x12);
-    *flags_ptr |= 0x0001;  /* needs_update = 1 */
+    *flags_ptr |= 0x0001;
 
     fprintf(stderr,
-            "[FUN_02077784] title scene created: obj=0x%08X vtab=0x%08X "
-            "tick=0x%08X\n",
-            (unsigned)obj_nds, (unsigned)vtab_nds, (unsigned)OV8_TICK_ADDR);
+            "[FUN_02077784] REAL title ctor done: obj=0x%08X anim=%08X data=%08X sub=%08X\n",
+            (unsigned)obj_nds, (unsigned)anim_buf, (unsigned)data_buf, (unsigned)sub_obj);
     fflush(stderr);
 }
 
@@ -458,19 +604,19 @@ static void host_next_scene_tick(uintptr_t node_addr, uintptr_t anchor_addr)
                     "[file_select] fade complete, transitioning to gameplay\n");
             fflush(stderr);
 
-            /* Trigger scene transition via the anchor.
-             * State 0 = main gameplay scene (needs overlay function).
-             * For now, mark done so the game doesn't crash. */
+            /* Trigger scene transition via FUN_02005d3c.
+             * This sets the scene anchor to phase=2 (unload current scene),
+             * then phase=3 constructs the next scene.
+             * State 0 = main gameplay/world map (needs overlay 0 constructor
+             * FUN_0206DE6C).  The constructor is not yet decompiled but
+             * the state machine will attempt the transition. */
             u32 scene_anchor = *(volatile u32 *)(uintptr_t)SCENE_PTR_NDS;
             if (scene_anchor >= 0x02000000u && scene_anchor < 0x02400000u) {
-                /* Use FUN_02005d3c to advance the state machine.
-                 * State 0 would be the real gameplay, but it needs
-                 * overlay functions we haven't implemented yet.
-                 * For now we log it — the game stays at file select. */
                 fprintf(stderr,
-                        "[file_select] game would transition to gameplay here\n"
-                        "[file_select] (overlay-dependent scenes not yet implemented)\n");
+                        "[file_select] calling FUN_02005d3c(0x%08X, 0) to enter gameplay\n",
+                        (unsigned)scene_anchor);
                 fflush(stderr);
+                FUN_02005d3c((int)scene_anchor, 0);
             }
         }
         return;
@@ -521,10 +667,10 @@ static void host_next_scene_tick(uintptr_t node_addr, uintptr_t anchor_addr)
         /* Files 1-3: empty, no action (could show "No Data" message) */
     }
 
-    /* Update the cursor position in the tilemap every frame */
+    /* Update the cursor position in the font overlay tilemap every frame */
     void *a = nds_vram_bank('A');
     if (a) {
-        uint16_t *map = (uint16_t *)((uint8_t *)a + 0x8000);
+        uint16_t *map = (uint16_t *)((uint8_t *)a + FONT_MAP_OFF);
         /* menu rows: File 1 @ row 8, File 2 @ row 11, File 3 @ row 14, New Game @ row 17 */
         int menu_rows[] = {8, 11, 14, 17};
         for (int i = 0; i < FILESEL_ITEMS; i++) {
@@ -533,7 +679,7 @@ static void host_next_scene_tick(uintptr_t node_addr, uintptr_t anchor_addr)
             if (i == s_filesel_cursor) {
                 /* Blink the cursor arrow */
                 int show = (next_frame / 15) & 1;
-                map[row * 32 + 4] = show ? (uint16_t)(char_to_glyph('>') | (1 << 12)) : 0;
+                map[row * 32 + 4] = show ? (uint16_t)(char_to_glyph('>') | (15 << 12)) : 0;
             } else {
                 map[row * 32 + 4] = 0;  /* blank */
             }
@@ -577,62 +723,146 @@ void FUN_020739ec(void *ptr, int type, int param)
     if (a) memset(a, 0, nds_vram_bank_size('A'));
     if (b) memset(b, 0, nds_vram_bank_size('B'));
 
-    /* Set up palette for the file select screen */
-    void *e = nds_vram_bank('E');
-    if (e) {
-        uint16_t *pal = (uint16_t *)e;
-        /* Palette bank 0: menu text */
-        pal[0] = 0x0000;   /* transparent / backdrop */
-        pal[1] = 0x4C08;   /* dark blue-purple background */
-        pal[2] = 0x7FFF;   /* white text */
-        /* Palette bank 1: highlighted/cursor (yellow) */
-        pal[16] = 0x0000;
-        pal[17] = 0x4C08;
-        pal[18] = 0x03FF;  /* yellow (R=31, G=31, B=0 in BGR555) */
+    /* ── Try to load REAL file-select graphics from MenuDat.dat (FAT[86]) ── */
+    int real_loaded = 0;
+    const uint8_t *rom_d = rom_data();
+    if (rom_d && a) {
+        uint32_t fat_off = (uint32_t)rom_d[0x48] | ((uint32_t)rom_d[0x49] << 8) |
+                           ((uint32_t)rom_d[0x4A] << 16) | ((uint32_t)rom_d[0x4B] << 24);
+        #define MENUDAT_FAT_ID 86
+        uint32_t f_start = (uint32_t)rom_d[fat_off + MENUDAT_FAT_ID*8 + 0] |
+                           ((uint32_t)rom_d[fat_off + MENUDAT_FAT_ID*8 + 1] << 8) |
+                           ((uint32_t)rom_d[fat_off + MENUDAT_FAT_ID*8 + 2] << 16) |
+                           ((uint32_t)rom_d[fat_off + MENUDAT_FAT_ID*8 + 3] << 24);
+        uint32_t f_end   = (uint32_t)rom_d[fat_off + MENUDAT_FAT_ID*8 + 4] |
+                           ((uint32_t)rom_d[fat_off + MENUDAT_FAT_ID*8 + 5] << 8) |
+                           ((uint32_t)rom_d[fat_off + MENUDAT_FAT_ID*8 + 6] << 16) |
+                           ((uint32_t)rom_d[fat_off + MENUDAT_FAT_ID*8 + 7] << 24);
+
+        if (f_start < f_end && f_end <= (uint32_t)rom_size()) {
+            const uint8_t *md = rom_d + f_start;
+            uint32_t md_len = f_end - f_start;
+
+            /* Parse offset table */
+            uint32_t off0 = md[0] | (md[1]<<8) | (md[2]<<16) | (md[3]<<24);
+            uint32_t off1 = md[4] | (md[5]<<8) | (md[6]<<16) | (md[7]<<24);
+            uint32_t off2 = md[8] | (md[9]<<8) | (md[10]<<16) | (md[11]<<24);
+            uint32_t off3 = md[12] | (md[13]<<8) | (md[14]<<16) | (md[15]<<24);
+
+            /* sub[0]: LZ10-compressed 8bpp tiles → VRAM at MENU_TILE_OFF */
+            if (off0 < md_len && off1 < md_len && md[off0] == 0x10) {
+                uint32_t dec_sz = md[off0+1] | (md[off0+2]<<8) | (md[off0+3]<<16);
+                uint8_t *tile_buf = (uint8_t *)malloc(dec_sz);
+                if (tile_buf) {
+                    arm_swi_11_lz77_decomp(md + off0, tile_buf);
+                    uint32_t copy_sz = dec_sz;
+                    if (MENU_TILE_OFF + copy_sz > nds_vram_bank_size('A'))
+                        copy_sz = nds_vram_bank_size('A') - MENU_TILE_OFF;
+                    memcpy((uint8_t *)a + MENU_TILE_OFF, tile_buf, copy_sz);
+                    fprintf(stderr,
+                            "[file_select] MenuDat sub[0]: %u bytes LZ10 -> %u tiles (8bpp)\n",
+                            off1-off0, dec_sz / 64);
+                    free(tile_buf);
+                }
+            }
+
+            /* sub[1]: LZ10-compressed tilemap → VRAM at MENU_MAP_OFF */
+            if (off1 < md_len && off2 < md_len && md[off1] == 0x10) {
+                uint32_t dec_sz = md[off1+1] | (md[off1+2]<<8) | (md[off1+3]<<16);
+                uint8_t *map_buf = (uint8_t *)malloc(dec_sz);
+                if (map_buf) {
+                    arm_swi_11_lz77_decomp(md + off1, map_buf);
+                    uint32_t copy_sz = dec_sz;
+                    if (copy_sz > 0x800) copy_sz = 0x800;
+                    memcpy((uint8_t *)a + MENU_MAP_OFF, map_buf, copy_sz);
+                    fprintf(stderr,
+                            "[file_select] MenuDat sub[1]: %u bytes LZ10 -> %u map entries\n",
+                            off2-off1, dec_sz / 2);
+                    free(map_buf);
+                }
+            }
+
+            /* sub[2]: raw 256-color BGR555 palette → palette RAM */
+            if (off2 < md_len && off3 < md_len) {
+                uint32_t pal_sz = off3 - off2;
+                void *e = nds_vram_bank('E');
+                if (e && pal_sz >= 512) {
+                    memcpy(e, md + off2, 512);
+                    /* Set palette entry 0 to transparent black */
+                    ((uint16_t *)e)[0] = 0x0000;
+                    fprintf(stderr,
+                            "[file_select] MenuDat sub[2]: %u bytes raw palette\n", pal_sz);
+                }
+                real_loaded = 1;
+            }
+        }
     }
 
+    /* ── Font overlay on BG0 (always, regardless of real_loaded) ── */
     if (a) {
         uint8_t *tiles = (uint8_t *)a;
 
-        /* Write font glyph tiles starting at tile 0 */
-        write_font_tiles(tiles);
+        /* Write font glyph tiles at FONT_TILE_OFF (4bpp, 32 bytes each) */
+        write_font_tiles(tiles + FONT_TILE_OFF);
 
-        /* Also write a solid-fill tile for the background (after font glyphs).
-         * Tile index = FONT_GLYPH_COUNT, filled with palette index 1. */
-        uint8_t *bg_tile = tiles + (u32)FONT_GLYPH_COUNT * 32;
-        memset(bg_tile, 0x11, 32);
+        /* Background tile (index FONT_GLYPH_COUNT): fully transparent (index 0) */
+        memset(tiles + FONT_TILE_OFF + (u32)FONT_GLYPH_COUNT * 32, 0x00, 32);
 
-        /* Write tilemap at bank A offset 0x8000 (screen base 16) */
-        uint16_t *map = (uint16_t *)(tiles + 0x8000);
+        /* Write font tilemap at FONT_MAP_OFF */
+        uint16_t *map = (uint16_t *)(tiles + FONT_MAP_OFF);
 
-        /* Fill entire map with background tile */
+        /* Fill with transparent background tile */
         for (int i = 0; i < 32 * 32; i++)
             map[i] = (uint16_t)FONT_GLYPH_COUNT;
 
-        /* Draw the file select menu text */
-        write_text(map, 6, 2, "MARIO AND LUIGI", 0);
-        write_text(map, 5, 3, "PARTNERS IN TIME", 0);
-
-        write_text(map, 7, 5, "FILE  SELECT", 0);
-
-        write_text(map, 6, 8,  "FILE 1 - EMPTY", 0);
-        write_text(map, 6, 11, "FILE 2 - EMPTY", 0);
-        write_text(map, 6, 14, "FILE 3 - EMPTY", 0);
-        write_text(map, 6, 17, "NEW GAME", 1);  /* highlighted */
-
-        /* Draw initial cursor arrow */
-        map[17 * 32 + 4] = (uint16_t)(char_to_glyph('>') | (1 << 12));
+        /* Draw menu text — pal_bank 14 for normal, 15 for highlighted */
+        write_text(map, 6, 2, "MARIO AND LUIGI", 14);
+        write_text(map, 5, 3, "PARTNERS IN TIME", 14);
+        write_text(map, 7, 5, "FILE  SELECT", 14);
+        write_text(map, 6, 8,  "FILE 1 - EMPTY", 14);
+        write_text(map, 6, 11, "FILE 2 - EMPTY", 14);
+        write_text(map, 6, 14, "FILE 3 - EMPTY", 14);
+        write_text(map, 6, 17, "NEW GAME", 15);
+        map[17 * 32 + 4] = (uint16_t)(char_to_glyph('>') | (15 << 12));
     }
 
-    /* Configure BG0: char_base=0, screen_base=16, 4bpp, 32x32, priority 0 */
+    /* ── Palette for font (bank 14 = entries 224-239, bank 15 = entries 240-255) ── */
+    {
+        void *e = nds_vram_bank('E');
+        if (e) {
+            uint16_t *pal = (uint16_t *)e;
+            /* Bank 14: normal text — entry 2 (within bank) = white */
+            pal[14 * 16 + 2] = 0x7FFF;
+            /* Bank 15: highlighted text — entry 2 (within bank) = yellow */
+            pal[15 * 16 + 2] = 0x03FF;
+            if (!real_loaded) {
+                /* No real BG — fill bank 14 entry 1 for dark background */
+                pal[14 * 16 + 1] = 0x4C08;
+                pal[15 * 16 + 1] = 0x4C08;
+            }
+        }
+    }
+
+    /* ── Configure BG registers ── */
+    /* BG0: font overlay — char_base=0, screen_base=1, 4bpp, priority=0 */
     *(volatile uint16_t *)(uintptr_t)0x04000008u =
-        (0 << 2) | (16 << 8) | (0 << 7) | (0 << 14) | 0;
+        (0 << 2) | (1 << 8) | (0 << 7) | (0 << 14) | 0;
     *(volatile uint16_t *)(uintptr_t)0x04000010u = 0;
     *(volatile uint16_t *)(uintptr_t)0x04000012u = 0;
-    /* BG0 only */
+
+    if (real_loaded) {
+        /* BG1: real menu BG — char_base=4, screen_base=31, 8bpp, priority=1 */
+        *(volatile uint16_t *)(uintptr_t)0x0400000Au =
+            (4 << 2) | (31 << 8) | (1 << 7) | (0 << 14) | 1;
+        *(volatile uint16_t *)(uintptr_t)0x04000014u = 0;
+        *(volatile uint16_t *)(uintptr_t)0x04000016u = 0;
+    }
+
+    /* Enable BG0 + BG1 (if real loaded) */
     uint32_t dispcnt = *(volatile uint32_t *)(uintptr_t)0x04000000u;
     dispcnt &= ~(0x0F00u);
-    dispcnt |= 0x0100u;
+    dispcnt |= 0x0100u;  /* BG0 */
+    if (real_loaded) dispcnt |= 0x0200u;  /* BG1 */
     *(volatile uint32_t *)(uintptr_t)0x04000000u = dispcnt;
 
     u32 obj_nds = nds_bump_alloc(0x30);

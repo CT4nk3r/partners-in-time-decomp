@@ -59,19 +59,19 @@ void FUN_0202a56c(int param_1 /* r0 = list head */,
                   int param_2 /* r1 = node ptr  */)
 {
 #ifdef HOST_PORT
-    /* Defensive: on the real DS the immediate caller (FUN_02005d54 @
-     * 0x02001d54 variant) tail-calls us with r1 == 0, relying on ITCM
+    /* Defensive: on the real DS the immediate callers (FUN_02005d54/d3c)
+     * tail-call us with r1 set to a small integer (0 or 2), relying on ITCM
      * at low addresses to absorb the resulting writes.  Our host build
-     * has no ITCM mapping; bail with a one-shot log instead of faulting.
+     * has no ITCM mapping; bail with a one-shot log for non-mapped addresses.
      * The full FUN_0202a53c entry at 0x0202a53c already null-checks
      * r0[0] before this fast-path, but it does NOT validate r1. */
     static int s_warned = 0;
-    if (param_1 == 0 || param_2 == 0) {
+    if (param_1 == 0 || (unsigned)param_2 < 0x02000000u) {
         if (!s_warned) {
             s_warned = 1;
             fprintf(stderr,
                     "[FUN_0202a56c] guarded: head=0x%08X node=0x%08X "
-                    "(would corrupt low memory; needs ITCM) — skipping\n",
+                    "(not NDS-mapped; ITCM absorbs on real HW) — skipping\n",
                     (unsigned)param_1, (unsigned)param_2);
         }
         return;

@@ -242,7 +242,35 @@ void FS_Update(void) {}
 void SND_Init(void) {}
 void SND_Update(void) {}
 
-void PAD_Read(void) {}
+/* PAD_Read — read NDS buttons from REG_KEYINPUT + ext keys,
+ * then update the pad state struct via FUN_02029664.
+ *
+ * On real hardware:
+ *   main keys at 0x04000130 (10 bits, active-low)
+ *   ext  keys at 0x04000136 (X/Y from ARM7 IPC, active-low)
+ *   pad state struct at 0x0205FFAC
+ *   FUN_02029664(pad_state, pressed_bits) stores cont/trigger/release/repeat
+ *
+ * On HOST_PORT, SDL writes both registers each frame via pump_input_to_io(). */
+extern void FUN_02029664(u16 *param_1, u32 param_2);
+
+void PAD_Read(void)
+{
+    u16 main_keys = nds_reg_read16(0x04000130u);   /* active-low, bits 0-9 */
+    u16 ext_keys  = nds_reg_read16(0x04000136u);   /* active-low, bits 0-1 = X/Y */
+
+    /* Combine: map ext bit 0 (X) → bit 10, ext bit 1 (Y) → bit 11 */
+    u16 combined = main_keys | 0xFC00u;  /* bits 10-15 default to released */
+    if (!(ext_keys & (1u << 0))) combined &= ~(1u << 10);  /* X pressed */
+    if (!(ext_keys & (1u << 1))) combined &= ~(1u << 11);  /* Y pressed */
+
+    u16 mask = 0x0FFFu;  /* 12 button bits */
+    u16 pressed = (~combined) & mask;  /* active-high */
+
+    /* Pad state struct at 0x0205FFAC in NDS RAM */
+    volatile u16 *pad = (volatile u16 *)(uintptr_t)0x0205FFACu;
+    FUN_02029664((u16 *)pad, (u32)pressed);
+}
 
 void OBJ_Init(void) {}
 u32  OBJ_Create(void *param) { (void)param; return 1; }

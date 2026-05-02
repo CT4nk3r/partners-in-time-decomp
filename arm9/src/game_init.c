@@ -366,6 +366,17 @@ void FUN_02005b70(u16 *param_1)
     return;
 }
 
+// FUN_02005d3c @ 0x02005D3C (20 bytes) — Set scene state=arg, phase=2, tail-call FUN_0202a56c
+// Companion to FUN_02005d54 (which sets phase=0).  Used by scene teardown
+// to advance the scene anchor to phase 2 (unload/transition).
+void FUN_02005d3c(int param_1, u8 param_2)
+{
+    *(u8 *)(param_1 + 0x28) = param_2;
+    *(u8 *)(param_1 + 0x10) = 2;
+    (*DAT_02005d68)(param_1, 2);
+    return;
+}
+
 // FUN_02005d54 @ 0x02001D54 (20 bytes) — Set scene state and tail-call FUN_0202a56c
 // (Ghidra named this FUN_02005d54 from a stale offset.  The real ARM bytes
 //  live at 0x02001D54 and end with `bx ip` where ip = 0x0202A56C.  Under

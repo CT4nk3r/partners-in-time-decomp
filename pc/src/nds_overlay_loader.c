@@ -78,7 +78,7 @@ static uint8_t  g_loaded[MAX_OVERLAYS];
  * Since we don't execute either binary's code (only consult the
  * vtables and decompiled C), this overlap is harmless.  We log it.
  */
-static const int kRenderOverlays[] = { 0, 6, -1 };
+static const int kRenderOverlays[] = { 0, 8, -1 };
 
 static const char *kOvtCandidates[] = {
     "extracted/y9.bin",

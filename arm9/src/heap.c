@@ -203,7 +203,12 @@ void *OS_Alloc(u32 size, u32 heap_id)
  */
 void *OS_AllocBack(u32 size, u32 heap_id)
 {
+#ifdef HOST_PORT
+    /* Use the same low-memory arena as OS_Alloc */
+    return OS_Alloc(size, heap_id);
+#else
     return OS_AllocFromHeap(heap_id, size, NULL, 1);
+#endif
 }
 
 /**

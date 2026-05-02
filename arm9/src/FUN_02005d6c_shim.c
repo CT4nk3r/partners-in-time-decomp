@@ -137,6 +137,83 @@ void FUN_02005d6c(int obj_addr)
         return;
     }
 
+    if (phase == 2) {
+        /* Phase 2: unload current scene, load NEXT scene's assets.
+         * Structurally identical to phase 0 (state-switched asset loading)
+         * but for the destination scene. After completion → phase 3. */
+        switch (state) {
+        case 2:
+            /* State 2 (file select / post-title): same base resource files.
+             * From literal pool: FUN_02029788(0x02097200), FUN_0202b92c(5,0),
+             * FUN_0202b8a0(6,3,0). */
+            FUN_02029788(0x02097200u);
+            FUN_0202b92c(5u, 0u);
+            FUN_0202b8a0(6u, 3u, 0u);
+            break;
+        case 9:
+            /* State 9 (title screen): identical resources */
+            FUN_02029788(0x02097200u);
+            FUN_0202b92c(5u, 0u);
+            FUN_0202b8a0(6u, 3u, 0u);
+            break;
+        default:
+            fprintf(stderr,
+                    "[FUN_02005d6c] phase2 state=%u: asset load (generic)\n",
+                    (unsigned)state);
+            fflush(stderr);
+            /* Use same base resources as a fallback */
+            FUN_02029788(0x02097200u);
+            FUN_0202b92c(5u, 0u);
+            FUN_0202b8a0(6u, 3u, 0u);
+            break;
+        }
+
+        fprintf(stderr,
+                "[FUN_02005d6c] phase2 complete → phase=3 (state=%u)\n",
+                (unsigned)state);
+        fflush(stderr);
+
+        /* Advance to phase 3 */
+        *(volatile u8 *)(uintptr_t)(obj_addr + 0x10) = 3;
+        return;
+    }
+
+    if (phase == 3) {
+        /* Phase 3: wait for streaming to complete, then construct next scene.
+         * Mirrors phase 1 exactly (check stream, dispatch constructor). */
+        u32 stream = FUN_0202b848();
+        if (stream != 0) {
+            return;  /* still streaming, come back next frame */
+        }
+
+        FUN_0202a58c(obj_addr);
+
+        switch (state) {
+        case 2:  FUN_02029128(); break;  /* alloc_construct_obj_h → next scene */
+        case 4:  FUN_020290a0(); break;
+        case 5:  FUN_0202905c(); break;
+        case 6:  FUN_02028f90(); break;
+        case 7:  FUN_02028fd4(); break;
+        case 8:  FUN_02029018(); break;
+        case 9:  FUN_020290e4(); break;  /* title screen constructor */
+        case 10: FUN_02028f48(); break;
+        default:
+            fprintf(stderr,
+                    "[FUN_02005d6c] phase3 state=%u not handled\n",
+                    (unsigned)state);
+            break;
+        }
+
+        fprintf(stderr,
+                "[FUN_02005d6c] phase3 complete → phase=4 (state=%u)\n",
+                (unsigned)state);
+        fflush(stderr);
+
+        /* Advance to phase 4 (idle) */
+        *(volatile u8 *)(uintptr_t)(obj_addr + 0x10) = 4;
+        return;
+    }
+
     /* Phases 2, 3: stubbed for now */
     /* Phase 4 / default: idle (just returns) */
 }

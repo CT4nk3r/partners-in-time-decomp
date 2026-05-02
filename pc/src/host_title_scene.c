@@ -99,6 +99,21 @@ extern void FUN_02005d3c(int param_1, u8 param_2);
 #define KEY_START         (1u << 3)
 #define KEY_A             (1u << 0)
 
+/* NDS register addresses for BG scroll and brightness */
+#define REG_BG0HOFS       0x04000010u
+#define REG_BG0VOFS       0x04000012u
+#define REG_MASTER_BRIGHT 0x0400006Cu  /* main engine master brightness */
+
+/* Title animation state */
+static u32 s_title_frame_count = 0;
+static u32 s_fade_frame = 0;
+#define TITLE_FADE_DURATION 30  /* ~0.5 sec at 60fps */
+
+/* Write a 16-bit value to an NDS IO register */
+static void title_reg_write16(u32 addr, u16 val) {
+    *(volatile u16 *)(uintptr_t)addr = val;
+}
+
 static void host_title_tick(uintptr_t node_addr, uintptr_t anchor_addr)
 {
     (void)anchor_addr;
@@ -110,37 +125,46 @@ static void host_title_tick(uintptr_t node_addr, uintptr_t anchor_addr)
     if (field_2c >= 2) return;
 
     if (field_2c == 1) {
-        /* Teardown path — mirroring original ov8 FUN_02077444 teardown:
-         * 1. Call destructor (cleanup)
-         * 2. Stop streaming
-         * 3. Reset memory pools
-         * 4. Transition scene anchor to phase 2 (next scene)
-         *
-         * IMPORTANT: Set field_2c=2 FIRST to prevent re-triggering on
-         * subsequent frames (the destructor would normally remove us from
-         * the queue, but our host_title_dtor is a no-op). */
+        /* Fade-to-black transition before scene change.
+         * Master brightness register: bits 0-4 = factor (0=normal, 16=black),
+         * bit 14 = mode (1 = darken). Write increasing factor each frame. */
+        s_fade_frame++;
+        u32 factor = (s_fade_frame * 16) / TITLE_FADE_DURATION;
+        if (factor > 16) factor = 16;
+        title_reg_write16(REG_MASTER_BRIGHT, (u16)(0x4000u | (factor & 0x1F)));
+
+        if (s_fade_frame < TITLE_FADE_DURATION) {
+            return;  /* still fading */
+        }
+
+        /* Fade complete — now actually transition */
         *(volatile u32 *)(uintptr_t)(node_addr + 0x2c) = 2;
 
         static int teardown_logged = 0;
         if (!teardown_logged) {
             teardown_logged = 1;
             fprintf(stderr,
-                    "[title_tick] teardown: transitioning to next scene\n");
+                    "[title_tick] teardown: fade complete, transitioning to next scene\n");
             fflush(stderr);
         }
 
         /* Get scene anchor from the global pointer */
         u32 scene_anchor = *(volatile u32 *)(uintptr_t)SCENE_PTR_NDS;
         if (scene_anchor >= 0x02000000u && scene_anchor < 0x02400000u) {
-            /* Set scene anchor to phase 2 with state 2 (next scene).
-             * FUN_02005d3c: anchor+0x28 = new_state, anchor+0x10 = 2,
-             * then tail-calls FUN_0202a56c. */
             FUN_02005d3c((int)scene_anchor, 2);
         }
         return;
     }
 
-    /* Normal frame: check for Start or A button press.
+    /* Normal frame: animate title screen */
+    s_title_frame_count++;
+
+    /* 1. Scroll the sky background (BG0) slowly to the right.
+     *    The original game scrolls the sky ~0.5px/frame for a gentle drift. */
+    u16 sky_scroll = (u16)(s_title_frame_count / 2);
+    title_reg_write16(REG_BG0HOFS, sky_scroll);
+
+    /* 2. Check for Start or A button press.
      * SDL keyboard events are mapped to NDS REG_KEYINPUT at 0x04000130
      * by platform_sdl.c → pump_input_to_io(). */
     u16 keyinput = *(volatile u16 *)(uintptr_t)NDS_REG_KEYINPUT;
@@ -162,11 +186,12 @@ static void host_title_tick(uintptr_t node_addr, uintptr_t anchor_addr)
         if (!press_logged) {
             press_logged = 1;
             fprintf(stderr,
-                    "[title_tick] Start/A pressed! Setting field_2c=1 "
-                    "for teardown next frame\n");
+                    "[title_tick] Start/A pressed! Fading to black...\n");
             fflush(stderr);
         }
+        /* Begin fade transition (field_2c=1) */
         *(volatile u32 *)(uintptr_t)(node_addr + 0x2c) = 1;
+        s_fade_frame = 0;
     }
 }
 
@@ -313,8 +338,20 @@ static void host_next_scene_tick(uintptr_t node_addr, uintptr_t anchor_addr)
 {
     (void)anchor_addr;
     (void)node_addr;
-    /* Idle tick — the next scene just exists in the queue.
-     * Future: render file-select screen, handle input. */
+
+    static u32 next_frame = 0;
+    next_frame++;
+
+    /* Fade-in from black over 30 frames when entering this scene */
+    if (next_frame <= TITLE_FADE_DURATION) {
+        u32 factor = 16 - (next_frame * 16) / TITLE_FADE_DURATION;
+        if (factor > 16) factor = 16;
+        title_reg_write16(REG_MASTER_BRIGHT, (u16)(0x4000u | (factor & 0x1F)));
+    } else if (next_frame == TITLE_FADE_DURATION + 1) {
+        /* Fully visible — clear brightness override */
+        title_reg_write16(REG_MASTER_BRIGHT, 0);
+    }
+
     static int logged = 0;
     if (!logged) {
         logged = 1;

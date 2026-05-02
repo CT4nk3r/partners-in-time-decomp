@@ -232,6 +232,32 @@ void bg_render_top(uint16_t *fb) {
                             bgcnt[bg], hofs[bg], vofs[bg]);
         }
     }
+
+    /* Apply master brightness (REG_MASTER_BRIGHT at 0x0400006C).
+     * Bits 0-4: factor (0=no change, 16=full effect)
+     * Bits 14-15: mode (0=off, 1=darken, 2=brighten) */
+    uint16_t bright = nds_reg_read16(0x0400006Cu);
+    int brt_mode   = (bright >> 14) & 3;
+    int brt_factor = bright & 0x1F;
+    if (brt_factor > 16) brt_factor = 16;
+    if (brt_mode && brt_factor) {
+        for (int i = 0; i < NDS_SCREEN_WIDTH * NDS_SCREEN_HEIGHT; i++) {
+            uint16_t c = fb[i];
+            int r = c & 0x1F;
+            int g = (c >> 5) & 0x1F;
+            int b = (c >> 10) & 0x1F;
+            if (brt_mode == 1) { /* darken toward black */
+                r = r - (r * brt_factor / 16);
+                g = g - (g * brt_factor / 16);
+                b = b - (b * brt_factor / 16);
+            } else { /* brighten toward white */
+                r = r + ((31 - r) * brt_factor / 16);
+                g = g + ((31 - g) * brt_factor / 16);
+                b = b + ((31 - b) * brt_factor / 16);
+            }
+            fb[i] = (uint16_t)((b << 10) | (g << 5) | r);
+        }
+    }
 }
 
 void bg_render_bottom(uint16_t *fb) {

@@ -60,3 +60,6 @@ desktop.ini
 game_log.txt
 game_err.txt
 build_log.txt
+
+# Generated asset pack — personal data, do not redistribute
+assets/*.assets

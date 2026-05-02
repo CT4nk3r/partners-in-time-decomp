@@ -39,41 +39,46 @@ See [SETUP.md](SETUP.md) for detailed installation instructions.
 - **Ghidra 11+** with Java 17+ (reverse engineering / decompilation)
 - **GNU Make**
 
-## Quick Start
+## PC Port — Quick Start
 
-### 1. Clone this repository
+The PC port uses a **Ship-of-Harkinian-style** asset pack workflow:
+your ROM is needed only **once** for extraction; after that you can
+delete it and run purely from `assets/mlpit.assets`.
 
-```bash
-git clone https://github.com/YOUR_USERNAME/marionluigi-pit-decomp.git
-cd marionluigi-pit-decomp
+### Prerequisites
+
+- CMake 3.20+, a C11 compiler (GCC/Clang/MSVC)
+- SDL2 (e.g. `pacman -S mingw-w64-x86_64-SDL2` on MSYS2)
+- Python 3.8+ (stdlib only — for the standalone extractor)
+
+### Build & first run
+
+```sh
+# 1. Place your legally-dumped ROM (one time only)
+cp /path/to/your.nds roms/baserom.nds
+
+# 2. Configure and build
+cmake -B pc/build pc
+cmake --build pc/build
+
+# 3. Run — assets auto-extract on first launch (a few seconds)
+./pc/build/mlpit_pc.exe
+
+# 4. After first run, the ROM is no longer needed
+#    rm roms/baserom.nds   (optional)
 ```
 
-### 2. Install tools
+On first launch the executable detects `roms/baserom.nds`, extracts all
+assets to `assets/mlpit.assets`, then loads the pack and starts the game.
+Every subsequent run loads the pack directly — no ROM required.
 
-Follow the instructions in [SETUP.md](SETUP.md).
+You can also run the extractor manually:
 
-### 3. Provide your ROM
-
-Place your legally-obtained ROM as:
+```sh
+python tools/extract_assets.py
+# custom paths:
+python tools/extract_assets.py roms/baserom.nds assets/mlpit.assets
 ```
-rom/baserom.nds
-```
-
-### 4. Extract the ROM
-
-```bash
-python tools/scripts/extract_rom.py
-```
-
-This extracts the ARM9/ARM7 binaries, overlays, and filesystem data.
-
-### 5. Build (once decompilation progresses)
-
-```bash
-make
-```
-
-The build system will compile all decompiled C and assembly sources and produce an output ROM. A successful build means the output matches the original ROM byte-for-byte.
 
 ## Project Structure
 

@@ -1637,3 +1637,8 @@ int gx_verify_region_crc() { return 0; }
 int ipc_reset_cmd() { return 0; }
 
 #pragma GCC diagnostic pop
+
+/* === Render-pipeline stubs (overlay 0/6 — added by overlay-loader session) === */
+int FUN_02029518() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029518 (RenderOam_Transfer)\n");} return 0; }
+int FUN_020294b0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020294b0 (render finalize)\n");} return 0; }
+int FUN_02065f40() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02065f40 (entity prep)\n");} return 0; }

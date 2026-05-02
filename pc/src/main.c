@@ -22,13 +22,32 @@
 
 extern int game_thread_main(void* user);
 
+/* Optional: per-frame call into overlay-0's high-level scene render
+ * (FUN_02065a10).  Gated by MLPIT_CALL_REAL_RENDER=1 because without
+ * a faithful scene struct, dereferencing scene->sub at offset +4 etc.
+ * could NPE; the C body NULL-guards this safely.  The wiring exists
+ * so loading overlay 0 becomes visibly observable end-to-end. */
+extern void FUN_02065a10(void *scene);
+
 static void render_frame(void) {
     uint16_t* top = platform_top_framebuffer();
     uint16_t* bot = platform_bottom_framebuffer();
+
+    static int s_main_frame = 0;
+    static int s_real_render_logged = 0;
+
+    if (getenv("MLPIT_CALL_REAL_RENDER")) {
+        if (!s_real_render_logged) {
+            s_real_render_logged = 1;
+            fprintf(stderr, "[render] MLPIT_CALL_REAL_RENDER=1 — calling "
+                            "FUN_02065a10(NULL) per frame\n");
+        }
+        FUN_02065a10(NULL);
+    }
+
     /* Pull shadow OAM (NDS RAM 0x0205FFC0/0x0205FFAC) into g_oam_main /
      * g_oam_sub before obj_render() reads them.  See host_oam_upload.c. */
     extern void host_oam_upload_tick(int);
-    static int s_main_frame = 0;
     host_oam_upload_tick(s_main_frame++);
     bg_render_sync_vram();
     bg_render_top(top);

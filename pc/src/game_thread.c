@@ -191,6 +191,16 @@ int game_thread_main(void* user) {
      * .data values.  Must run before any decompiled code executes. */
     nds_arm9_ram_init();
 
+    /* HOST_PORT: load critical NDS arm9 overlays into the mapped RAM
+     * region so overlay-resident vtables (e.g. @0x020BF150 slot 2 =
+     * FUN_02065a10) and overlay .data become visible to host C code.
+     * See pc/src/nds_overlay_loader.c — currently loads overlays 0
+     * and 6 (the render-pipeline overlays). */
+    {
+        extern void nds_load_render_overlays(void);
+        nds_load_render_overlays();
+    }
+
     /* HOST_PORT: copy .data initial values from the mapped arm9.bin into
      * every C-level DAT_<addr> global (1267 of them).  Generated table
      * lives in build/generated/dat_init_table.h. */

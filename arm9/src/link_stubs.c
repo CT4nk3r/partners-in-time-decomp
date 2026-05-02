@@ -370,6 +370,7 @@ extern void FUN_0202a33c_safe(void);
 extern void host_scene_queue_log_state(const char *tag);
 extern void host_scene_queue_rearm_fake(void);
 extern void host_factory_rearm(void);
+extern void host_gxfifo_observer_tick(void);
 static int  g_queue_processor_enabled = -1;  /* tri-state: 0/1, -1=unread */
 
 void game_update_display(void) {
@@ -418,6 +419,7 @@ void game_update_display(void) {
             host_scene_queue_log_state(tag);
         }
         FUN_0202a33c_safe();
+        host_gxfifo_observer_tick();
     }
 }
 

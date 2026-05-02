@@ -1392,9 +1392,9 @@ void FUN_02029c40(void)
   uVar3 = DAT_02029df8;
   uVar2 = DAT_02029df4;
   puVar1 = DAT_02029df0;
-  puVar9 = DAT_02029df0 + 3;
-  uVar8 = ((volatile u32 *)DAT_02029df0)[7];
-  ((volatile u32 *)DAT_02029df0)[10] = DAT_02029dfc - DAT_02029df4;
+  puVar9 = puVar1 + 3;
+  uVar8 = puVar1[7];
+  puVar1[10] = DAT_02029dfc - DAT_02029df4;
   puVar1[3] = *puVar9 & 0xffffffe0;
   puVar1[7] = uVar8 & 0xffffffe0 | 1;
   uVar8 = 0;

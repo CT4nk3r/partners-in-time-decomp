@@ -32,8 +32,14 @@
 #endif
 
 #define ARM9_NDS_BASE         0x02000000u
-#define ARM9_NDS_SIZE         (4u * 1024u * 1024u)
+#define ARM9_NDS_SIZE         (16u * 1024u * 1024u)  /* full 16MB mirror window */
 #define ARM9_NDS_LOAD_OFFSET  0x00004000u   /* arm9.bin loads at 0x02004000 */
+
+/* NDS shared WRAM / ITCM mirror region used by heap arena 2.
+ * DAT_02029DF4 = 0x01FF87A0 (arena base), DAT_02029DFC = 0x01FFFFF0 (end).
+ * Map the full 64 KB page so the heap init loop can write block headers. */
+#define WRAM_NDS_BASE         0x01FF0000u
+#define WRAM_NDS_SIZE         0x00010000u   /* 64 KB */
 
 static int   g_arm9_ram_mapped = 0;
 static void *g_arm9_ram_base   = NULL;
@@ -73,6 +79,22 @@ void nds_arm9_ram_init(void)
     }
     g_arm9_ram_base = p;
     memset(p, 0, ARM9_NDS_SIZE);
+
+    /* Map WRAM region at 0x01FF0000 for heap arena 2. */
+    void *w = VirtualAlloc((LPVOID)(uintptr_t)WRAM_NDS_BASE,
+                           WRAM_NDS_SIZE,
+                           MEM_COMMIT | MEM_RESERVE,
+                           PAGE_READWRITE);
+    if (!w || (uintptr_t)w != (uintptr_t)WRAM_NDS_BASE) {
+        nds_log("[arm9] WRAM VirtualAlloc at 0x%08X failed (err=%lu) - "
+                "heap arena 2 will crash\n",
+                WRAM_NDS_BASE, (unsigned long)GetLastError());
+        if (w) VirtualFree(w, 0, MEM_RELEASE);
+    } else {
+        memset(w, 0, WRAM_NDS_SIZE);
+        nds_log("[arm9] mapped WRAM region at 0x%08X (%u KB)\n",
+                WRAM_NDS_BASE, WRAM_NDS_SIZE / 1024);
+    }
 #else
     /* Non-Windows: stub - decomp via raw pointer literal will crash. */
     nds_log("[arm9] fixed mapping not implemented for this platform\n");
@@ -96,7 +118,7 @@ void nds_arm9_ram_init(void)
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
     fseek(f, 0, SEEK_SET);
-    if (sz <= 0 || (uint32_t)sz > ARM9_NDS_SIZE - ARM9_NDS_LOAD_OFFSET) {
+    if (sz <= 0 || (uint32_t)sz > (4u * 1024u * 1024u) - ARM9_NDS_LOAD_OFFSET) {
         nds_log("[arm9] arm9.bin size %ld out of range\n", sz);
         fclose(f);
         g_arm9_ram_mapped = 1;
@@ -107,7 +129,16 @@ void nds_arm9_ram_init(void)
     size_t got = fread(dst, 1, (size_t)sz, f);
     fclose(f);
 
-    nds_log("[arm9] mapped %zu bytes from %s at 0x%08X (NDS base 0x%08X)\n",
+    /* NDS mirrors 4 MB main RAM throughout 0x02000000-0x02FFFFFF.
+     * Copy the first 4 MB to mirrors 1-3 so pointer literals like
+     * 0x027E0060 see the same data as 0x023E0060. */
+    for (int mirror = 1; mirror < 4; ++mirror) {
+        memcpy((uint8_t *)g_arm9_ram_base + mirror * (4u * 1024u * 1024u),
+               g_arm9_ram_base,
+               4u * 1024u * 1024u);
+    }
+
+    nds_log("[arm9] mapped %zu bytes from %s at 0x%08X (NDS base 0x%08X, 16MB mirrored)\n",
             got, used_path,
             ARM9_NDS_BASE + ARM9_NDS_LOAD_OFFSET,
             ARM9_NDS_BASE);

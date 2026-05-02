@@ -95,4 +95,8 @@
  * Documenting this for the next session.  No alias added.
  */
 
+/* MI_Fill32 — used as the memset-like primitive by FUN_02029c40 (heap init),
+ * hw_gx.c, sdk_io.c, etc. Defined in arm9/src/mem_simple.c. */
+#define FUN_0203b7dc MI_Fill32
+
 #endif /* SDK_SYMBOL_ALIASES_H */

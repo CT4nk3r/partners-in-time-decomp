@@ -1504,7 +1504,7 @@ int FUN_0203b0d0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b0
 int FUN_0203b160() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b160\n");} return 0; }
 int FUN_0203b5b4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b5b4\n");} return 0; }
 int FUN_0203b7c0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b7c0\n");} return 0; }
-int FUN_0203b7dc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b7dc\n");} return 0; }
+/* FUN_0203b7dc aliased to MI_Fill32 via sdk_symbol_aliases.h */
 int FUN_0203b7f0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b7f0\n");} return 0; }
 int FUN_0203b808() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b808\n");} return 0; }
 int FUN_0203b854() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b854\n");} return 0; }

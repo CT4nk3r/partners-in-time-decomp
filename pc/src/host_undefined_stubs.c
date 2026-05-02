@@ -1623,26 +1623,7 @@ int func_0x0209c9f8() { return 0; }
 int func_0x0209ca0c() { return 0; }
 int func_0x0209cd64() { return 0; }
 
-/* === Named SDK stubs (35 symbols) === */
-int FS_AttachOverlay() { return 0; }
-int FS_InitOverlay() { return 0; }
-int FS_LoadOverlay() { return 0; }
-int FS_Update() { return 0; }
-int GX_DisableInterrupts() { return 0; }
-int GX_FlushDisplay() { return 0; }
-int GX_GetCurrentMode() { return 0; }
-int GX_ResetVisiblePlane() { return 0; }
-int GX_SetDispSelect() { return 0; }
-int GX_SetMasterBrightness() { return 0; }
-int GX_SetVisiblePlane() { return 0; }
-int GX_SwapDisplay() { return 0; }
-int GX_UpdateDisplay() { return 0; }
-int GX_VBlankWait() { return 0; }
-int OBJ_Create() { return 0; }
-int OBJ_Update() { return 0; }
-int PAD_Read() { return 0; }
-int SND_Init() { return 0; }
-int SND_Update() { return 0; }
+/* === Named SDK stubs (17 symbols) === */
 int enable_ipc_interrupt() { return 0; }
 int game_do_transition() { return 0; }
 int game_setup_overlay() { return 0; }
@@ -1659,5 +1640,6 @@ int gx_update_display_state() { return 0; }
 int gx_update_layer_animation() { return 0; }
 int gx_verify_region_crc() { return 0; }
 int ipc_reset_cmd() { return 0; }
+int rom_read_overlay() { return 0; }
 
 #pragma GCC diagnostic pop

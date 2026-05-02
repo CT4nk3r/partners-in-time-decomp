@@ -5,7 +5,13 @@
  * a real implementation as the corresponding code is decompiled.
  */
 
+#include <string.h>
 #include "types.h"
+#include "arm_compat.h"
+
+#ifdef HOST_PORT
+extern int rom_read_overlay(int overlay_id);
+#endif
 
 /* ======== CRT0 helper functions (called from crt0.s) ======== */
 
@@ -22,7 +28,7 @@ void FS_Init(void) {}
 /* ======== OS / heap functions ======== */
 
 void OS_MemClear(void *ptr, u32 offset, u32 size) {
-    (void)ptr; (void)offset; (void)size;
+    if (ptr && size > 0) memset((u8*)ptr + offset, 0, size);
 }
 void OS_LockMutex(void *mutex) { (void)mutex; }
 void OS_UnlockMutex(void *mutex) { (void)mutex; }
@@ -91,3 +97,36 @@ u32 sHeapConfig = 0;
 u32 sHeapReady = 0;
 u32 sHeapTable = 0;
 u32 sHeapTableBack = 0;
+
+/* ======== SDK name wrappers (Task 1) ======== */
+
+void GX_VBlankWait(void) { arm_swi_05_vblank_intr_wait(); }
+void GX_SwapDisplay(void) {}
+void GX_SetMasterBrightness(u32 screen, u16 val) { (void)screen; (void)val; }
+void GX_SetVisiblePlane(u32 mask, u16 bits) { (void)mask; (void)bits; }
+void GX_UpdateDisplay(void) {}
+void GX_DisableInterrupts(void) {}
+void GX_FlushDisplay(void) {}
+void GX_ResetVisiblePlane(void) {}
+void GX_SetDispSelect(void) {}
+u32  GX_GetCurrentMode(void) { return 0; }
+
+void FS_InitOverlay(void) {}
+u32  FS_LoadOverlay(u32 id, u32 flags, void *callback, u32 param) {
+    (void)flags; (void)callback; (void)param;
+#ifdef HOST_PORT
+    rom_read_overlay((int)id);
+#endif
+    return id + 1; /* non-zero handle */
+}
+void FS_AttachOverlay(u32 handle, u32 id) { (void)handle; (void)id; }
+void FS_Update(void) {}
+
+void SND_Init(void) {}
+void SND_Update(void) {}
+
+void PAD_Read(void) {}
+
+void OBJ_Init(void) {}
+u32  OBJ_Create(void *param) { (void)param; return 1; }
+void OBJ_Update(u32 handle) { (void)handle; }

@@ -23,6 +23,36 @@ ROOT = Path(__file__).resolve().parents[2]
 LOG = ROOT / "build_log.txt"
 OUT = ROOT / "pc" / "src" / "host_undefined_stubs.c"
 
+# Symbols implemented in link_stubs.c or other hand-written files.
+# These must NOT appear in the auto-generated stubs to avoid duplicate symbol errors.
+EXCLUDE_SYMBOLS = {
+    # Already in link_stubs.c (original stubs)
+    "OS_Init", "GX_Init", "FS_Init", "OS_MemClear",
+    "OS_LockMutex", "OS_UnlockMutex", "OS_CreateHeap", "OS_ActivateHeap",
+    "OS_SetHeapConfig", "OS_SetHeapMode",
+    "irq_enable", "irq_setup", "lock_acquire", "lock_release",
+    "panic_check1", "panic_check2",
+    "dma_command", "dma_channel_enable", "dma_channel_reset",
+    "gx_display_reset", "gx_clear_flag", "gx_check_render_available",
+    "gx_get_current_mode", "gx_get_display_buffer", "gx_get_display_status",
+    "gx_refresh_display", "gx_update_base_display", "gx_update_display_entry",
+    "GameProp_ExternalGet3000", "GameProp_ExternalGet4000", "GameProp_ExternalGet7000",
+    "GameProp_ExternalSet3000", "GameProp_ExternalSet7000",
+    "power_request_fifo", "get_priority_used1", "get_priority_used2",
+    "struct_setup_advanced", "struct_setup_state", "NitroMain",
+    # New SDK wrappers being added to link_stubs.c (Task 1)
+    "GX_VBlankWait", "GX_SwapDisplay", "GX_SetMasterBrightness",
+    "GX_SetVisiblePlane", "GX_UpdateDisplay", "GX_DisableInterrupts",
+    "GX_FlushDisplay", "GX_ResetVisiblePlane", "GX_SetDispSelect",
+    "GX_GetCurrentMode",
+    "FS_InitOverlay", "FS_LoadOverlay", "FS_AttachOverlay", "FS_Update",
+    "SND_Init", "SND_Update",
+    "PAD_Read",
+    "OBJ_Init", "OBJ_Create", "OBJ_Update",
+    # From nds_rom.c (Task 3)
+    "rom_load", "rom_data", "rom_size", "rom_read_file",
+}
+
 if not LOG.exists():
     print(f"ERROR: {LOG} not found")
     sys.exit(1)
@@ -30,7 +60,7 @@ if not LOG.exists():
 undef = set()
 for line in LOG.read_text(errors="replace").splitlines():
     m = re.search(r"undefined reference to `([A-Za-z_][A-Za-z0-9_]*)'", line)
-    if m:
+    if m and m.group(1) not in EXCLUDE_SYMBOLS:
         undef.add(m.group(1))
 
 # Also preserve symbols from any existing stubs file (so iterative runs accumulate)
@@ -38,7 +68,9 @@ if OUT.exists():
     existing = OUT.read_text(errors="replace")
     # uint32_t SYM;  or  int SYM() { ... }
     for m in re.finditer(r"^(?:uint32_t|int)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\(;]", existing, re.MULTILINE):
-        undef.add(m.group(1))
+        sym = m.group(1)
+        if sym not in EXCLUDE_SYMBOLS:
+            undef.add(sym)
 
 # DON'T strip leading underscores - Ghidra emits both `DAT_xxx` and `_DAT_xxx`
 # variants for hardware register addresses (different symbols!)
@@ -111,6 +143,9 @@ for s in groups["OTHER"]:
              "main", "__main", "_main",
              "SDL_Init", "SDL_Quit"):
         lines.append(f"/* skipped: {s} */")
+        continue
+    if s in EXCLUDE_SYMBOLS:
+        lines.append(f"/* excluded: {s} */")
         continue
     lines.append(f"int {s}() {{ return 0; }}")
 lines.append("")

@@ -282,3 +282,19 @@ function-name mappings. See the cross-reference in
 `docs/RENDER_PIPELINE.md` (extracted from the research notes) for
 mapping `FUN_<addr>` symbols in this repo to their pokeplatinum
 equivalents.
+
+
+### 10 — Synth-sprite quad with real ROM texture+palette composited over BG layer
+
+![Real ROM texture on 3D sprite quad](progress/10_synth_sprite_real_rom_texture.png)
+
+Two render paths visible at once: the colourful tile mosaic background is the
+BG layer rendered from FAT[0x45]/sub[181] tiles + sub[194] tilemap + sub[177]
+palette, while the dark teal/green rectangular quad in the upper-middle is the
+GXFIFO software rasteriser drawing a textured 3D quad. The quad's texture
+bytes come from FAT[0x45]/sub[181] (de-tiled 4bpp 128x128 px) and the palette
+from FAT[0x45]/sub[177] — same source as the BG layer, but routed through
+the 3D pipeline instead of the BG compositor. This is the first frame where a
+sprite drawn through `host_gxfifo_raster` carries a recognisable structured
+texture from the asset pack instead of synthetic checker bytes.
+

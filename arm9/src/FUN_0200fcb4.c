@@ -4,6 +4,133 @@
  * Source: arm9.bin @ 0x0200fcb4 (load base 0x02004000), 2060 bytes / 515 instr.
  * Vtable[3] of the 53-entry vtable @ NDS 0x02050B68.
  *
+ * ============================================================
+ * NATURAL-C STRUCTURAL ANALYSIS (Track A — fcb4-real-vertices)
+ * ============================================================
+ *
+ * Block: function entry .. L_020104a8 (the bail/loop-exit label).
+ * Reverse-engineered from the goto-block transliteration; NOT executed
+ * directly — see body below for the verbatim instruction-by-instruction
+ * port. Reproduced here as natural C so future sessions can replace the
+ * transliterated body with this once it is validated end-to-end.
+ *
+ * struct sprite_anim_frame {  // 12 bytes; element of entity[+0x4c] table
+ *     u16 vis_or_kind;        // [0x00] zero -> animator skip path
+ *     s16 x_off;              // [0x02]
+ *     s16 y_off;              // [0x04]
+ *     // [0x06..0x0b] more anim attrs not relevant to bail
+ * };
+ *
+ * struct sprite_descriptor {  // 4 bytes; element of entity[+0x44] table
+ *     u16 sprite_idx;         // [0x00] index into entity[+0x40] payload
+ *     u16 attrs;              // [0x02] flags (rot/scale + count)
+ * };
+ *
+ * struct sprite_payload {     // 4 bytes per sprite; pointed at by entity[+0x40]
+ *     u16 first_vtx_idx;      // [0x00]
+ *     u16 vtx_count;          // [0x02] <-- THE LOOP COUNT R[6]<R[0] tests
+ * };
+ *
+ * struct entity_render {      // the param_1/r0 the function receives
+ *     u32 self;               // [0x00]
+ *     // ...
+ *     u32 some_table_a;       // [0x38]
+ *     u32 sprite_payloads;    // [0x40]  <-- R[4] in the transliteration
+ *     u32 sprite_descriptors; // [0x44]  <-- R[2] before the count load
+ *     u32 anim_frame_table;   // [0x48]  <-- R[2] for the anim_frame_t lookup
+ *     u32 sprite_attr_table;  // [0x4c]  <-- R[3] for the 12-byte attr stride
+ *     s16 anim_frame_idx;     // [0x54]
+ *     s16 sprite_base_idx;    // [0x56]
+ *     u16 unk60;              // [0x60]
+ *     u16 active_idx;         // [0x62]
+ *     u16 color_attr;         // [0x64]
+ *     u32 entity_anchor;      // [0x7c]  (visibility gate, [0x7c]<<23>>31)
+ *     u32 some_table_b;       // [0x148]
+ *     u8  vtx_kind;           // [0x15f]
+ *     u8  pad[...];
+ * };
+ *
+ * Bail at L_02010028 is the start of the per-vertex emit loop.  In
+ * natural C the entire prelude .. bail is:
+ *
+ *   void FUN_0200fcb4(struct entity_render *ent, int unused)
+ *   {
+ *       if ((ent->entity_anchor << 23) >> 31) return;   // visibility off
+ *       struct entity_render *anchor = (struct entity_render*)
+ *           ((u8*)ent + 0x100);      // L_0200fcdc add r0, r0, #256
+ *       u16 active = anchor->active_idx;                // [+0x62]
+ *       if (((active << 27) >> 27) == 0) return;        // empty slot
+ *
+ *       MMIO[0x04000440] = 2;                           // GXFIFO header
+ *       MMIO[0x04000480] = anchor->color_attr;          // COLOR
+ *       FUN_02036cfc();                                 // GX flush gate
+ *
+ *       // TEXIMAGE_PARAM = stuff packed from anchor->active_idx fields
+ *       MMIO[0x040004a4] = pack_teximage_param(active);
+ *
+ *       // Resolve the per-frame sprite descriptor and payload pointer:
+ *       u16 frame_kind     = *(u16*)(ent->some_table_a);   // R[1] above
+ *       u16 active_idx     = anchor->unk60;                // R[2] above
+ *       u32 *table_b       = (u32*)ent->some_table_b;      // R[3] above
+ *       u8   vtx_kind      = ent->vtx_kind;                // R[8] above
+ *       struct entity_render *sub = (struct entity_render*)
+ *           &table_b[active_idx * 4];                      // R[3] + (R[2]<<4)
+ *
+ *       // L_0200fdac: index into anim_frame_table[anchor->anim_frame_idx<<3]
+ *       u16 anim_off = ent->anim_frame_table[
+ *                          ent->anim_frame_idx << 3 / 2];
+ *       u32 frame_idx = ent->sprite_base_idx + anim_off;   // R[1] = R[3]+R[1]
+ *
+ *       struct sprite_payload    *payloads = (struct sprite_payload*)
+ *                                            ent->sprite_payloads;       // [+0x40]
+ *       struct sprite_descriptor *descs    = (struct sprite_descriptor*)
+ *                                            ent->sprite_descriptors;    // [+0x44]
+ *
+ *       u16 sprite_idx = descs[frame_idx].sprite_idx;
+ *       u16 attrs      = descs[frame_idx].attrs;
+ *
+ *       struct sprite_payload *pl = &payloads[sprite_idx];
+ *       u16 vtx_count             = pl->vtx_count;        // <-- THE BAIL COUNT
+ *       *(u32*)(sp + 0x10) = vtx_count;
+ *
+ *       // ... (more state setup at L_0200fde0 .. L_02010024) ...
+ *
+ *       MMIO[0x04000500] = 1;                              // BEGIN_VTXS = quads
+ *       int i = pl->first_vtx_idx;                         // R[6] init from
+ *                                                          //   payloads[sprite_idx][0]
+ *       if (i >= vtx_count) goto epilogue_at_L020104a8;   // <-- THE BAIL
+ *
+ *       // Per-vertex emit loop:
+ *       for (; i < vtx_count; i++) {
+ *           emit_quad_or_triangle_for_sprite(ent, anchor, sub, attrs,
+ *                                            sprite_idx, i);
+ *       }
+ *
+ *       MMIO[0x04000504] = 0;                              // END_VTXS
+ *   }
+ *
+ * THE GATE: vtx_count == 0 because either:
+ *   (a) entity_render::sprite_payloads is NULL (zero-init RAM), or
+ *   (b) the sprite_payload struct it points at has u16[0x02] == 0.
+ *
+ * Track B's job is to populate (a) and (b) so vtx_count > 0.
+ *
+ * Per-vertex emit (unwound from L_0201002c .. L_020104a4):
+ *   PLTT_BASE      = anchor->color_attr derived             [0x040004a8]
+ *   TEXIMAGE_PARAM = sprite-specific packed                 [0x040004a4]
+ *   MTX_SCALE  / MTX_TRANS                                  [0x0400046c/70]
+ *   For each of 4 corners (quad list):
+ *       TEXCOORD   (s16 s, s16 t)                           [0x04000494]
+ *       VTX_16     (s16 x, s16 y) + VTX_16 (s16 z, 0)       [0x04000488]
+ *
+ * Track B/C wire a host-side emitter that pushes equivalent commands
+ * into host_gxfifo_push() so the rasteriser can draw real game data
+ * without first untangling all 50 MMIO write-sites in the body below.
+ * ============================================================
+ */
+/*
+ * (legacy header — prologue analytics)
+ *
  * Function role: 3D sprite quad emitter. Walks an object's sprite-list,
  * issues GX commands (matrix mode/scale/trans, COLOR, TEXIMAGE_PARAM,
  * PLTT_BASE, BEGIN_VTXS, VTX_16, TEXCOORD, END_VTXS) for each visible

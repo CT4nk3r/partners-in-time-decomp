@@ -113,6 +113,31 @@ const uint16_t *host_gxfifo_raster_framebuffer(void) { return g_fb; }
 int host_gxfifo_raster_dirty(void) { return g_fb_dirty; }
 void host_gxfifo_raster_clear_dirty(void) { g_fb_dirty = 0; }
 
+/* Public APIs used by the synth-sprite pipeline (Track B/C of the
+ * fcb4-real-vertices session) so caller code can preload texture +
+ * palette VRAM with ROM-derived bytes. */
+void host_gxfifo_raster_install_texture(const void *src, size_t n)
+{
+    if (n > sizeof(g_tex_vram)) n = sizeof(g_tex_vram);
+    memcpy(g_tex_vram, src, n);
+    if (n < sizeof(g_tex_vram))
+        memset(g_tex_vram + n, 0, sizeof(g_tex_vram) - n);
+}
+
+void host_gxfifo_raster_install_palette(const uint16_t *src, size_t entries)
+{
+    size_t bytes = entries * sizeof(uint16_t);
+    if (bytes > sizeof(g_pal_vram)) bytes = sizeof(g_pal_vram);
+    memcpy(g_pal_vram, src, bytes);
+}
+
+void host_gxfifo_raster_clear_fb(void)
+{
+    memset(g_fb, 0, sizeof(g_fb));
+    memset(g_fb_valid, 0, sizeof(g_fb_valid));
+    g_fb_dirty = 0;
+}
+
 static void fb_clear(void)
 {
     memset(g_fb, 0, sizeof(g_fb));

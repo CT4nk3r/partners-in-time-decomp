@@ -103,6 +103,40 @@ is currently emitting GX commands; it is now ready to consume real
 vertex streams the moment `FUN_0200FCB4`'s mid-function bail at
 `L_02010028` is unblocked (per-frame entity buffer populated).
 
+### 07 — Rasteriser draws real ROM tile data via synth-entity emit path
+
+![Real sprite from ROM data](progress/07_real_sprite.png)
+
+`pc/src/host_synth_sprite.c` is the natural-C equivalent of
+`FUN_0200FCB4`'s post-`L_02010028` per-vertex emit loop, driven by a
+512-byte synth entity buffer whose layout matches the structural
+analysis at the top of `arm9/src/FUN_0200fcb4.c` (entity fields
+`+0x40` sprite_payloads, `+0x44` sprite_descriptors, `+0x48`
+anim_frame_table).  Behind `MLPIT_SYNTH_SPRITE=1` it:
+
+1. Loads a 32×32 4bpp tile from `assets/mlpit.assets`
+   (`pack_get_file`, default = first non-overlay raw file with
+   ≥512 bytes; override via `MLPIT_SYNTH_SPRITE_FAT_INDEX` /
+   `_BYTE_OFFSET`), de-tiles from NDS 8×8-tile layout to linear
+   row-major 4bpp, installs into the rasteriser's texture VRAM.
+2. Installs a 16-colour grayscale palette (idx 0 = transparent).
+3. Per frame walks the synth descriptor list and pushes the same
+   GX commands `FUN_0200FCB4` would emit per quad —
+   `TEXIMAGE_PARAM` / `PLTT_BASE` / `COLOR` / `BEGIN_VTXS=quads` /
+   four `TEXCOORD`+`VTX_XY` corners / `END_VTXS`.
+4. Composites the rasteriser FB over `g_top_fb`.
+
+Verification: with default config, frame 120 shows 16 distinct
+font/UI glyph tiles arranged 4×4 inside a 128×128 region of the top
+screen (5812 non-zero pixels) — actual ROM byte structure made
+visible end-to-end through the same rasteriser path the natural
+`FUN_0200FCB4` will use once its bail is unblocked.
+
+This unblocks the rasteriser pipeline ahead of the FCB4 structural
+re-decomp: the natural-C analysis block at the top of
+`arm9/src/FUN_0200fcb4.c` documents the exact entity-struct layout
+a future session needs to populate to retire the synth path.
+
 ## Component Status
 
 | Component                       | Status |

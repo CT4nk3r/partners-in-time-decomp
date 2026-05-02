@@ -243,6 +243,25 @@ void platform_present(void) {
         }
     }
 
+    /* Synth-sprite real-vertices pipeline (Track B+C of fcb4-real-vertices).
+     * When MLPIT_SYNTH_SPRITE=1, run the host-side natural-C emitter every
+     * frame, which pushes GX commands derived from a synth entity buffer
+     * + a real ROM-extracted texture.  This is the equivalent of what
+     * FUN_0200FCB4 would emit once its bail at L_02010028 is unblocked. */
+    {
+        extern void mlpit_synth_sprite_emit_frame(void);
+        extern void host_gxfifo_raster_composite_to_top(uint16_t *top_fb);
+        extern int  host_gxfifo_raster_dirty(void);
+        static int s_synth_enabled = -1;
+        if (s_synth_enabled < 0)
+            s_synth_enabled = getenv("MLPIT_SYNTH_SPRITE") ? 1 : 0;
+        if (s_synth_enabled) {
+            mlpit_synth_sprite_emit_frame();
+            if (host_gxfifo_raster_dirty())
+                host_gxfifo_raster_composite_to_top(g_top_fb);
+        }
+    }
+
     static int s_frame_counter = 0;
     static int s_dump_at = -2;
     /* MLPIT_SCREENSHOT_FRAMES=60,180,300,...   per-frame snapshots.

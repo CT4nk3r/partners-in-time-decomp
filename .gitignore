@@ -63,3 +63,7 @@ build_log.txt
 
 # Generated asset pack — personal data, do not redistribute
 assets/*.assets
+shot.ppm
+shot.png
+*.ppm
+

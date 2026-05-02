@@ -180,6 +180,10 @@ int main(int argc, char** argv) {
         "rom/baserom.nds",
         "rom/baserom_usa_rev1.nds",
         "rom/baserom_eur.nds",
+        "../../rom/baserom.nds",
+        "../../rom/baserom_usa_rev1.nds",
+        "../../rom/baserom_eur.nds",
+        "../../roms/baserom.nds",
         NULL
     };
 
@@ -202,7 +206,6 @@ int main(int argc, char** argv) {
                 nds_log("[boot] Asset pack loaded.\n");
             } else {
                 nds_log("[boot] Extraction FAILED — running with stub data.\n");
-                rom_load(found_rom);
             }
         } else {
             nds_log("[boot] No asset pack or ROM found — running with stub data.\n");
@@ -211,6 +214,19 @@ int main(int argc, char** argv) {
             nds_log("[boot]   2. Re-run — assets auto-extract to assets/mlpit.assets\n");
             nds_log("[boot]   3. Delete rom/baserom.nds after extraction (optional)\n");
         }
+    }
+
+    /* Always memory-map the ROM if available — needed for FS layer */
+    if (!rom_data()) {
+        for (int i = 0; k_rom_paths[i]; ++i) {
+            if (rom_load(k_rom_paths[i])) break;
+        }
+    }
+
+    /* Initialize the host FS layer from the ROM's FAT/FNT tables */
+    {
+        extern void host_nds_fs_init(void);
+        host_nds_fs_init();
     }
 
     /* === MLPIT_VIEWER mode ============================================

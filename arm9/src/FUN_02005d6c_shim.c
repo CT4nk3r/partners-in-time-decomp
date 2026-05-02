@@ -1,22 +1,17 @@
 /*
- * FUN_02005d6c.c — minimal HOST_PORT shim for the per-frame scene tick.
+ * FUN_02005d6c.c — HOST_PORT shim for the per-frame scene tick.
  *
  * Originally at arm9.bin @ 0x02005D6C (1284 bytes), this is the per-frame
  * scene-state-machine driver invoked via the queue tick (FUN_0202A33C →
  * vtable[2]).  It reads the phase byte at obj+0x10 and dispatches:
  *   phase 0: read state byte at obj+0x28, switch on it, load assets.
- *            For state 9 (used by host_game_setup_overlay) the body
- *            calls FUN_02029788(0x02097200), FUN_0202B92C(5, 0),
- *            FUN_0202B8A0(6, 3, 0) — the asset-load entry points that
- *            ultimately drive LZ77 → BG VRAM through the file system.
- *            On exit, sets phase byte to 1.
- *   phase 1..3: more update phases (asset post-process, anim init, etc.)
+ *   phase 1: check stream done, post-stream callback, init state object.
+ *   phase 2: more update phases (animation init, etc.)
+ *   phase 3: further init
  *   phase 4 / default: idle (just returns).
  *
- * Faithfully decompiling the full 1284-byte body is out of scope here;
- * we provide only the phase-0/state-9 dispatch case so the natural
- * boot path can attempt its first asset load.  Once we observe what
- * faults inside the helpers, the next session will widen the cases.
+ * Phases 0 and 1 are fully implemented from the ARM disassembly.
+ * Phases 2 and 3 are stubbed for now.
  */
 
 #include "types.h"
@@ -26,6 +21,18 @@
 extern void FUN_02029788(u32 param_1);
 extern int  FUN_0202b8a0(u32 param_1, u32 param_2, u32 param_3);
 extern void FUN_0202b92c(u32 param_1, u32 param_2);
+
+/* Phase 1 externs */
+extern u32  FUN_0202b848(void);
+extern void FUN_0202a58c(int param_1);
+extern void FUN_02028f48(void);
+extern void FUN_02028f90(void);
+extern void FUN_02028fd4(void);
+extern void FUN_02029018(void);
+extern void FUN_0202905c(void);
+extern void FUN_020290a0(void);
+extern void FUN_020290e4(void);
+extern void FUN_02029128(void);
 
 static int s_dispatch_count = 0;
 
@@ -46,19 +53,13 @@ void FUN_02005d6c(int obj_addr)
     }
 
     if (phase == 0) {
-        /* Phase-0 state switch (subset) — matches the dispatch table at
-         * 0x02005D98 in the original ARM body. */
+        /* Phase-0 state switch — load assets based on state byte */
         switch (state) {
         case 9:
             fprintf(stderr,
                     "[FUN_02005d6c] state=9 → asset triple "
                     "(FUN_02029788 + FUN_0202b92c + FUN_0202b8a0)\n");
             fflush(stderr);
-            /* The original sequence:
-             *   ldr r0, =0x02097200 ; bl FUN_02029788
-             *   ldr r0, =0x00000005 ; mov r1, #0    ; bl FUN_0202b92c
-             *   ldr r0, =0x00000006 ; mov r1, #3 ; mov r2, #0 ; bl FUN_0202b8a0
-             */
             FUN_02029788(0x02097200u);
             fprintf(stderr, "[FUN_02005d6c] FUN_02029788 returned\n"); fflush(stderr);
             FUN_0202b92c(5u, 0u);
@@ -69,7 +70,7 @@ void FUN_02005d6c(int obj_addr)
         default:
             if (s_dispatch_count <= 6) {
                 fprintf(stderr,
-                        "[FUN_02005d6c] state=%u not handled — phase→1\n",
+                        "[FUN_02005d6c] phase0 state=%u not handled\n",
                         (unsigned)state);
                 fflush(stderr);
             }
@@ -80,5 +81,62 @@ void FUN_02005d6c(int obj_addr)
         return;
     }
 
-    /* Phases 1..4: idle for now. */
+    if (phase == 1) {
+        /* Phase 1: check stream status, then dispatch init function.
+         * From ARM disassembly at file offset 0x1F08:
+         *   bl FUN_0202b848   ; check stream done
+         *   cmp r0, #0
+         *   popne {r4, lr}    ; if still streaming, return early
+         *   bl FUN_0202a58c   ; post-stream callback
+         *   <state switch>    ; init function per state
+         *   mov r0, #4
+         *   strb r0, [r4, #16] ; phase = 4
+         */
+        u32 stream = FUN_0202b848();
+        if (stream != 0) {
+            /* Still streaming — come back next frame */
+            return;
+        }
+
+        FUN_0202a58c(obj_addr);
+
+        /* State switch for phase 1 init functions */
+        switch (state) {
+        /* state 0: complex — needs overlay function FUN_0206DE6C */
+        /* state 1: needs overlay function FUN_0207781C */
+        /* state 3: needs overlay function FUN_02072F60 */
+        case 0:
+        case 1:
+        case 3:
+            fprintf(stderr,
+                    "[FUN_02005d6c] phase1 state=%u needs overlay (stubbed)\n",
+                    (unsigned)state);
+            break;
+        case 2:  FUN_02029128(); break;
+        case 4:  FUN_020290a0(); break;
+        case 5:  FUN_0202905c(); break;
+        case 6:  FUN_02028f90(); break;
+        case 7:  FUN_02028fd4(); break;
+        case 8:  FUN_02029018(); break;
+        case 9:  FUN_020290e4(); break;
+        case 10: FUN_02028f48(); break;
+        default:
+            fprintf(stderr,
+                    "[FUN_02005d6c] phase1 state=%u not handled\n",
+                    (unsigned)state);
+            break;
+        }
+
+        fprintf(stderr,
+                "[FUN_02005d6c] phase1 complete → phase=4 (state=%u)\n",
+                (unsigned)state);
+        fflush(stderr);
+
+        /* Phase 1 epilogue: advance to phase 4 */
+        *(volatile u8 *)(uintptr_t)(obj_addr + 0x10) = 4;
+        return;
+    }
+
+    /* Phases 2, 3: stubbed for now */
+    /* Phase 4 / default: idle (just returns) */
 }

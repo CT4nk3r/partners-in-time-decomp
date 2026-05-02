@@ -38,6 +38,7 @@ set(PC_SOURCES
     src/host_gxfifo_observer.c
     src/host_gxfifo_raster.c
 src/host_synth_sprite.c
+    src/host_nds_fs.c
     src/nds_hw_io.c
     src/host_oam_upload.c
     src/nds_overlay_loader.c

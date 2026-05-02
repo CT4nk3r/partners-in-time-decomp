@@ -1614,6 +1614,8 @@ u32 FUN_0203f690(u32 param_1, u32 param_2)
 }
 
 // FUN_0203f6e4 @ 0x0203f6e4 (92 bytes) — verify and finalize file
+// HOST_PORT override in host_nds_fs.c (avoids int pointer truncation on 64-bit)
+#ifndef HOST_PORT
 u32 FUN_0203f6e4(u32 param_1, u32 param_2)
 {
     int iVar1;
@@ -1626,6 +1628,7 @@ u32 FUN_0203f6e4(u32 param_1, u32 param_2)
     }
     return 0;
 }
+#endif
 
 // FUN_0203f964 @ 0x0203f964 (156 bytes) — HMAC verify
 BOOL FUN_0203f964(int param_1, u32 param_2, u32 param_3)
@@ -1651,6 +1654,8 @@ BOOL FUN_0203f964(int param_1, u32 param_2, u32 param_3)
 }
 
 // FUN_0203fa08 @ 0x0203fa08 (160 bytes) — write file data
+// HOST_PORT override in host_nds_fs.c (avoids int pointer truncation on 64-bit)
+#ifndef HOST_PORT
 u32 FUN_0203fa08(int param_1)
 {
     int iVar1;
@@ -1675,8 +1680,11 @@ u32 FUN_0203fa08(int param_1)
     FUN_0203ef08(auStack_50);
     return 0;
 }
+#endif
 
 // FUN_0203fc54 @ 0x0203fc54 (272 bytes) — read file table entry
+// HOST_PORT override in host_nds_fs.c (avoids int pointer truncation on 64-bit)
+#ifndef HOST_PORT
 u32 FUN_0203fc54(int param_1, int param_2, int param_3, u32 param_4,
                  int param_5, u32 param_6, int param_7, u32 param_8)
 {
@@ -1716,8 +1724,9 @@ u32 FUN_0203fc54(int param_1, int param_2, int param_3, u32 param_4,
     FUN_0203ef08(auStack_64);
     return 1;
 }
+#endif
 
-// FUN_0203fdec @ 0x0203fdec (396 bytes) — HMAC-SHA1 computation
+// FUN_0203fdec@ 0x0203fdec (396 bytes) — HMAC-SHA1 computation
 void FUN_0203fdec(int param_1, int param_2, int param_3, u8 *param_4, int param_5)
 {
     int iVar1;

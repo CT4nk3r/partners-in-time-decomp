@@ -1552,24 +1552,24 @@ int FUN_0203d028() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203d0
 int FUN_0203d220() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203d220\n");} return 0; }
 int FUN_0203d26c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203d26c\n");} return 0; }
 int FUN_0203d30c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203d30c\n");} return 0; }
-int FUN_0203e328() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203e328\n");} return 0; }
-int FUN_0203ed60() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ed60\n");} return 0; }
-int FUN_0203edcc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203edcc\n");} return 0; }
-int FUN_0203ef08() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ef08\n");} return 0; }
-int FUN_0203ef50() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ef50\n");} return 0; }
-int FUN_0203efa0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203efa0\n");} return 0; }
-int FUN_0203f2a0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f2a0\n");} return 0; }
-int FUN_0203f2c8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f2c8\n");} return 0; }
+/* FUN_0203e328 resolved via host_nds_fs.c */
+/* FUN_0203ed60 resolved via host_nds_fs.c */
+/* FUN_0203edcc resolved via host_nds_fs.c */
+/* FUN_0203ef08 resolved via host_nds_fs.c */
+/* FUN_0203ef50 resolved via host_nds_fs.c */
+/* FUN_0203efa0 resolved via host_nds_fs.c */
+/* FUN_0203f2a0 resolved via host_nds_fs.c */
+/* FUN_0203f2c8 resolved via host_nds_fs.c */
 /* FUN_0203f378 resolved via sdk_symbol_aliases.h -> os_timer_dispatch */
-int FUN_0203f398() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f398\n");} return 0; }
-int FUN_0203f740() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f740\n");} return 0; }
-int FUN_0203f75c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f75c\n");} return 0; }
-int FUN_0203f864() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f864\n");} return 0; }
-int FUN_0203faa8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203faa8\n");} return 0; }
-int FUN_0203fb40() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203fb40\n");} return 0; }
-int FUN_0203fd64() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203fd64\n");} return 0; }
-int FUN_0203fd8c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203fd8c\n");} return 0; }
-int FUN_0203fdd0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203fdd0\n");} return 0; }
+/* FUN_0203f398 resolved via host_nds_fs.c */
+/* FUN_0203f740 resolved via host_nds_fs.c */
+/* FUN_0203f75c resolved via host_nds_fs.c */
+/* FUN_0203f864 resolved via host_nds_fs.c */
+/* FUN_0203faa8 resolved via host_nds_fs.c */
+/* FUN_0203fb40 resolved via host_nds_fs.c */
+/* FUN_0203fd64 resolved via host_nds_fs.c */
+/* FUN_0203fd8c resolved via host_nds_fs.c */
+/* FUN_0203fdd0 resolved via host_nds_fs.c */
 int FUN_020400c4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020400c4\n");} return 0; }
 int FUN_020403c4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020403c4\n");} return 0; }
 int FUN_020404b0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020404b0\n");} return 0; }

@@ -103,4 +103,17 @@
  * from gx_util.c.  Decompiled in arm9/src/os_system.c. */
 #define FUN_0203f378 os_timer_dispatch
 
+/* === Alloc wrapper factories (phase-1 scene init) ==========================
+ * FUN_02005d6c phase 1 dispatches these per-state init functions.
+ * They live in arm9/src/alloc_wrappers.c with human-readable names.
+ * ========================================================================= */
+#define FUN_02028f48 alloc_construct_obj_a
+#define FUN_02028f90 alloc_construct_obj_b
+#define FUN_02028fd4 alloc_construct_obj_c
+#define FUN_02029018 alloc_construct_obj_d
+#define FUN_0202905c alloc_construct_obj_e
+#define FUN_020290a0 alloc_construct_obj_f
+#define FUN_020290e4 alloc_construct_obj_g
+#define FUN_02029128 alloc_construct_obj_h
+
 #endif /* SDK_SYMBOL_ALIASES_H */

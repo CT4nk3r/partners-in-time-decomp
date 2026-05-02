@@ -11,8 +11,55 @@
 #include "nds_boot_hook.h"
 
 #include <stdio.h>
+#include <stdint.h>
 #include <signal.h>
 #include <setjmp.h>
+#include <string.h>
+
+/* Task 1+3 (shadow-buffers-dma): the decompiled game stages display
+ * updates into u16 arrays at NDS RAM 0x0201977c..0x02019790 before
+ * DMAing them to real VRAM/OAM/PAL during VBlank.  Our VirtualAlloc'd
+ * 4 MiB ARM9 RAM at 0x02000000 covers this range, so a write through a
+ * raw pointer literal lands in host memory.  We snapshot the region at
+ * startup and again periodically — if the bytes change, the staging
+ * path is alive and we can follow it.
+ */
+#define SHADOW_PROBE_LO   0x02019700u   /* 124 bytes before 0x0201977c */
+#define SHADOW_PROBE_HI   0x02019820u   /* 144 bytes after 0x02019790 */
+#define SHADOW_PROBE_LEN  (SHADOW_PROBE_HI - SHADOW_PROBE_LO)
+
+static uint8_t  g_shadow_baseline[SHADOW_PROBE_LEN];
+static int      g_shadow_baseline_taken = 0;
+
+static void shadow_buffer_snapshot(const char *tag) {
+    if (!nds_arm9_ram_is_mapped()) {
+        nds_log("[shadow] %s: arm9 RAM not mapped — skipping snapshot\n", tag);
+        return;
+    }
+    const uint8_t *p = (const uint8_t *)(uintptr_t)SHADOW_PROBE_LO;
+    uint32_t w0 = 0, w1 = 0, w2 = 0, w3 = 0;
+    memcpy(&w0, p + (0x0201977cu - SHADOW_PROBE_LO), 4);
+    memcpy(&w1, p + (0x02019780u - SHADOW_PROBE_LO), 4);
+    memcpy(&w2, p + (0x02019784u - SHADOW_PROBE_LO), 4);
+    memcpy(&w3, p + (0x0201978cu - SHADOW_PROBE_LO), 4);
+    uint32_t hash = 0;
+    for (uint32_t i = 0; i < SHADOW_PROBE_LEN; i++) {
+        hash = hash * 131u + p[i];
+    }
+    int diff_bytes = 0;
+    if (g_shadow_baseline_taken) {
+        for (uint32_t i = 0; i < SHADOW_PROBE_LEN; i++)
+            if (p[i] != g_shadow_baseline[i]) diff_bytes++;
+    }
+    nds_log("[shadow] %s: 0x%08X..0x%08X w[77c]=%08X w[780]=%08X "
+            "w[784]=%08X w[78c]=%08X hash=%08X diff_bytes_vs_baseline=%d\n",
+            tag, SHADOW_PROBE_LO, SHADOW_PROBE_HI,
+            w0, w1, w2, w3, hash, diff_bytes);
+    if (!g_shadow_baseline_taken) {
+        memcpy(g_shadow_baseline, p, SHADOW_PROBE_LEN);
+        g_shadow_baseline_taken = 1;
+    }
+}
 
 extern void game_init(void);
 extern void game_start(void);
@@ -56,6 +103,11 @@ int game_thread_main(void* user) {
      * every C-level DAT_<addr> global (1267 of them).  Generated table
      * lives in build/generated/dat_init_table.h. */
     nds_apply_dat_inits();
+
+    /* Task 1: snapshot the post-loop u16 staging arrays
+     * DAT_0201977c..02019790 at startup.  We re-check after the game
+     * has run a while; if the bytes change, code is staging there. */
+    shadow_buffer_snapshot("after_dat_init");
 
     /* HOST_PORT: install the .data literals FUN_02005b70 needs (slot ptr,
      * alloc size, default config, display flag).  Must run before any
@@ -125,6 +177,11 @@ int game_thread_main(void* user) {
         arm_swi_05_vblank_intr_wait();
         if ((frame % 120) == 0) {
             nds_log("[game] heartbeat frame=%d\n", frame);
+        }
+        if (frame == 60 || frame == 240 || frame == 600) {
+            char tag[24];
+            snprintf(tag, sizeof(tag), "frame_%d", frame);
+            shadow_buffer_snapshot(tag);
         }
         frame++;
     }

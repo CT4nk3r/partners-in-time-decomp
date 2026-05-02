@@ -71,7 +71,7 @@ static u32 DAT_020062dc;    /* vtable for object type A */
 static u32 DAT_02006360;    /* vtable for scene object */
 static u32 *DAT_02006364;   /* scene data pointer */
 static u32 *DAT_02006368;   /* scene state pointer */
-static void (*DAT_02005d68)(void); /* scene jump target */
+static void (*DAT_02005d68)(int param_1, int param_2); /* scene jump target — called as tail-call w/ r0,r1 preserved */
 
 #ifdef HOST_PORT
 /* HOST_PORT shim: on real hardware DAT_02005d28..d38 (and DAT_02005d68) are
@@ -92,7 +92,7 @@ void host_game_init_install_globals(u32 *slot,
                                     u32  cfg_off,
                                     u16 *cfg_blob,
                                     u8  *disp_flag,
-                                    void (*scene_jmp)(void))
+                                    void (*scene_jmp)(int, int))
 {
     DAT_02005d28 = slot;
     DAT_02005d2c = alloc_sz;
@@ -366,12 +366,17 @@ void FUN_02005b70(u16 *param_1)
     return;
 }
 
-// FUN_02005d54 @ 0x02005D54 (20 bytes) — Set scene state and indirect jump
+// FUN_02005d54 @ 0x02001D54 (20 bytes) — Set scene state and tail-call FUN_0202a56c
+// (Ghidra named this FUN_02005d54 from a stale offset.  The real ARM bytes
+//  live at 0x02001D54 and end with `bx ip` where ip = 0x0202A56C.  Under
+//  HOST_PORT we model the tail call as `(*DAT_02005d68)(param_1, 0)`, since
+//  the ARM `mov r1,#0; strb r1,[r0,#0x10]; bx ip` sequence leaves r1==0 in
+//  the second-arg slot when control reaches FUN_0202a56c.)
 void FUN_02005d54(int param_1, u8 param_2)
 {
     *(u8 *)(param_1 + 0x28) = param_2;
     *(u8 *)(param_1 + 0x10) = 0;
-    (*DAT_02005d68)();
+    (*DAT_02005d68)(param_1, 0);
     return;
 }
 

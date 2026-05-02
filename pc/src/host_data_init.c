@@ -32,7 +32,9 @@ extern void host_game_init_install_globals(u32 *slot,
                                            u32  cfg_off,
                                            u16 *cfg_blob,
                                            u8  *disp_flag,
-                                           void (*scene_jmp)(void));
+                                           void (*scene_jmp)(int, int));
+
+extern void FUN_0202a56c(int param_1, int param_2);
 
 extern u32 *game_state_host_get_current_slot(void);
 
@@ -56,19 +58,21 @@ static u8 s_disp_mode_flag;
 #define HOST_CFG_OFFSET        ((u32)HOSTDATA_DAT_02005D30)
 
 /* Scene jump target. On real hardware DAT_02005d68 = 0x0202A56C - a
- * function in main ARM9 that has not yet been decompiled. We install
- * a host trampoline so FUN_02005d54 has a valid call target; if the
- * dispatch ever fires we'll see this log line and can decompile the
- * real callee. */
-static void host_scene_jmp_trampoline(void)
+ * doubly-linked-list "append" routine that the original decompiler
+ * missed (it lives mid-function inside FUN_0202a53c).  We hand-decompiled
+ * it in arm9/src/FUN_0202a56c.c; this trampoline simply forwards r0/r1
+ * after a one-shot log so we can confirm dispatch on stderr. */
+static void host_scene_jmp_trampoline(int param_1, int param_2)
 {
     static int s_fired = 0;
     if (!s_fired) {
         s_fired = 1;
         fprintf(stderr,
-                "[HOST-DATA] scene_jmp dispatched (would call ARM9 "
-                "FUN_0202A56C @ 0x0202A56C) — needs decomp\n");
+                "[HOST-DATA] scene_jmp dispatched -> FUN_0202a56c"
+                "(head=0x%08X, node=0x%08X)\n",
+                (unsigned)param_1, (unsigned)param_2);
     }
+    FUN_0202a56c(param_1, param_2);
 }
 
 void host_data_init_install(void)

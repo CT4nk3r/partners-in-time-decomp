@@ -28,6 +28,8 @@ static void render_frame(void) {
     bg_render_sync_vram();
     bg_render_top(top);
     bg_render_bottom(bot);
+    obj_render(top, 0);
+    obj_render(bot, 1);
 }
 
 static void render_placeholder(void) {

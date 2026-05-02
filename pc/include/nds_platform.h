@@ -115,6 +115,13 @@ void nds_log(const char* fmt, ...);
 void bg_render_sync_vram(void);
 void bg_render_top(uint16_t* fb);
 void bg_render_bottom(uint16_t* fb);
+/* OAM rasterizer stub: walks first 128 OAM entries and draws a small
+ * colored placeholder box for each visible (non-disabled) sprite.
+ * is_sub = 0 → main OAM (NDS 0x07000000), 1 → sub OAM (0x07000400). */
+void obj_render(uint16_t* fb, int is_sub);
+/* Returns a pointer to host-side OAM RAM (1024 bytes per engine).
+ * is_sub: 0 = main, 1 = sub.  Returns NULL pre-init. */
+void* nds_oam_ram(int is_sub);
 
 /* === VRAM-write watcher (Task 4) ===
  * Throttled tracker — see arm9/src/link_stubs.c for the body.  Call this

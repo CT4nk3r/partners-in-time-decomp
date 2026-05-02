@@ -112,8 +112,30 @@ static void *nds_addr_to_host(uint32_t addr, uint32_t len)
             return (uint8_t *)c + (addr - 0x06040000u);
     }
 
+    /* OAM RAM: main 0x07000000-0x070003FF, sub 0x07000400-0x070007FF.
+     * Backed by a static host buffer; rasterized later by obj_render(). */
+    {
+        extern uint8_t g_oam_main[1024];
+        extern uint8_t g_oam_sub[1024];
+        if (addr >= 0x07000000u && addr + len <= 0x07000400u)
+            return g_oam_main + (addr - 0x07000000u);
+        if (addr >= 0x07000400u && addr + len <= 0x07000800u)
+            return g_oam_sub  + (addr - 0x07000400u);
+    }
+
     return NULL;
 }
+
+/* Static OAM buffers, exposed via nds_oam_ram() and via the extern decls
+ * inside nds_addr_to_host above.  Real NDS OAM is 1 KiB per engine. */
+uint8_t g_oam_main[1024];
+uint8_t g_oam_sub [1024];
+
+void *nds_oam_ram(int is_sub) {
+    return is_sub ? (void*)g_oam_sub : (void*)g_oam_main;
+}
+
+
 
 /* ── DMA emulation ───────────────────────────────────────────── */
 

@@ -200,3 +200,101 @@ void bg_render_bottom(uint16_t *fb) {
         }
     }
 }
+
+/* ──────────────────────────────────────────────────────────────
+ * OAM rasterizer stub
+ *
+ * Walks the 128 OAM entries (8 bytes each) in g_oam_main/g_oam_sub.
+ * For every entry that is not "disabled" (rotation/scaling cleared
+ * AND attr0.bit9 set ⇒ disabled) we draw a small colored placeholder
+ * box at (X, Y) sized per attr1 size bits.  The fill color is derived
+ * deterministically from attr2 so that distinct sprites get distinct
+ * colors — enough to confirm OAM uploads are happening even though we
+ * don't yet decode tile graphics.
+ *
+ * Real NDS OBJ rasterization is significantly more involved (tile
+ * fetching, palette decoding, rotation/scaling, mosaic, alpha, etc.).
+ * The intent here is "is the game writing to OAM at all?" not pixel
+ * accuracy.
+ * ────────────────────────────────────────────────────────────── */
+extern uint8_t g_oam_main[1024];
+extern uint8_t g_oam_sub [1024];
+
+#define REG_DISPCNT_MAIN 0x04000000
+#define REG_DISPCNT_SUB  0x04001000
+
+static const int oam_size_table[4][4][2] = {
+    /* shape 0: square */
+    { {8,8},   {16,16}, {32,32}, {64,64} },
+    /* shape 1: horizontal */
+    { {16,8},  {32,8},  {32,16}, {64,32} },
+    /* shape 2: vertical */
+    { {8,16},  {8,32},  {16,32}, {32,64} },
+    /* shape 3: reserved → treat as 8x8 */
+    { {8,8},   {8,8},   {8,8},   {8,8}   },
+};
+
+static void fill_box(uint16_t *fb, int x, int y, int w, int h, uint16_t color) {
+    if (x >= NDS_SCREEN_WIDTH || y >= NDS_SCREEN_HEIGHT) return;
+    if (x + w > NDS_SCREEN_WIDTH)  w = NDS_SCREEN_WIDTH  - x;
+    if (y + h > NDS_SCREEN_HEIGHT) h = NDS_SCREEN_HEIGHT - y;
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (w <= 0 || h <= 0) return;
+    for (int yy = 0; yy < h; yy++) {
+        uint16_t *row = fb + (y + yy) * NDS_SCREEN_WIDTH + x;
+        /* Draw outline + dimmer fill so multiple sprites don't merge. */
+        for (int xx = 0; xx < w; xx++) {
+            int edge = (xx == 0) || (xx == w-1) || (yy == 0) || (yy == h-1);
+            row[xx] = edge ? color : (uint16_t)(color & 0x39CE); /* halve channels */
+        }
+    }
+}
+
+void obj_render(uint16_t *fb, int is_sub) {
+    uint32_t dispcnt = nds_reg_read32(is_sub ? REG_DISPCNT_SUB : REG_DISPCNT_MAIN);
+    /* DISPCNT bit 12 = OBJ enable */
+    if (!((dispcnt >> 12) & 1)) return;
+
+    const uint8_t *oam = is_sub ? g_oam_sub : g_oam_main;
+    int drawn = 0;
+    for (int i = 0; i < 128; i++) {
+        uint16_t attr0 = (uint16_t)(oam[i*8 + 0] | (oam[i*8 + 1] << 8));
+        uint16_t attr1 = (uint16_t)(oam[i*8 + 2] | (oam[i*8 + 3] << 8));
+        uint16_t attr2 = (uint16_t)(oam[i*8 + 4] | (oam[i*8 + 5] << 8));
+
+        int rot_scale = (attr0 >> 8) & 1;
+        int disabled  = !rot_scale && ((attr0 >> 9) & 1);
+        if (disabled) continue;
+        /* All-zero entry → consider hidden */
+        if (attr0 == 0 && attr1 == 0 && attr2 == 0) continue;
+
+        int y     = attr0 & 0xFF;
+        int shape = (attr0 >> 14) & 3;
+        int x     = attr1 & 0x1FF;
+        if (x & 0x100) x -= 0x200;   /* sign-extend 9 bits */
+        int size  = (attr1 >> 14) & 3;
+
+        int w = oam_size_table[shape][size][0];
+        int h = oam_size_table[shape][size][1];
+
+        /* Hash attr2 → BGR555 color (avoid pure black/white). */
+        uint16_t hash  = (uint16_t)(attr2 ^ (attr2 >> 7) ^ (i * 0x9E37u));
+        uint16_t color = (uint16_t)(((hash & 0x1F) << 0)
+                                 | (((hash >> 5) & 0x1F) << 5)
+                                 | (((hash >> 10) & 0x1F) << 10));
+        if (color == 0) color = 0x7C1F; /* magenta fallback */
+
+        fill_box(fb, x, y, w, h, color);
+        drawn++;
+    }
+
+    static int once[2] = {0,0};
+    if (drawn && !once[is_sub & 1]) {
+        once[is_sub & 1] = 1;
+        /* Best-effort log; nds_log lives in nds_hw_stubs.c. */
+        extern void nds_log(const char *fmt, ...);
+        nds_log("[obj-render] %s engine: drew %d OAM placeholder(s) (DISPCNT=%08X)\n",
+                is_sub ? "SUB" : "MAIN", drawn, dispcnt);
+    }
+}

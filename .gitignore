@@ -67,3 +67,4 @@ shot.ppm
 shot.png
 *.ppm
 
+trace_run*.log

@@ -576,12 +576,15 @@ int boot_hook_paired_screen(void)
             if (paired_screen_load(0, fat_id, st, sm, sp)) {
                 return 1;
             }
-            nds_log("[boot_hook] MLPIT_BOOT_TRIPLE=%s failed; using default 0x45:181:178:185\n", env);
+            nds_log("[boot_hook] MLPIT_BOOT_TRIPLE=%s failed; using default 0x45:181:194:177\n", env);
         } else {
             nds_log("[boot_hook] MLPIT_BOOT_TRIPLE=%s malformed (want fatHex:tile:map:pal)\n", env);
         }
     }
-    return paired_screen_load(0, 0x45, 181, 178, 185);
+    /* Default chosen by tools/scripts/sweep_boot_triples.py — best
+     * scene-likeness (low tile-grid regularity, balanced palette, ~104
+     * unique colors) of the 57 candidate triples. */
+    return paired_screen_load(0, 0x45, 181, 194, 177);
 }
 
 int boot_hook_paired_screen_sub(void)
@@ -594,5 +597,5 @@ int boot_hook_paired_screen_sub(void)
         }
     }
     /* Default: mirror the top screen contents on sub engine. */
-    return paired_screen_load(1, 0x45, 181, 178, 185);
+    return paired_screen_load(1, 0x45, 181, 194, 177);
 }

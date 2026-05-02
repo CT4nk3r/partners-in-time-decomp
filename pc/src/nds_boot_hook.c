@@ -31,6 +31,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 /* ── NDS register addresses (same as in nds_bg_render.c) ──────── */
 #define REG_DISPCNT   0x04000000u
@@ -536,14 +537,31 @@ static int paired_screen_load(int engine, uint32_t fat_id,
     return 1;
 }
 
+/* Parse "fatHex:tile:map:pal" into 4 unsigned values.
+ * Returns 1 on success, 0 on parse failure. Uses strtoul to avoid the
+ * MinGW sscanf locale-init pause that can hang the boot path. */
+static int parse_triple(const char *s,
+                        uint32_t *fat, uint32_t *t, uint32_t *m, uint32_t *p)
+{
+    char *end;
+    *fat = (uint32_t)strtoul(s, &end, 16);
+    if (*end != ':') return 0;
+    *t = (uint32_t)strtoul(end + 1, &end, 10);
+    if (*end != ':') return 0;
+    *m = (uint32_t)strtoul(end + 1, &end, 10);
+    if (*end != ':') return 0;
+    *p = (uint32_t)strtoul(end + 1, &end, 10);
+    return 1;
+}
+
 int boot_hook_paired_screen(void)
 {
     /* Allow runtime override via MLPIT_BOOT_TRIPLE=fat_hex:tile_sub:map_sub:pal_sub
      * (decimal sub-indices). Example: "45:181:178:185". */
     const char *env = getenv("MLPIT_BOOT_TRIPLE");
     if (env && *env) {
-        unsigned fat_id, st, sm, sp;
-        if (sscanf(env, "%x:%u:%u:%u", &fat_id, &st, &sm, &sp) == 4) {
+        uint32_t fat_id, st, sm, sp;
+        if (parse_triple(env, &fat_id, &st, &sm, &sp)) {
             if (paired_screen_load(0, fat_id, st, sm, sp)) {
                 return 1;
             }
@@ -559,8 +577,8 @@ int boot_hook_paired_screen_sub(void)
 {
     const char *env = getenv("MLPIT_BOOT_TRIPLE_SUB");
     if (env && *env) {
-        unsigned fat_id, st, sm, sp;
-        if (sscanf(env, "%x:%u:%u:%u", &fat_id, &st, &sm, &sp) == 4) {
+        uint32_t fat_id, st, sm, sp;
+        if (parse_triple(env, &fat_id, &st, &sm, &sp)) {
             if (paired_screen_load(1, fat_id, st, sm, sp)) return 1;
         }
     }

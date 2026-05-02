@@ -63,8 +63,34 @@ endif()
 target_include_directories(mlpit_pc PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../arm9/include
+    ${CMAKE_BINARY_DIR}/generated
     ${SDL2_INCLUDE_DIRS}
 )
+
+# ROM-data extraction: produce <build>/generated/host_data_init_generated.h
+# at configure time from the user's own arm9.bin. The generated header
+# contains copyrighted ROM bytes and lives under build/ which is gitignored
+# (never commit the output, only the script).
+set(_extract_script "${CMAKE_CURRENT_SOURCE_DIR}/../tools/scripts/extract_data_inits.py")
+set(_arm9_bin "${CMAKE_CURRENT_SOURCE_DIR}/../extracted/arm9.bin")
+set(_data_init_header "${CMAKE_BINARY_DIR}/generated/host_data_init_generated.h")
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(NOT Python3_Interpreter_FOUND)
+    set(Python3_EXECUTABLE python)
+endif()
+if(EXISTS ${_arm9_bin})
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} ${_extract_script} ${_arm9_bin} ${_data_init_header}
+        RESULT_VARIABLE _extract_rc
+    )
+    if(NOT _extract_rc EQUAL 0)
+        message(FATAL_ERROR "extract_data_inits.py failed (rc=${_extract_rc})")
+    endif()
+else()
+    message(WARNING "extracted/arm9.bin not found - run tools/scripts/extract_rom.py first; building with stale generated header (if any).")
+endif()
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/host_data_init.c
+    PROPERTIES OBJECT_DEPENDS ${_data_init_header})
 
 target_compile_definitions(mlpit_pc PRIVATE
     HOST_PORT=1

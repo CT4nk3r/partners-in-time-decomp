@@ -22,6 +22,11 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Generated at configure time from the user's own arm9.bin.
+ * See tools/scripts/extract_data_inits.py. The header lives in the
+ * build directory and is .gitignore'd - never commit ROM-derived bytes. */
+#include "host_data_init_generated.h"
+
 extern void host_game_init_install_globals(u32 *slot,
                                            u32  alloc_sz,
                                            u32  cfg_off,
@@ -31,33 +36,40 @@ extern void host_game_init_install_globals(u32 *slot,
 
 extern u32 *game_state_host_get_current_slot(void);
 
-/* Default config blob that FUN_02005b70 copies into the substate at
- * offset DAT_02005d30.  The function reads halfword[0], halfword[1],
- * halfword[2], and two u32 words at byte offset 16/20 — total of
- * 24 bytes accessed (>=12 halfwords).  All zero is the safest default;
- * the bit-fields are extracted at the end of FUN_02005b70 (shifts of
- * 0x1d, 0x17, 0x16, 0x1c) and 0 yields cleared flag bits, which
- * matches "no special display mode / not a movie scene" defaults. */
+/* Default config blob FUN_02005b70 copies into the substate.
+ * On real hardware DAT_02005d34 = 0x02048F44 — a pointer into the
+ * arm9 .data segment. We mirror those exact 32 bytes here from the
+ * user's own ROM via the generated header. */
 static u16 s_default_config[16];
 
-/* DAT_02005d38 is dereferenced as *DAT_02005d38 & 1; zero -> mode bit
- * cleared.  Provide one concrete byte. */
+/* DAT_02005d38 is dereferenced as *DAT_02005d38 & 1.
+ * The real ROM-extracted byte at 0x02059C8C lives in BSS so 0 is the
+ * correct boot-time value. */
 static u8 s_disp_mode_flag;
 
-/* Size of the clGameMain object.  game_main.c's host shim already
- * reserves 0x600 (1536) bytes of backing storage and uses that as
- * sGameState->current.  Match that here so FUN_02005b70's bzero of
- * DAT_02005d2c bytes does NOT overrun. */
-#define HOST_CLGAMEMAIN_SIZE   0x600u
+/* clGameMain alloc size: ROM has DAT_02005d2c = 0x58C (1420 bytes).
+ * The host substate buffer in game_main.c reserves 0x600 (1536) which
+ * comfortably covers a 0x58C alloc + the [+0x57C..+0x588] writes. */
+#define HOST_CLGAMEMAIN_SIZE   ((u32)HOSTDATA_DAT_02005D2C)
 
-/* Intra-struct offset where the config halfwords land.  Inspecting
- * FUN_02005b70: it copies *param_1 to byte offset 0x57c, then writes
- * halfwords at (substate + DAT_02005d30 + 2/4) and 32-bit words at
- * (substate + DAT_02005d30 + 8/12).  These accesses must fit inside
- * the 0x600-byte block.  The Ghidra disassembly anchors this offset
- * at 0x500 (0x500..0x510 — well below 0x57c and below 0x600).  Pick
- * 0x500 as the safe default. */
-#define HOST_CFG_OFFSET        0x500u
+/* Intra-struct config-blob offset: ROM has DAT_02005d30 = 0x57C. */
+#define HOST_CFG_OFFSET        ((u32)HOSTDATA_DAT_02005D30)
+
+/* Scene jump target. On real hardware DAT_02005d68 = 0x0202A56C - a
+ * function in main ARM9 that has not yet been decompiled. We install
+ * a host trampoline so FUN_02005d54 has a valid call target; if the
+ * dispatch ever fires we'll see this log line and can decompile the
+ * real callee. */
+static void host_scene_jmp_trampoline(void)
+{
+    static int s_fired = 0;
+    if (!s_fired) {
+        s_fired = 1;
+        fprintf(stderr,
+                "[HOST-DATA] scene_jmp dispatched (would call ARM9 "
+                "FUN_0202A56C @ 0x0202A56C) — needs decomp\n");
+    }
+}
 
 void host_data_init_install(void)
 {
@@ -67,20 +79,33 @@ void host_data_init_install(void)
         return;
     }
 
+    /* Populate s_default_config from the ROM-extracted bytes. */
+    memcpy(s_default_config,
+           HOSTDATA_CONFIG_BLOB_02048F44_BYTES,
+           sizeof(s_default_config) <
+               sizeof(HOSTDATA_CONFIG_BLOB_02048F44_BYTES)
+               ? sizeof(s_default_config)
+               : sizeof(HOSTDATA_CONFIG_BLOB_02048F44_BYTES));
+
     host_game_init_install_globals(
-        slot,                       /* DAT_02005d28 */
-        HOST_CLGAMEMAIN_SIZE,       /* DAT_02005d2c */
-        HOST_CFG_OFFSET,            /* DAT_02005d30 */
-        s_default_config,           /* DAT_02005d34 */
-        &s_disp_mode_flag,          /* DAT_02005d38 */
-        NULL                        /* DAT_02005d68 — no writer found yet */
+        slot,                       /* DAT_02005d28 (host slot ptr) */
+        HOST_CLGAMEMAIN_SIZE,       /* DAT_02005d2c = 0x58C */
+        HOST_CFG_OFFSET,            /* DAT_02005d30 = 0x57C */
+        s_default_config,           /* DAT_02005d34 (host blob ptr) */
+        &s_disp_mode_flag,          /* DAT_02005d38 (host flag ptr) */
+        host_scene_jmp_trampoline   /* DAT_02005d68 (host stub for 0x0202A56C) */
     );
 
     fprintf(stderr,
-            "[HOST-DATA] installed: slot=%p alloc=%u cfg_off=0x%x cfg=%p flag=%p\n",
+            "[HOST-DATA] installed: slot=%p alloc=0x%x cfg_off=0x%x cfg=%p flag=%p scene_jmp=%p\n",
             (void *)slot,
             (unsigned)HOST_CLGAMEMAIN_SIZE,
             (unsigned)HOST_CFG_OFFSET,
             (void *)s_default_config,
-            (void *)&s_disp_mode_flag);
+            (void *)&s_disp_mode_flag,
+            (void *)host_scene_jmp_trampoline);
+
+    fprintf(stderr,
+            "[HOST-DATA] DAT_02005D68 ROM word = 0x%08X (expected 0x0202A56C)\n",
+            (unsigned)HOSTDATA_DAT_02005D68);
 }

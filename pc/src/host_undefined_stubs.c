@@ -1610,10 +1610,7 @@ int thunk_FUN_0202ed98() { return 0; }
 int thunk_FUN_0203d660() { return 0; }
 
 /* === func_0x* stubs (12 symbols) === */
-int func_0x01ff84c0() { return 0; }
-int func_0x01ff8520() { return 0; }
-int func_0x01ff8558() { return 0; }
-int func_0x01ff85cc() { return 0; }
+/* func_0x01ff84c0 / 8520 / 8558 / 85cc: DMA IPC — defined in link_stubs.c */
 int func_0x01ff861c() { return 0; }
 int func_0x0209bb68() { return 0; }
 int func_0x0209bb74() { return 0; }

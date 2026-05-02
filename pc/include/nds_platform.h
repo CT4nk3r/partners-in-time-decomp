@@ -67,6 +67,20 @@ void nds_reg_write8(uint32_t addr, uint8_t val);
 /* Init the IO shadow (called lazily on first access; explicit call is optional) */
 void nds_hw_io_init(void);
 
+/*
+ * nds_dma_immediate — perform a DMA transfer right now (no timing emulation).
+ *
+ * Called by func_0x01ff85cc stubs and any other code path that bypasses the
+ * DMA register hook.  Translates NDS addresses to host pointers and calls
+ * memcpy.  Safe to call from any thread.
+ *
+ *   dst_nds   — NDS physical destination address
+ *   src_nds   — NDS physical source address (0 = fill with zeros)
+ *   ctrl      — NDS DMA control word (bit 31 = enable, bit 26 = 32-bit,
+ *               bits 20:0 = transfer count in words/halfwords)
+ */
+void nds_dma_immediate(uint32_t dst_nds, uint32_t src_nds, uint32_t ctrl);
+
 /* === Game thread (run decompiled game_start in background) === */
 void platform_signal_vblank(void);
 void platform_wait_vblank(void);

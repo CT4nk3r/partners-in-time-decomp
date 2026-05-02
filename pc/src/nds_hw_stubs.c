@@ -183,7 +183,7 @@ static void dma_execute(int ch)
     cnt_val &= ~DMA_ENABLE_BIT;
     memcpy(g_io_shadow + (base+8 - NDS_IO_BASE), &cnt_val, 4);
 
-    nds_log("[dma] ch%d: src=%08X dst=%08X count=%u %s → done\n",
+    nds_log("[dma] ch%d: src=%08X dst=%08X count=%u %s -> done\n",
             ch, src_nds, dst_nds, count, is_32bit ? "32b" : "16b");
 }
 
@@ -200,6 +200,46 @@ static int io_offset(uint32_t addr) {
 
 static inline void ensure_io_init(void) {
     if (!g_io_shadow) nds_hw_io_init();
+}
+
+/* ── nds_dma_immediate ───────────────────────────────────────── */
+
+/*
+ * Public DMA helper used by func_0x01ff85cc stubs and any code path
+ * that triggers a DMA without going through the hardware register path.
+ *
+ * ctrl layout (ARM9 DMA control register):
+ *   bits [20:0]  transfer count (words when bit 26=1, halfwords otherwise)
+ *   bit  [26]    word size: 0=16-bit halfwords, 1=32-bit words
+ *   bit  [31]    enable (if clear, this is a no-op)
+ */
+void nds_dma_immediate(uint32_t dst_nds, uint32_t src_nds, uint32_t ctrl)
+{
+    ensure_io_init();
+
+    if (!(ctrl & DMA_ENABLE_BIT)) return;
+
+    uint32_t count    = ctrl & 0x1FFFFFu;
+    int      is_32bit = (ctrl >> 26) & 1;
+    uint32_t byte_len = count * (uint32_t)(is_32bit ? 4 : 2);
+    if (byte_len == 0) return;
+
+    void *dst_host = nds_addr_to_host(dst_nds, byte_len);
+    if (!dst_host) return;
+
+    if (src_nds == 0) {
+        /* Fill with zeros */
+        memset(dst_host, 0, byte_len);
+        nds_log("[dma] fill_zero dst=%08X len=%u\n", dst_nds, byte_len);
+        return;
+    }
+
+    void *src_host = nds_addr_to_host(src_nds, byte_len);
+    if (!src_host) return;
+
+    memcpy(dst_host, src_host, byte_len);
+    nds_log("[dma] immediate: src=%08X dst=%08X bytes=%u\n",
+            src_nds, dst_nds, byte_len);
 }
 
 /* ── Public register access ──────────────────────────────────── */

@@ -134,3 +134,96 @@ void PAD_Read(void) {}
 void OBJ_Init(void) {}
 u32  OBJ_Create(void *param) { (void)param; return 1; }
 void OBJ_Update(u32 handle) { (void)handle; }
+
+/* ======== DMA SDK wrappers ======================================================
+ *
+ * The NDS SDK provides high-level DMA helpers (MI_DmaCopy32, DC_FlushRange, etc.)
+ * that ultimately write to the DMA hardware registers or call the ARM7 via IPC.
+ *
+ * On the host we don't emulate DMA timing: we perform the equivalent memcpy/memset
+ * immediately.  For addresses that resolve to known NDS regions (VRAM, IO shadow,
+ * Palette RAM) we use nds_dma_immediate(); for host-pointer operations we use
+ * memcpy/memset directly.
+ *
+ * func_0x01ff85cc(ch, dst, src, ctrl):
+ *   ARM7 IPC DMA trigger at BIOS address 0x01FF85CC.
+ *   ctrl = (word_count) | 0x84000000  (enable | 32-bit | normal)
+ *   -> dst/src are NDS addresses -> translate and memcpy.
+ *
+ * func_0x01ff8520(ch, dst, src, ctrl):  similar, VRAM DMA variant
+ * func_0x01ff8558(ch, dst, src, ctrl):  similar, 16-bit variant
+ * func_0x01ff84c0(ch, dst, src, ctrl):  similar, fill variant
+ *
+ * ============================================================================= */
+
+#ifdef HOST_PORT
+#  include "nds_platform.h"
+
+/* Translate (dst, src, ctrl) ARM7 IPC DMA call into an immediate host copy. */
+static void do_dma_ipc(u32 ch, u32 dst, u32 src, u32 ctrl)
+{
+    (void)ch;
+    nds_dma_immediate(dst, src, ctrl);
+}
+
+void func_0x01ff85cc(u32 ch, u32 dst, u32 src, u32 ctrl) {
+    do_dma_ipc(ch, dst, src, ctrl);
+}
+void func_0x01ff8520(u32 ch, u32 dst, u32 src, u32 ctrl) {
+    do_dma_ipc(ch, dst, src, ctrl);
+}
+void func_0x01ff8558(u32 ch, u32 dst, u32 src, u32 ctrl) {
+    /* 16-bit variant: clear bit 26 to indicate 16-bit transfers */
+    do_dma_ipc(ch, dst, src, ctrl & ~(1u << 26));
+}
+void func_0x01ff84c0(u32 ch, u32 dst, u32 src, u32 ctrl) {
+    do_dma_ipc(ch, dst, src, ctrl);
+}
+
+/* DC_FlushRange / DC_InvalidateRange — cache operations, no-op on host */
+void DC_FlushRange(const void *addr, u32 size)      { (void)addr; (void)size; }
+void DC_InvalidateRange(const void *addr, u32 size)  { (void)addr; (void)size; }
+void DC_StoreRange(const void *addr, u32 size)        { (void)addr; (void)size; }
+void IC_InvalidateRange(const void *addr, u32 size)  { (void)addr; (void)size; }
+
+/* MI_DmaCopy32 / MI_DmaFill32 — synchronous 32-bit DMA copy/fill */
+void MI_DmaCopy32(u32 ch, const void *src, void *dst, u32 size) {
+    (void)ch;
+    if (src && dst && size) memcpy(dst, src, size);
+}
+void MI_DmaFill32(u32 ch, void *dst, u32 val, u32 size) {
+    (void)ch;
+    if (dst && size) {
+        u32 words = size / 4;
+        for (u32 i = 0; i < words; i++) ((u32 *)dst)[i] = val;
+    }
+}
+void MI_DmaCopy16(u32 ch, const void *src, void *dst, u32 size) {
+    (void)ch;
+    if (src && dst && size) memcpy(dst, src, size);
+}
+
+#else /* not HOST_PORT — plain stubs for native build */
+
+void func_0x01ff85cc(u32 ch, u32 dst, u32 src, u32 ctrl) {
+    (void)ch; (void)dst; (void)src; (void)ctrl;
+}
+void func_0x01ff8520(u32 ch, u32 dst, u32 src, u32 ctrl) {
+    (void)ch; (void)dst; (void)src; (void)ctrl;
+}
+void func_0x01ff8558(u32 ch, u32 dst, u32 src, u32 ctrl) {
+    (void)ch; (void)dst; (void)src; (void)ctrl;
+}
+void func_0x01ff84c0(u32 ch, u32 dst, u32 src, u32 ctrl) {
+    (void)ch; (void)dst; (void)src; (void)ctrl;
+}
+void DC_FlushRange(const void *a, u32 s)   { (void)a; (void)s; }
+void DC_InvalidateRange(const void *a, u32 s){ (void)a; (void)s; }
+void MI_DmaCopy32(u32 c, const void *s2, void *d, u32 sz) {
+    (void)c; (void)s2; (void)d; (void)sz;
+}
+void MI_DmaFill32(u32 c, void *d, u32 v, u32 sz) { (void)c; (void)d; (void)v; (void)sz; }
+void MI_DmaCopy16(u32 c, const void *s2, void *d, u32 sz) {
+    (void)c; (void)s2; (void)d; (void)sz;
+}
+#endif /* HOST_PORT */

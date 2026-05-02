@@ -49,6 +49,11 @@
  */
 static uint8_t g_palette_main[512];
 static uint8_t g_palette_sub[512];
+/* Extended palettes: per-BG 256-color palettes for 8bpp mode.
+ * On NDS hardware, these live in VRAM banks F/G; we pack them into Bank E
+ * as consecutive 512-byte slots: [0]=BG0, [512]=BG1, [1024]=BG2, [1536]=BG3 */
+static uint8_t g_ext_palette_main[4][512];
+static uint8_t g_ext_palette_sub[4][512];
 static uint8_t g_vram_main[256 * 1024];
 static uint8_t g_vram_sub[128 * 1024];
 
@@ -88,11 +93,39 @@ void bg_render_sync_vram(void) {
          */
         memcpy(g_palette_main, bank_e,                    512);
         memcpy(g_palette_sub,  (uint8_t*)bank_e + 0x400,  512);
+
+        /* Extended palettes: stored at Bank E offset 0x1000+, one 512-byte
+         * slot per BG (0x1000=BG0, 0x1200=BG1, 0x1400=BG2, 0x1600=BG3).
+         * Falls back to copying from the standard palette slot layout
+         * (i*512) if the extended area is empty. */
+        for (int i = 0; i < 4; i++) {
+            int ext_off = 0x1000 + i * 512;
+            const uint8_t *src = (const uint8_t*)bank_e + ext_off;
+            /* Check if extended palette area has data */
+            int has_data = 0;
+            for (int j = 0; j < 32; j++) { if (src[j]) { has_data = 1; break; } }
+            if (has_data) {
+                memcpy(g_ext_palette_main[i], src, 512);
+            } else {
+                /* Fallback: use standard palette layout */
+                int off = i * 512;
+                if ((uint32_t)(off + 512) <= 64 * 1024)
+                    memcpy(g_ext_palette_main[i], (uint8_t*)bank_e + off, 512);
+            }
+        }
+        /* Sub engine extended palettes: offset 0x400 onward */
+        for (int i = 0; i < 4; i++) {
+            int off = 0x400 + i * 512;
+            if ((uint32_t)(off + 512) <= 64 * 1024)
+                memcpy(g_ext_palette_sub[i], (uint8_t*)bank_e + off, 512);
+        }
     }
 }
 
 static void render_bg_layer(uint16_t *fb, const uint8_t *vram,
-                             const uint8_t *palette, uint16_t bgcnt,
+                             const uint8_t *palette,
+                             const uint8_t ext_pal[4][512],
+                             int bg_index, uint16_t bgcnt,
                              int hofs, int vofs)
 {
     int char_base   = ((bgcnt >> 2) & 0xF);
@@ -140,19 +173,23 @@ static void render_bg_layer(uint16_t *fb, const uint8_t *vram,
             int py = v_flip ? (7 - tile_py) : tile_py;
 
             uint8_t color_idx;
+            const uint8_t *pal_src;
             if (!color_mode) {
                 int byte_off = tile_num * TILE_4BPP_SIZE + py * 4 + px / 2;
                 uint8_t b = tile_base[byte_off];
                 color_idx = (px & 1) ? (b >> 4) : (b & 0xF);
                 if (color_idx == 0) continue;
                 color_idx += pal_bank * 16;
+                pal_src = palette;
             } else {
                 int byte_off = tile_num * 64 + py * 8 + px;
                 color_idx = tile_base[byte_off];
                 if (color_idx == 0) continue;
+                /* 8bpp: use per-BG extended palette if available */
+                pal_src = ext_pal[bg_index];
             }
 
-            uint16_t pal_entry = (uint16_t)(palette[color_idx * 2] | (palette[color_idx * 2 + 1] << 8));
+            uint16_t pal_entry = (uint16_t)(pal_src[color_idx * 2] | (pal_src[color_idx * 2 + 1] << 8));
             fb[y * NDS_SCREEN_WIDTH + x] = pal_entry;
         }
     }
@@ -191,6 +228,7 @@ void bg_render_top(uint16_t *fb) {
             if (!bg_enable[bg]) continue;
             if ((bgcnt[bg] & 3) != (uint16_t)pri) continue;
             render_bg_layer(fb, g_vram_main, g_palette_main,
+                            g_ext_palette_main, bg,
                             bgcnt[bg], hofs[bg], vofs[bg]);
         }
     }
@@ -229,6 +267,7 @@ void bg_render_bottom(uint16_t *fb) {
             if (!bg_enable[bg]) continue;
             if ((bgcnt[bg] & 3) != (uint16_t)pri) continue;
             render_bg_layer(fb, g_vram_sub, g_palette_sub,
+                            g_ext_palette_sub, bg,
                             bgcnt[bg], hofs[bg], vofs[bg]);
         }
     }

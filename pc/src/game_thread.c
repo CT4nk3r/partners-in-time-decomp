@@ -334,8 +334,11 @@ int game_thread_main(void* user) {
          * (it called GX_SetVisiblePlane(0xFFFFFFFF, 0) early during init).
          * Re-run the boot hook so the user still sees something on screen. */
         if (!getenv("MLPIT_DISABLE_BOOT_HOOK")) {
-            if (!boot_hook_paired_screen()) {
-                (void)boot_hook_real_tiles();
+            extern int host_title_screen_load(void);
+            if (!host_title_screen_load()) {
+                if (!boot_hook_paired_screen()) {
+                    (void)boot_hook_real_tiles();
+                }
             }
             (void)boot_hook_paired_screen_sub();
             nds_log("[game] re-armed boot screen after game_start fault\n");

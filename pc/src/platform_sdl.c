@@ -184,8 +184,16 @@ static void keep_boot_screen_visible(void)
 
     if (getenv("MLPIT_LET_GAME_DISPLAY")) return;
     uint32_t dispcnt = nds_reg_read32(0x04000000u);
-    /* Mode 0 + BG0 enable (bit 8). Preserve other bits. */
+    /* Mode 0 + BG0 enable (bit 8). Also preserve BG1 (bit 9) if already set
+     * (e.g. title screen uses both BG0 sky + BG1 portal). */
     dispcnt = (dispcnt & ~0x7u) | 0x100u;
+    /* Ensure BG1 stays on if it was configured */
+    {
+        uint16_t bg1cnt = nds_reg_read16(0x0400000Au);
+        if (bg1cnt != 0) dispcnt |= 0x200u;
+        uint16_t bg2cnt = nds_reg_read16(0x0400000Cu);
+        if (bg2cnt != 0) dispcnt |= 0x400u;
+    }
 
     if (s_pulse_mode) {
         s_pulse_frame++;

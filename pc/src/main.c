@@ -263,10 +263,14 @@ int main(int argc, char** argv) {
          * numbers fallback overlapping them. */
         nds_log("[boot] MLPIT_DISABLE_BOOT_HOOK=1 — leaving VRAM blank\n");
     } else {
-        /* Try paired tile/map/palette screen first; on failure fall back to
-         * the raw FAT[0x62] tile sheet, then to the synthetic test pattern. */
-        if (!boot_hook_paired_screen() && !boot_hook_real_tiles()) {
-            boot_hook_vram();
+        /* Try title screen first (decompresses actual game assets from ROM),
+         * then fall back to paired tile/map/palette screen, raw tiles, or
+         * the synthetic test pattern. */
+        extern int host_title_screen_load(void);
+        if (!host_title_screen_load()) {
+            if (!boot_hook_paired_screen() && !boot_hook_real_tiles()) {
+                boot_hook_vram();
+            }
         }
         (void)boot_hook_paired_screen_sub();
     }

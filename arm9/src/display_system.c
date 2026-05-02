@@ -187,6 +187,28 @@ extern int DAT_020192ec;
 extern int DAT_020192f0;
 extern int DAT_020192f4;
 #ifdef HOST_PORT
+/* HOST_PORT: rewire DAT_020192d4..f4 (FUN_0201913c stat-clamp helpers)
+ * to host-side full-width globals, same rationale as DAT_02019730+. */
+#define DAT_020192d4 g_disp_DAT_020192d4
+#define DAT_020192d8 g_disp_DAT_020192d8
+#define DAT_020192dc g_disp_DAT_020192dc
+#define DAT_020192e0 g_disp_DAT_020192e0
+#define DAT_020192e4 g_disp_DAT_020192e4
+#define DAT_020192e8 g_disp_DAT_020192e8
+#define DAT_020192ec g_disp_DAT_020192ec
+#define DAT_020192f0 g_disp_DAT_020192f0
+#define DAT_020192f4 g_disp_DAT_020192f4
+extern u32 g_disp_DAT_020192d4;
+extern int *g_disp_DAT_020192d8;
+extern int g_disp_DAT_020192dc;
+extern u32 g_disp_DAT_020192e0;
+extern int g_disp_DAT_020192e4;
+extern u32 g_disp_DAT_020192e8;
+extern int g_disp_DAT_020192ec;
+extern int g_disp_DAT_020192f0;
+extern int g_disp_DAT_020192f4;
+#endif
+#ifdef HOST_PORT
 /* HOST_PORT: rewire DAT_02019730..d to host-side full-width globals
  * defined in pc/src/host_display_data_init.c. The host_undefined_stubs.c
  * versions are 4-byte uint32_t which collide adjacent slots when read
@@ -258,6 +280,24 @@ extern int DAT_02019784;
 extern int DAT_02019788;
 extern int DAT_0201978c;
 extern int DAT_02019790;
+#ifdef HOST_PORT
+/* These six are read as table base addresses (then offset by param_1*2).
+ * They come from .data and need ROM-derived values. Same trick: redirect
+ * to host-side intptr_t shadow and seed from arm9.bin in
+ * host_display_data_init.c. */
+#define DAT_0201977c g_disp_DAT_0201977c
+#define DAT_02019780 g_disp_DAT_02019780
+#define DAT_02019784 g_disp_DAT_02019784
+#define DAT_02019788 g_disp_DAT_02019788
+#define DAT_0201978c g_disp_DAT_0201978c
+#define DAT_02019790 g_disp_DAT_02019790
+extern intptr_t g_disp_DAT_0201977c;
+extern intptr_t g_disp_DAT_02019780;
+extern intptr_t g_disp_DAT_02019784;
+extern intptr_t g_disp_DAT_02019788;
+extern intptr_t g_disp_DAT_0201978c;
+extern intptr_t g_disp_DAT_02019790;
+#endif
 extern u32 DAT_020197bc;
 extern u32 DAT_02019b40;
 extern u8 *DAT_02019e98;

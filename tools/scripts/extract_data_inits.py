@@ -59,6 +59,17 @@ SLOTS = [
     ("blob",   0x02048F44, 32, "CONFIG_BLOB_02048F44"),
 
     # ---- display_system.c .data slots (FUN_020192f8 family) ----
+    # FUN_0201913c stat-clamp constants (DAT_020192d4..f4 family).
+    ("scalar", 0x020192D4, 4, "DAT_020192D4"),
+    ("scalar", 0x020192D8, 4, "DAT_020192D8"),  # = 0x02059C68 (slot ptr)
+    ("scalar", 0x020192DC, 4, "DAT_020192DC"),
+    ("scalar", 0x020192E0, 4, "DAT_020192E0"),
+    ("scalar", 0x020192E4, 4, "DAT_020192E4"),
+    ("scalar", 0x020192E8, 4, "DAT_020192E8"),
+    ("scalar", 0x020192EC, 4, "DAT_020192EC"),
+    ("scalar", 0x020192F0, 4, "DAT_020192F0"),
+    ("scalar", 0x020192F4, 4, "DAT_020192F4"),
+
     # DAT_02019730 = 0x02059C68 - same word as DAT_02005D28 (host
     # overrides this with the live slot pointer at runtime).
     ("scalar", 0x02019730, 4,  "DAT_02019730"),
@@ -67,24 +78,32 @@ SLOTS = [
     ("scalar", 0x02019768, 4,  "DAT_02019768"),
 
     # Pointer-typed slots: extract both the original RAM ptr value
-    # and a backing blob from the pointer target. 128 bytes covers
-    # the small lookup tables that FUN_020192f8 indexes for param_1=0.
-    ("ptr_blob", 0x02019734, 128, "DISP_TBL_02019734"),
-    ("ptr_blob", 0x02019738, 64,  "DISP_TBL_02019738"),
-    ("ptr_blob", 0x0201973C, 64,  "DISP_TBL_0201973C"),
-    ("ptr_blob", 0x02019740, 64,  "DISP_TBL_02019740"),
-    ("ptr_blob", 0x02019748, 128, "DISP_TBL_02019748"),
-    ("ptr_blob", 0x0201974C, 64,  "DISP_TBL_0201974C"),
-    ("ptr_blob", 0x02019750, 64,  "DISP_TBL_02019750"),
-    ("ptr_blob", 0x02019754, 64,  "DISP_TBL_02019754"),
-    ("ptr_blob", 0x02019758, 128, "DISP_TBL_02019758"),
-    ("ptr_blob", 0x0201975C, 64,  "DISP_TBL_0201975C"),
-    ("ptr_blob", 0x02019760, 64,  "DISP_TBL_02019760"),
-    ("ptr_blob", 0x02019764, 64,  "DISP_TBL_02019764"),
-    ("ptr_blob", 0x0201976C, 128, "DISP_TBL_0201976C"),
-    ("ptr_blob", 0x02019770, 64,  "DISP_TBL_02019770"),
-    ("ptr_blob", 0x02019774, 64,  "DISP_TBL_02019774"),
-    ("ptr_blob", 0x02019778, 64,  "DISP_TBL_02019778"),
+    # and a backing blob from the pointer target. Sized 512 bytes to
+    # cover the layer-row structures FUN_020192f8 indexes
+    # (unaff_r6[iVar7*6+4] inner loop reads up to ~30 entries deep).
+    ("ptr_blob", 0x02019734, 512, "DISP_TBL_02019734"),
+    ("ptr_blob", 0x02019738, 256, "DISP_TBL_02019738"),
+    ("ptr_blob", 0x0201973C, 256, "DISP_TBL_0201973C"),
+    ("ptr_blob", 0x02019740, 256, "DISP_TBL_02019740"),
+    ("ptr_blob", 0x02019748, 512, "DISP_TBL_02019748"),
+    ("ptr_blob", 0x0201974C, 256, "DISP_TBL_0201974C"),
+    ("ptr_blob", 0x02019750, 256, "DISP_TBL_02019750"),
+    ("ptr_blob", 0x02019754, 256, "DISP_TBL_02019754"),
+    ("ptr_blob", 0x02019758, 512, "DISP_TBL_02019758"),
+    ("ptr_blob", 0x0201975C, 256, "DISP_TBL_0201975C"),
+    ("ptr_blob", 0x02019760, 256, "DISP_TBL_02019760"),
+    ("ptr_blob", 0x02019764, 256, "DISP_TBL_02019764"),
+    ("ptr_blob", 0x0201976C, 512, "DISP_TBL_0201976C"),
+    ("ptr_blob", 0x02019770, 256, "DISP_TBL_02019770"),
+    ("ptr_blob", 0x02019774, 256, "DISP_TBL_02019774"),
+    ("ptr_blob", 0x02019778, 256, "DISP_TBL_02019778"),
+    # Trailing tables read after the 4-layer loop in FUN_020192f8 (line 507+).
+    ("ptr_blob", 0x0201977C, 256, "DISP_TBL_0201977C"),
+    ("ptr_blob", 0x02019780, 256, "DISP_TBL_02019780"),
+    ("ptr_blob", 0x02019784, 256, "DISP_TBL_02019784"),
+    ("ptr_blob", 0x02019788, 256, "DISP_TBL_02019788"),
+    ("ptr_blob", 0x0201978C, 256, "DISP_TBL_0201978C"),
+    ("ptr_blob", 0x02019790, 256, "DISP_TBL_02019790"),
 ]
 
 

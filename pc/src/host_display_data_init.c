@@ -41,6 +41,12 @@ static unsigned char s_tbl_0201976c[sizeof(HOSTDATA_DISP_TBL_0201976C_BYTES)];
 static unsigned char s_tbl_02019770[sizeof(HOSTDATA_DISP_TBL_02019770_BYTES)];
 static unsigned char s_tbl_02019774[sizeof(HOSTDATA_DISP_TBL_02019774_BYTES)];
 static unsigned char s_tbl_02019778[sizeof(HOSTDATA_DISP_TBL_02019778_BYTES)];
+static unsigned char s_tbl_0201977c[sizeof(HOSTDATA_DISP_TBL_0201977C_BYTES)];
+static unsigned char s_tbl_02019780[sizeof(HOSTDATA_DISP_TBL_02019780_BYTES)];
+static unsigned char s_tbl_02019784[sizeof(HOSTDATA_DISP_TBL_02019784_BYTES)];
+static unsigned char s_tbl_02019788[sizeof(HOSTDATA_DISP_TBL_02019788_BYTES)];
+static unsigned char s_tbl_0201978c[sizeof(HOSTDATA_DISP_TBL_0201978C_BYTES)];
+static unsigned char s_tbl_02019790[sizeof(HOSTDATA_DISP_TBL_02019790_BYTES)];
 
 /* Full-width definitions matching the extern types in display_system.c
  * under HOST_PORT (pointer / intptr_t — 8 bytes on 64-bit host). */
@@ -63,6 +69,24 @@ short    *g_disp_DAT_0201976c;
 intptr_t  g_disp_DAT_02019770;
 intptr_t  g_disp_DAT_02019774;
 intptr_t  g_disp_DAT_02019778;
+
+intptr_t  g_disp_DAT_0201977c;
+intptr_t  g_disp_DAT_02019780;
+intptr_t  g_disp_DAT_02019784;
+intptr_t  g_disp_DAT_02019788;
+intptr_t  g_disp_DAT_0201978c;
+intptr_t  g_disp_DAT_02019790;
+
+/* FUN_0201913c stat-clamp slots (DAT_020192d4..f4). */
+u32   g_disp_DAT_020192d4;
+int  *g_disp_DAT_020192d8;
+int   g_disp_DAT_020192dc;
+u32   g_disp_DAT_020192e0;
+int   g_disp_DAT_020192e4;
+u32   g_disp_DAT_020192e8;
+int   g_disp_DAT_020192ec;
+int   g_disp_DAT_020192f0;
+int   g_disp_DAT_020192f4;
 
 void host_display_data_init_install(void)
 {
@@ -105,6 +129,12 @@ void host_display_data_init_install(void)
     INSTALL_TBL_INTPTR(02019770, 02019770, g_disp_DAT_02019770);
     INSTALL_TBL_INTPTR(02019774, 02019774, g_disp_DAT_02019774);
     INSTALL_TBL_INTPTR(02019778, 02019778, g_disp_DAT_02019778);
+    INSTALL_TBL_INTPTR(0201977c, 0201977C, g_disp_DAT_0201977c);
+    INSTALL_TBL_INTPTR(02019780, 02019780, g_disp_DAT_02019780);
+    INSTALL_TBL_INTPTR(02019784, 02019784, g_disp_DAT_02019784);
+    INSTALL_TBL_INTPTR(02019788, 02019788, g_disp_DAT_02019788);
+    INSTALL_TBL_INTPTR(0201978c, 0201978C, g_disp_DAT_0201978c);
+    INSTALL_TBL_INTPTR(02019790, 02019790, g_disp_DAT_02019790);
 
     fprintf(stderr,
             "[HOST-DISP] installed: slot=%p off44=0x%lx off68=0x%lx tbl734=%p\n",
@@ -112,4 +142,17 @@ void host_display_data_init_install(void)
             (long)g_disp_DAT_02019744,
             (long)g_disp_DAT_02019768,
             (void *)g_disp_DAT_02019734);
+
+    /* FUN_0201913c stat-clamp constants. DAT_020192d8 = 0x02059C68 in
+     * ROM = same sGameState slot as DAT_02005D28; install the host slot
+     * pointer so dereferences land in our arena. */
+    g_disp_DAT_020192d4 = HOSTDATA_DAT_020192D4;
+    g_disp_DAT_020192d8 = (int *)game_state_host_get_current_slot();
+    g_disp_DAT_020192dc = (int)HOSTDATA_DAT_020192DC;
+    g_disp_DAT_020192e0 = HOSTDATA_DAT_020192E0;
+    g_disp_DAT_020192e4 = (int)HOSTDATA_DAT_020192E4;
+    g_disp_DAT_020192e8 = HOSTDATA_DAT_020192E8;
+    g_disp_DAT_020192ec = (int)HOSTDATA_DAT_020192EC;
+    g_disp_DAT_020192f0 = (int)HOSTDATA_DAT_020192F0;
+    g_disp_DAT_020192f4 = (int)HOSTDATA_DAT_020192F4;
 }

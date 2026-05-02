@@ -73,24 +73,41 @@ int main(int argc, char** argv) {
      * 2. No pack → try to auto-extract from the ROM (first-run setup).
      * 3. No ROM either → print a helpful hint and run with stub data.
      * ──────────────────────────────────────────────────────────── */
+    static const char* const k_rom_paths[] = {
+        "roms/baserom.nds",
+        "rom/baserom.nds",
+        "rom/baserom_usa_rev1.nds",
+        "rom/baserom_eur.nds",
+        NULL
+    };
+
     if (pack_load("assets/mlpit.assets")) {
         nds_log("[boot] Asset pack loaded — no ROM needed.\n");
     } else {
         nds_log("[boot] No asset pack found. Checking for ROM...\n");
-        nds_log("[boot] First run: extracting assets from ROM "
-                "(this will take a few seconds)...\n");
-        if (extract_assets("roms/baserom.nds", "assets/mlpit.assets")) {
-            nds_log("[boot] Extraction complete. Loading asset pack...\n");
-            pack_load("assets/mlpit.assets");
-            nds_log("[boot] Asset pack loaded.\n");
+        const char* found_rom = NULL;
+        for (int i = 0; k_rom_paths[i]; ++i) {
+            FILE* f = fopen(k_rom_paths[i], "rb");
+            if (f) { fclose(f); found_rom = k_rom_paths[i]; break; }
+        }
+        if (found_rom) {
+            nds_log("[boot] Found ROM at %s\n", found_rom);
+            nds_log("[boot] First run: extracting assets "
+                    "(this will take a few seconds)...\n");
+            if (extract_assets(found_rom, "assets/mlpit.assets")) {
+                nds_log("[boot] Extraction complete. Loading asset pack...\n");
+                pack_load("assets/mlpit.assets");
+                nds_log("[boot] Asset pack loaded.\n");
+            } else {
+                nds_log("[boot] Extraction FAILED — running with stub data.\n");
+                rom_load(found_rom);
+            }
         } else {
             nds_log("[boot] No asset pack or ROM found — running with stub data.\n");
             nds_log("[boot] To enable game assets:\n");
-            nds_log("[boot]   1. cp /path/to/your.nds roms/baserom.nds   (one time)\n");
+            nds_log("[boot]   1. cp /path/to/your.nds rom/baserom.nds   (one time)\n");
             nds_log("[boot]   2. Re-run — assets auto-extract to assets/mlpit.assets\n");
-            nds_log("[boot]   3. Delete roms/baserom.nds after extraction (optional)\n");
-            /* ROM fallback: keeps rom_data() callers working if ROM is present */
-            rom_load("roms/baserom.nds");
+            nds_log("[boot]   3. Delete rom/baserom.nds after extraction (optional)\n");
         }
     }
 

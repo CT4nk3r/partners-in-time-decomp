@@ -24,6 +24,12 @@
 
 #include "types.h"
 #include <stdint.h>
+#ifdef HOST_PORT
+extern void mlpit_fcb4_trace(int cp);
+#define FCB4_CP(N) mlpit_fcb4_trace(N)
+#else
+#define FCB4_CP(N) ((void)0)
+#endif
 
 extern u32  FUN_020092d4(int param_1, int param_2);
 extern u8   FUN_0200e0d8(u16 *param_1);
@@ -76,14 +82,18 @@ static u32 call_indirect_2arg(u32 fn_addr, u32 a0, u32 a1)
 
 void FUN_0200fcb4(int param_1, int param_2)
 {
-    /* Register file mirror. R[13] = sp (we keep an 184-byte local stack
-     * frame and bias R[13] to its top). */
+    /* Register file mirror. sp_v = sp (we keep an 184-byte local stack
+     * frame and bias sp_v to its top). */
     u32 R[16] = {0};
     /* Local "stack" buffer mimicking the ARM stack frame.
      * push {r4..fp,lr} = 9*4 = 36 bytes, sub sp,#148 = 184 total.
      * We give it some headroom for safety. */
     static _Thread_local u8 stack_frame[256];
-    R[13] = (u32)(uintptr_t)&stack_frame[184];
+    /* HOST_PORT: sp must be a 64-bit host pointer (uintptr_t).  Storing
+     * the host address in a u32 truncates it on Win64 and any subsequent
+     * dereference faults at a garbage low address (the "Win64 truncation"
+     * pattern that's bitten us in FUN_020192f8/02018ed0 too). */
+    uintptr_t sp_v = (uintptr_t)&stack_frame[184];
 
     /* Flag mirrors. */
     int N = 0, Z = 0, C = 0, V = 0;
@@ -95,1548 +105,2063 @@ void FUN_0200fcb4(int param_1, int param_2)
 
 #define SET_NZ(_v) do { Z = ((u32)(_v) == 0); N = ((s32)(_v) < 0); } while (0)
 L_0200fcb4:
+    FCB4_CP(0x200FCB4);
     /* 0x0200fcb4: push {r4, r5, r6, r7, r8, r9, sl, fp, lr} */
     /* push {r4, r5, r6, r7, r8, r9, sl, fp, lr} -- handled by C frame */
 L_0200fcb8:
+    FCB4_CP(0x200FCB8);
     /* 0x0200fcb8: sub sp, sp, #148 */
-    R[13] = (R[13] - 0x94u);
+    sp_v = (sp_v - 0x94u);
 L_0200fcbc:
+    FCB4_CP(0x200FCBC);
     /* 0x0200fcbc: str r0, [sp] */
-    *(volatile u32*)(uintptr_t)R[13] = (u32)R[0];
+    *(volatile u32*)(uintptr_t)sp_v = (u32)R[0];
 L_0200fcc0:
+    FCB4_CP(0x200FCC0);
     /* 0x0200fcc0: ldr r0, [r0, #124] */
     R[0] = *(volatile u32*)(uintptr_t)(R[0] + 0x7cu);
 L_0200fcc4:
+    FCB4_CP(0x200FCC4);
     /* 0x0200fcc4: lsl r0, r0, #23 */
     R[0] = (R[0] << 23);
 L_0200fcc8:
+    FCB4_CP(0x200FCC8);
     /* 0x0200fcc8: lsrs r0, r0, #31 */
     R[0] = (R[0] >> 31); SET_NZ(R[0]);
 L_0200fccc:
+    FCB4_CP(0x200FCCC);
     /* 0x0200fccc: addeq sp, sp, #148 */
-    if (Z) { R[13] = (R[13] + 0x94u); }
+    if (Z) { sp_v = (sp_v + 0x94u); }
 L_0200fcd0:
+    FCB4_CP(0x200FCD0);
     /* 0x0200fcd0: popeq {r4, r5, r6, r7, r8, r9, sl, fp, lr} */
     /* popeq {r4, r5, r6, r7, r8, r9, sl, fp, lr} -- handled by C frame */
 L_0200fcd4:
+    FCB4_CP(0x200FCD4);
     /* 0x0200fcd4: bxeq lr */
     if (Z) { goto L_epilogue; }
 L_0200fcd8:
+    FCB4_CP(0x200FCD8);
     /* 0x0200fcd8: ldr r0, [sp] */
-    R[0] = *(volatile u32*)(uintptr_t)R[13];
+    R[0] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200fcdc:
+    FCB4_CP(0x200FCDC);
     /* 0x0200fcdc: add r0, r0, #256 */
     R[0] = (R[0] + 0x100u);
 L_0200fce0:
+    FCB4_CP(0x200FCE0);
     /* 0x0200fce0: ldrh r1, [r0, #98] */
     R[1] = *(volatile u16*)(uintptr_t)(R[0] + 0x62u);
 L_0200fce4:
+    FCB4_CP(0x200FCE4);
     /* 0x0200fce4: lsl r1, r1, #27 */
     R[1] = (R[1] << 27);
 L_0200fce8:
+    FCB4_CP(0x200FCE8);
     /* 0x0200fce8: lsrs r1, r1, #27 */
     R[1] = (R[1] >> 27); SET_NZ(R[1]);
 L_0200fcec:
+    FCB4_CP(0x200FCEC);
     /* 0x0200fcec: addeq sp, sp, #148 */
-    if (Z) { R[13] = (R[13] + 0x94u); }
+    if (Z) { sp_v = (sp_v + 0x94u); }
 L_0200fcf0:
+    FCB4_CP(0x200FCF0);
     /* 0x0200fcf0: popeq {r4, r5, r6, r7, r8, r9, sl, fp, lr} */
     /* popeq {r4, r5, r6, r7, r8, r9, sl, fp, lr} -- handled by C frame */
 L_0200fcf4:
+    FCB4_CP(0x200FCF4);
     /* 0x0200fcf4: bxeq lr */
     if (Z) { goto L_epilogue; }
 L_0200fcf8:
+    FCB4_CP(0x200FCF8);
     /* 0x0200fcf8: ldr r1, [pc, #1984] */
     R[1] = LITERAL_0x020104c0;
 L_0200fcfc:
+    FCB4_CP(0x200FCFC);
     /* 0x0200fcfc: mov r2, #2 */
     R[2] = 0x2u;
 L_0200fd00:
+    FCB4_CP(0x200FD00);
     /* 0x0200fd00: str r2, [r1] */
     *(volatile u32*)(uintptr_t)R[1] = (u32)R[2];
 L_0200fd04:
+    FCB4_CP(0x200FD04);
     /* 0x0200fd04: ldrh r2, [r0, #100] */
     R[2] = *(volatile u16*)(uintptr_t)(R[0] + 0x64u);
 L_0200fd08:
+    FCB4_CP(0x200FD08);
     /* 0x0200fd08: ldr r0, [sp] */
-    R[0] = *(volatile u32*)(uintptr_t)R[13];
+    R[0] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200fd0c:
+    FCB4_CP(0x200FD0C);
     /* 0x0200fd0c: ldr r1, [pc, #1968] */
     R[1] = LITERAL_0x020104c4;
 L_0200fd10:
+    FCB4_CP(0x200FD10);
     /* 0x0200fd10: add r0, r0, #372 */
     R[0] = (R[0] + 0x174u);
 L_0200fd14:
+    FCB4_CP(0x200FD14);
     /* 0x0200fd14: str r2, [r1] */
     *(volatile u32*)(uintptr_t)R[1] = (u32)R[2];
 L_0200fd18:
+    FCB4_CP(0x200FD18);
     /* 0x0200fd18: bl 0x2036cfc */
     FUN_02036cfc();
 L_0200fd1c:
+    FCB4_CP(0x200FD1C);
     /* 0x0200fd1c: ldr r0, [sp] */
-    R[0] = *(volatile u32*)(uintptr_t)R[13];
+    R[0] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200fd20:
+    FCB4_CP(0x200FD20);
     /* 0x0200fd20: add r0, r0, #256 */
     R[0] = (R[0] + 0x100u);
 L_0200fd24:
+    FCB4_CP(0x200FD24);
     /* 0x0200fd24: ldrh r1, [r0, #98] */
     R[1] = *(volatile u16*)(uintptr_t)(R[0] + 0x62u);
 L_0200fd28:
+    FCB4_CP(0x200FD28);
     /* 0x0200fd28: ldr r0, [pc, #1944] */
     R[0] = LITERAL_0x020104c8;
 L_0200fd2c:
+    FCB4_CP(0x200FD2C);
     /* 0x0200fd2c: lsl r2, r1, #20 */
     R[2] = (R[1] << 20);
 L_0200fd30:
+    FCB4_CP(0x200FD30);
     /* 0x0200fd30: lsr r2, r2, #26 */
     R[2] = (R[2] >> 26);
 L_0200fd34:
+    FCB4_CP(0x200FD34);
     /* 0x0200fd34: lsl r2, r2, #24 */
     R[2] = (R[2] << 24);
 L_0200fd38:
+    FCB4_CP(0x200FD38);
     /* 0x0200fd38: lsl r1, r1, #27 */
     R[1] = (R[1] << 27);
 L_0200fd3c:
+    FCB4_CP(0x200FD3C);
     /* 0x0200fd3c: orr r2, r2, #192 */
     R[2] = (R[2] | 0xc0u);
 L_0200fd40:
+    FCB4_CP(0x200FD40);
     /* 0x0200fd40: lsr r1, r1, #27 */
     R[1] = (R[1] >> 27);
 L_0200fd44:
+    FCB4_CP(0x200FD44);
     /* 0x0200fd44: orr r1, r2, r1, lsl #16 */
     R[1] = (R[2] | (R[1] << 16));
 L_0200fd48:
+    FCB4_CP(0x200FD48);
     /* 0x0200fd48: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_0200fd4c:
+    FCB4_CP(0x200FD4C);
     /* 0x0200fd4c: ldr r0, [sp] */
-    R[0] = *(volatile u32*)(uintptr_t)R[13];
+    R[0] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200fd50:
+    FCB4_CP(0x200FD50);
     /* 0x0200fd50: ldr r1, [r0, #56] */
     R[1] = *(volatile u32*)(uintptr_t)(R[0] + 0x38u);
 L_0200fd54:
+    FCB4_CP(0x200FD54);
     /* 0x0200fd54: ldrh r2, [r0, #96] */
     R[2] = *(volatile u16*)(uintptr_t)(R[0] + 0x60u);
 L_0200fd58:
+    FCB4_CP(0x200FD58);
     /* 0x0200fd58: ldrh r1, [r1] */
     R[1] = *(volatile u16*)(uintptr_t)R[1];
 L_0200fd5c:
+    FCB4_CP(0x200FD5C);
     /* 0x0200fd5c: ldr r3, [r0, #328] */
     R[3] = *(volatile u32*)(uintptr_t)(R[0] + 0x148u);
 L_0200fd60:
+    FCB4_CP(0x200FD60);
     /* 0x0200fd60: ldrb r8, [r0, #351] */
     R[8] = *(volatile u8*)(uintptr_t)(R[0] + 0x15fu);
 L_0200fd64:
+    FCB4_CP(0x200FD64);
     /* 0x0200fd64: add r0, r3, r2, lsl #4 */
     R[0] = (R[3] + (R[2] << 4));
 L_0200fd68:
+    FCB4_CP(0x200FD68);
     /* 0x0200fd68: lsl r1, r1, #28 */
     R[1] = (R[1] << 28);
 L_0200fd6c:
+    FCB4_CP(0x200FD6C);
     /* 0x0200fd6c: str r0, [sp, #12] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0xcu) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0xcu) = (u32)R[0];
 L_0200fd70:
+    FCB4_CP(0x200FD70);
     /* 0x0200fd70: lsrs r0, r1, #28 */
     R[0] = (R[1] >> 28); SET_NZ(R[0]);
 L_0200fd74:
+    FCB4_CP(0x200FD74);
     /* 0x0200fd74: movne r0, #1 */
     if (!Z) { R[0] = 0x1u; }
 L_0200fd78:
+    FCB4_CP(0x200FD78);
     /* 0x0200fd78: strne r0, [sp, #8] */
-    if (!Z) { *(volatile u32*)(uintptr_t)(R[13] + 0x8u) = (u32)R[0]; }
+    if (!Z) { *(volatile u32*)(uintptr_t)(sp_v + 0x8u) = (u32)R[0]; }
 L_0200fd7c:
+    FCB4_CP(0x200FD7C);
     /* 0x0200fd7c: bne 0x200fd98 */
     if (!Z) { goto L_0200fd98; }
 L_0200fd80:
+    FCB4_CP(0x200FD80);
     /* 0x0200fd80: ldr r0, [sp, #12] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0xcu);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0xcu);
 L_0200fd84:
+    FCB4_CP(0x200FD84);
     /* 0x0200fd84: ldr r1, [pc, #1856] */
     R[1] = LITERAL_0x020104cc;
 L_0200fd88:
+    FCB4_CP(0x200FD88);
     /* 0x0200fd88: lsr r0, r0, #4 */
     R[0] = (R[0] >> 4);
 L_0200fd8c:
+    FCB4_CP(0x200FD8C);
     /* 0x0200fd8c: str r0, [r1] */
     *(volatile u32*)(uintptr_t)R[1] = (u32)R[0];
 L_0200fd90:
+    FCB4_CP(0x200FD90);
     /* 0x0200fd90: mov r0, #0 */
     R[0] = 0x0u;
 L_0200fd94:
+    FCB4_CP(0x200FD94);
     /* 0x0200fd94: str r0, [sp, #8] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x8u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x8u) = (u32)R[0];
 L_0200fd98:
+    FCB4_CP(0x200FD98);
     /* 0x0200fd98: ldr r0, [sp] */
-    R[0] = *(volatile u32*)(uintptr_t)R[13];
+    R[0] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200fd9c:
+    FCB4_CP(0x200FD9C);
     /* 0x0200fd9c: ldrsh r1, [r0, #84] */
     R[1] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[0] + 0x54u);
 L_0200fda0:
+    FCB4_CP(0x200FDA0);
     /* 0x0200fda0: ldr r2, [r0, #72] */
     R[2] = *(volatile u32*)(uintptr_t)(R[0] + 0x48u);
 L_0200fda4:
+    FCB4_CP(0x200FDA4);
     /* 0x0200fda4: ldrsh r3, [r0, #86] */
     R[3] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[0] + 0x56u);
 L_0200fda8:
+    FCB4_CP(0x200FDA8);
     /* 0x0200fda8: lsl r0, r1, #3 */
     R[0] = (R[1] << 3);
 L_0200fdac:
+    FCB4_CP(0x200FDAC);
     /* 0x0200fdac: ldrh r1, [r2, r0] */
     R[1] = *(volatile u16*)(uintptr_t)(R[2] + R[0]);
 L_0200fdb0:
+    FCB4_CP(0x200FDB0);
     /* 0x0200fdb0: ldr r0, [sp] */
-    R[0] = *(volatile u32*)(uintptr_t)R[13];
+    R[0] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200fdb4:
+    FCB4_CP(0x200FDB4);
     /* 0x0200fdb4: ldr r2, [r0, #68] */
     R[2] = *(volatile u32*)(uintptr_t)(R[0] + 0x44u);
 L_0200fdb8:
+    FCB4_CP(0x200FDB8);
     /* 0x0200fdb8: add r1, r3, r1 */
     R[1] = (R[3] + R[1]);
 L_0200fdbc:
+    FCB4_CP(0x200FDBC);
     /* 0x0200fdbc: ldr r4, [r0, #64] */
     R[4] = *(volatile u32*)(uintptr_t)(R[0] + 0x40u);
 L_0200fdc0:
+    FCB4_CP(0x200FDC0);
     /* 0x0200fdc0: lsl r0, r1, #2 */
     R[0] = (R[1] << 2);
 L_0200fdc4:
+    FCB4_CP(0x200FDC4);
     /* 0x0200fdc4: add r1, r2, r1, lsl #2 */
     R[1] = (R[2] + (R[1] << 2));
 L_0200fdc8:
+    FCB4_CP(0x200FDC8);
     /* 0x0200fdc8: ldrh r0, [r2, r0] */
     R[0] = *(volatile u16*)(uintptr_t)(R[2] + R[0]);
 L_0200fdcc:
+    FCB4_CP(0x200FDCC);
     /* 0x0200fdcc: ldrh r1, [r1, #2] */
     R[1] = *(volatile u16*)(uintptr_t)(R[1] + 0x2u);
 L_0200fdd0:
+    FCB4_CP(0x200FDD0);
     /* 0x0200fdd0: lsl r3, r0, #2 */
     R[3] = (R[0] << 2);
 L_0200fdd4:
+    FCB4_CP(0x200FDD4);
     /* 0x0200fdd4: add r2, r4, r0, lsl #2 */
     R[2] = (R[4] + (R[0] << 2));
 L_0200fdd8:
+    FCB4_CP(0x200FDD8);
     /* 0x0200fdd8: lsl r0, r1, #22 */
     R[0] = (R[1] << 22);
 L_0200fddc:
+    FCB4_CP(0x200FDDC);
     /* 0x0200fddc: lsrs r0, r0, #31 */
     R[0] = (R[0] >> 31); SET_NZ(R[0]);
 L_0200fde0:
+    FCB4_CP(0x200FDE0);
     /* 0x0200fde0: ldrh r0, [r2, #2] */
     R[0] = *(volatile u16*)(uintptr_t)(R[2] + 0x2u);
 L_0200fde4:
+    FCB4_CP(0x200FDE4);
     /* 0x0200fde4: ldrh r6, [r4, r3] */
     R[6] = *(volatile u16*)(uintptr_t)(R[4] + R[3]);
 L_0200fde8:
+    FCB4_CP(0x200FDE8);
     /* 0x0200fde8: str r0, [sp, #16] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x10u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x10u) = (u32)R[0];
 L_0200fdec:
+    FCB4_CP(0x200FDEC);
     /* 0x0200fdec: ldr r0, [sp] */
-    R[0] = *(volatile u32*)(uintptr_t)R[13];
+    R[0] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200fdf0:
+    FCB4_CP(0x200FDF0);
     /* 0x0200fdf0: ldr r3, [r0, #76] */
     R[3] = *(volatile u32*)(uintptr_t)(R[0] + 0x4cu);
 L_0200fdf4:
+    FCB4_CP(0x200FDF4);
     /* 0x0200fdf4: beq 0x200febc */
     if (Z) { goto L_0200febc; }
 L_0200fdf8:
+    FCB4_CP(0x200FDF8);
     /* 0x0200fdf8: ldr r0, [r0, #124] */
     R[0] = *(volatile u32*)(uintptr_t)(R[0] + 0x7cu);
 L_0200fdfc:
+    FCB4_CP(0x200FDFC);
     /* 0x0200fdfc: lsl r0, r0, #24 */
     R[0] = (R[0] << 24);
 L_0200fe00:
+    FCB4_CP(0x200FE00);
     /* 0x0200fe00: lsr r0, r0, #29 */
     R[0] = (R[0] >> 29);
 L_0200fe04:
+    FCB4_CP(0x200FE04);
     /* 0x0200fe04: cmp r0, #3 */
     { u32 _a = R[0], _b = 0x3u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_0200fe08:
+    FCB4_CP(0x200FE08);
     /* 0x0200fe08: beq 0x200febc */
     if (Z) { goto L_0200febc; }
 L_0200fe0c:
+    FCB4_CP(0x200FE0C);
     /* 0x0200fe0c: lsl r0, r1, #16 */
     R[0] = (R[1] << 16);
 L_0200fe10:
+    FCB4_CP(0x200FE10);
     /* 0x0200fe10: lsr r1, r0, #26 */
     R[1] = (R[0] >> 26);
 L_0200fe14:
+    FCB4_CP(0x200FE14);
     /* 0x0200fe14: mov r0, #12 */
     R[0] = 0xcu;
 L_0200fe18:
+    FCB4_CP(0x200FE18);
     /* 0x0200fe18: mul r2, r1, r0 */
     R[2] = (R[1] * R[0]);
 L_0200fe1c:
+    FCB4_CP(0x200FE1C);
     /* 0x0200fe1c: ldrh r0, [r3, r2] */
     R[0] = *(volatile u16*)(uintptr_t)(R[3] + R[2]);
 L_0200fe20:
+    FCB4_CP(0x200FE20);
     /* 0x0200fe20: add r4, r3, r2 */
     R[4] = (R[3] + R[2]);
 L_0200fe24:
+    FCB4_CP(0x200FE24);
     /* 0x0200fe24: ldrsh r7, [r4, #2] */
     R[7] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[4] + 0x2u);
 L_0200fe28:
+    FCB4_CP(0x200FE28);
     /* 0x0200fe28: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_0200fe2c:
+    FCB4_CP(0x200FE2C);
     /* 0x0200fe2c: ldrsh r5, [r4, #4] */
     R[5] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[4] + 0x4u);
 L_0200fe30:
+    FCB4_CP(0x200FE30);
     /* 0x0200fe30: beq 0x200fe64 */
     if (Z) { goto L_0200fe64; }
 L_0200fe34:
+    FCB4_CP(0x200FE34);
     /* 0x0200fe34: asr r0, r0, #4 */
     R[0] = ((u32)((s32)R[0] >> 4));
 L_0200fe38:
+    FCB4_CP(0x200FE38);
     /* 0x0200fe38: lsl r1, r0, #1 */
     R[1] = (R[0] << 1);
 L_0200fe3c:
+    FCB4_CP(0x200FE3C);
     /* 0x0200fe3c: add r0, r1, #1 */
     R[0] = (R[1] + 0x1u);
 L_0200fe40:
+    FCB4_CP(0x200FE40);
     /* 0x0200fe40: ldr r2, [pc, #1672] */
     R[2] = LITERAL_0x020104d0;
 L_0200fe44:
+    FCB4_CP(0x200FE44);
     /* 0x0200fe44: lsl r1, r1, #1 */
     R[1] = (R[1] << 1);
 L_0200fe48:
+    FCB4_CP(0x200FE48);
     /* 0x0200fe48: lsl r0, r0, #1 */
     R[0] = (R[0] << 1);
 L_0200fe4c:
+    FCB4_CP(0x200FE4C);
     /* 0x0200fe4c: ldrsh r1, [r2, r1] */
     R[1] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[2] + R[1]);
 L_0200fe50:
+    FCB4_CP(0x200FE50);
     /* 0x0200fe50: ldrsh r2, [r2, r0] */
     R[2] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[2] + R[0]);
 L_0200fe54:
+    FCB4_CP(0x200FE54);
     /* 0x0200fe54: add r0, sp, #96 */
-    R[0] = (R[13] + 0x60u);
+    R[0] = (sp_v + 0x60u);
 L_0200fe58:
+    FCB4_CP(0x200FE58);
     /* 0x0200fe58: blx 0x203420c */
     FUN_0203420c((u32*)(uintptr_t)R[0], (int)R[1], R[2]);
 L_0200fe5c:
+    FCB4_CP(0x200FE5C);
     /* 0x0200fe5c: add r0, sp, #96 */
-    R[0] = (R[13] + 0x60u);
+    R[0] = (sp_v + 0x60u);
 L_0200fe60:
+    FCB4_CP(0x200FE60);
     /* 0x0200fe60: bl 0x2036cc4 */
     FUN_02036cc4();
 L_0200fe64:
+    FCB4_CP(0x200FE64);
     /* 0x0200fe64: orr r0, r7, r5 */
     R[0] = (R[7] | R[5]);
 L_0200fe68:
+    FCB4_CP(0x200FE68);
     /* 0x0200fe68: cmp r0, #4096 */
     { u32 _a = R[0], _b = 0x1000u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_0200fe6c:
+    FCB4_CP(0x200FE6C);
     /* 0x0200fe6c: beq 0x200fe8c */
     if (Z) { goto L_0200fe8c; }
 L_0200fe70:
+    FCB4_CP(0x200FE70);
     /* 0x0200fe70: ldr r1, [pc, #1628] */
     R[1] = LITERAL_0x020104d4;
 L_0200fe74:
+    FCB4_CP(0x200FE74);
     /* 0x0200fe74: lsl r0, r7, #4 */
     R[0] = (R[7] << 4);
 L_0200fe78:
+    FCB4_CP(0x200FE78);
     /* 0x0200fe78: str r0, [r1] */
     *(volatile u32*)(uintptr_t)R[1] = (u32)R[0];
 L_0200fe7c:
+    FCB4_CP(0x200FE7C);
     /* 0x0200fe7c: lsl r0, r5, #4 */
     R[0] = (R[5] << 4);
 L_0200fe80:
+    FCB4_CP(0x200FE80);
     /* 0x0200fe80: str r0, [r1] */
     *(volatile u32*)(uintptr_t)R[1] = (u32)R[0];
 L_0200fe84:
+    FCB4_CP(0x200FE84);
     /* 0x0200fe84: mov r0, #4096 */
     R[0] = 0x1000u;
 L_0200fe88:
+    FCB4_CP(0x200FE88);
     /* 0x0200fe88: str r0, [r1] */
     *(volatile u32*)(uintptr_t)R[1] = (u32)R[0];
 L_0200fe8c:
+    FCB4_CP(0x200FE8C);
     /* 0x0200fe8c: ldrsh r1, [r4, #6] */
     R[1] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[4] + 0x6u);
 L_0200fe90:
+    FCB4_CP(0x200FE90);
     /* 0x0200fe90: ldrsh r0, [r4, #8] */
     R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[4] + 0x8u);
 L_0200fe94:
+    FCB4_CP(0x200FE94);
     /* 0x0200fe94: orrs r0, r1, r0 */
     R[0] = (R[1] | R[0]); SET_NZ(R[0]);
 L_0200fe98:
+    FCB4_CP(0x200FE98);
     /* 0x0200fe98: beq 0x200febc */
     if (Z) { goto L_0200febc; }
 L_0200fe9c:
+    FCB4_CP(0x200FE9C);
     /* 0x0200fe9c: ldr r2, [pc, #1588] */
     R[2] = LITERAL_0x020104d8;
 L_0200fea0:
+    FCB4_CP(0x200FEA0);
     /* 0x0200fea0: lsl r0, r1, #8 */
     R[0] = (R[1] << 8);
 L_0200fea4:
+    FCB4_CP(0x200FEA4);
     /* 0x0200fea4: str r0, [r2] */
     *(volatile u32*)(uintptr_t)R[2] = (u32)R[0];
 L_0200fea8:
+    FCB4_CP(0x200FEA8);
     /* 0x0200fea8: ldrsh r1, [r4, #8] */
     R[1] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[4] + 0x8u);
 L_0200feac:
+    FCB4_CP(0x200FEAC);
     /* 0x0200feac: mov r0, #0 */
     R[0] = 0x0u;
 L_0200feb0:
+    FCB4_CP(0x200FEB0);
     /* 0x0200feb0: lsl r1, r1, #8 */
     R[1] = (R[1] << 8);
 L_0200feb4:
+    FCB4_CP(0x200FEB4);
     /* 0x0200feb4: str r1, [r2] */
     *(volatile u32*)(uintptr_t)R[2] = (u32)R[1];
 L_0200feb8:
+    FCB4_CP(0x200FEB8);
     /* 0x0200feb8: str r0, [r2] */
     *(volatile u32*)(uintptr_t)R[2] = (u32)R[0];
 L_0200febc:
+    FCB4_CP(0x200FEBC);
     /* 0x0200febc: ldr r0, [pc, #1560] */
     R[0] = LITERAL_0x020104dc;
 L_0200fec0:
+    FCB4_CP(0x200FEC0);
     /* 0x0200fec0: mov r1, #1 */
     R[1] = 0x1u;
 L_0200fec4:
+    FCB4_CP(0x200FEC4);
     /* 0x0200fec4: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_0200fec8:
+    FCB4_CP(0x200FEC8);
     /* 0x0200fec8: mov r0, #0 */
     R[0] = 0x0u;
 L_0200fecc:
+    FCB4_CP(0x200FECC);
     /* 0x0200fecc: str r0, [sp, #20] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x14u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x14u) = (u32)R[0];
 L_0200fed0:
+    FCB4_CP(0x200FED0);
     /* 0x0200fed0: add r4, sp, #84 */
-    R[4] = (R[13] + 0x54u);
+    R[4] = (sp_v + 0x54u);
 L_0200fed4:
+    FCB4_CP(0x200FED4);
     /* 0x0200fed4: mov r0, r4 */
     R[0] = R[4];
 L_0200fed8:
+    FCB4_CP(0x200FED8);
     /* 0x0200fed8: bl 0x2036dbc */
     R[0] = (u32)FUN_02036dbc((int)R[0]);
 L_0200fedc:
+    FCB4_CP(0x200FEDC);
     /* 0x0200fedc: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_0200fee0:
+    FCB4_CP(0x200FEE0);
     /* 0x0200fee0: bne 0x200fed4 */
     if (!Z) { goto L_0200fed4; }
 L_0200fee4:
+    FCB4_CP(0x200FEE4);
     /* 0x0200fee4: ldrsh r0, [sp, #84] */
-    R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[13] + 0x54u);
+    R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(sp_v + 0x54u);
 L_0200fee8:
+    FCB4_CP(0x200FEE8);
     /* 0x0200fee8: mov r1, #1024 */
     R[1] = 0x400u;
 L_0200feec:
+    FCB4_CP(0x200FEEC);
     /* 0x0200feec: add r4, sp, #84 */
-    R[4] = (R[13] + 0x54u);
+    R[4] = (sp_v + 0x54u);
 L_0200fef0:
+    FCB4_CP(0x200FEF0);
     /* 0x0200fef0: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_0200fef4:
+    FCB4_CP(0x200FEF4);
     /* 0x0200fef4: ldrlt r0, [sp, #20] */
-    if ((N != V)) { R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x14u); }
+    if ((N != V)) { R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x14u); }
 L_0200fef8:
+    FCB4_CP(0x200FEF8);
     /* 0x0200fef8: orrlt r0, r0, #8 */
     if ((N != V)) { R[0] = (R[0] | 0x8u); }
 L_0200fefc:
+    FCB4_CP(0x200FEFC);
     /* 0x0200fefc: strlt r0, [sp, #20] */
-    if ((N != V)) { *(volatile u32*)(uintptr_t)(R[13] + 0x14u) = (u32)R[0]; }
+    if ((N != V)) { *(volatile u32*)(uintptr_t)(sp_v + 0x14u) = (u32)R[0]; }
 L_0200ff00:
+    FCB4_CP(0x200FF00);
     /* 0x0200ff00: ldr r0, [pc, #1492] */
     R[0] = LITERAL_0x020104dc;
 L_0200ff04:
+    FCB4_CP(0x200FF04);
     /* 0x0200ff04: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_0200ff08:
+    FCB4_CP(0x200FF08);
     /* 0x0200ff08: mov r0, r4 */
     R[0] = R[4];
 L_0200ff0c:
+    FCB4_CP(0x200FF0C);
     /* 0x0200ff0c: bl 0x2036dbc */
     R[0] = (u32)FUN_02036dbc((int)R[0]);
 L_0200ff10:
+    FCB4_CP(0x200FF10);
     /* 0x0200ff10: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_0200ff14:
+    FCB4_CP(0x200FF14);
     /* 0x0200ff14: bne 0x200ff08 */
     if (!Z) { goto L_0200ff08; }
 L_0200ff18:
+    FCB4_CP(0x200FF18);
     /* 0x0200ff18: ldrsh r0, [sp, #86] */
-    R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[13] + 0x56u);
+    R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(sp_v + 0x56u);
 L_0200ff1c:
+    FCB4_CP(0x200FF1C);
     /* 0x0200ff1c: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_0200ff20:
+    FCB4_CP(0x200FF20);
     /* 0x0200ff20: ldrlt r0, [sp, #20] */
-    if ((N != V)) { R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x14u); }
+    if ((N != V)) { R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x14u); }
 L_0200ff24:
+    FCB4_CP(0x200FF24);
     /* 0x0200ff24: orrlt r0, r0, #16 */
     if ((N != V)) { R[0] = (R[0] | 0x10u); }
 L_0200ff28:
+    FCB4_CP(0x200FF28);
     /* 0x0200ff28: strlt r0, [sp, #20] */
-    if ((N != V)) { *(volatile u32*)(uintptr_t)(R[13] + 0x14u) = (u32)R[0]; }
+    if ((N != V)) { *(volatile u32*)(uintptr_t)(sp_v + 0x14u) = (u32)R[0]; }
 L_0200ff2c:
+    FCB4_CP(0x200FF2C);
     /* 0x0200ff2c: ldr r0, [sp] */
-    R[0] = *(volatile u32*)(uintptr_t)R[13];
+    R[0] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200ff30:
+    FCB4_CP(0x200FF30);
     /* 0x0200ff30: add r1, r0, #256 */
     R[1] = (R[0] + 0x100u);
 L_0200ff34:
+    FCB4_CP(0x200FF34);
     /* 0x0200ff34: ldr r4, [r0, #368] */
     R[4] = *(volatile u32*)(uintptr_t)(R[0] + 0x170u);
 L_0200ff38:
+    FCB4_CP(0x200FF38);
     /* 0x0200ff38: ldrsh r3, [r1, #108] */
     R[3] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[1] + 0x6cu);
 L_0200ff3c:
+    FCB4_CP(0x200FF3C);
     /* 0x0200ff3c: mov r0, #3 */
     R[0] = 0x3u;
 L_0200ff40:
+    FCB4_CP(0x200FF40);
     /* 0x0200ff40: mla r2, r3, r0, r4 */
     R[2] = (R[3] * R[0] + R[4]);
 L_0200ff44:
+    FCB4_CP(0x200FF44);
     /* 0x0200ff44: ldrsh r0, [r1, #110] */
     R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[1] + 0x6eu);
 L_0200ff48:
+    FCB4_CP(0x200FF48);
     /* 0x0200ff48: add r1, r4, r3 */
     R[1] = (R[4] + R[3]);
 L_0200ff4c:
+    FCB4_CP(0x200FF4C);
     /* 0x0200ff4c: str r0, [sp, #24] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x18u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x18u) = (u32)R[0];
 L_0200ff50:
+    FCB4_CP(0x200FF50);
     /* 0x0200ff50: add r0, r4, r3, lsl #1 */
     R[0] = (R[4] + (R[3] << 1));
 L_0200ff54:
+    FCB4_CP(0x200FF54);
     /* 0x0200ff54: str r0, [sp, #140] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x8cu) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x8cu) = (u32)R[0];
 L_0200ff58:
+    FCB4_CP(0x200FF58);
     /* 0x0200ff58: str r2, [sp, #144] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x90u) = (u32)R[2];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x90u) = (u32)R[2];
 L_0200ff5c:
+    FCB4_CP(0x200FF5C);
     /* 0x0200ff5c: ldr r0, [sp] */
-    R[0] = *(volatile u32*)(uintptr_t)R[13];
+    R[0] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200ff60:
+    FCB4_CP(0x200FF60);
     /* 0x0200ff60: str r4, [sp, #132] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x84u) = (u32)R[4];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x84u) = (u32)R[4];
 L_0200ff64:
+    FCB4_CP(0x200FF64);
     /* 0x0200ff64: str r1, [sp, #136] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x88u) = (u32)R[1];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x88u) = (u32)R[1];
 L_0200ff68:
+    FCB4_CP(0x200FF68);
     /* 0x0200ff68: ldr r3, [r0, #60] */
     R[3] = *(volatile u32*)(uintptr_t)(R[0] + 0x3cu);
 L_0200ff6c:
+    FCB4_CP(0x200FF6C);
     /* 0x0200ff6c: mov r2, #12 */
     R[2] = 0xcu;
 L_0200ff70:
+    FCB4_CP(0x200FF70);
     /* 0x0200ff70: mla r5, r6, r2, r3 */
     R[5] = (R[6] * R[2] + R[3]);
 L_0200ff74:
+    FCB4_CP(0x200FF74);
     /* 0x0200ff74: mov r2, r0 */
     R[2] = R[0];
 L_0200ff78:
+    FCB4_CP(0x200FF78);
     /* 0x0200ff78: ldr r2, [r2, #304] */
     R[2] = *(volatile u32*)(uintptr_t)(R[2] + 0x130u);
 L_0200ff7c:
+    FCB4_CP(0x200FF7C);
     /* 0x0200ff7c: ldr r1, [r0, #360] */
     R[1] = *(volatile u32*)(uintptr_t)(R[0] + 0x168u);
 L_0200ff80:
+    FCB4_CP(0x200FF80);
     /* 0x0200ff80: str r2, [sp, #28] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x1cu) = (u32)R[2];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x1cu) = (u32)R[2];
 L_0200ff84:
+    FCB4_CP(0x200FF84);
     /* 0x0200ff84: bl 0x20092d4 */
     R[0] = (u32)FUN_020092d4((int)R[0], (int)R[1]);
 L_0200ff88:
+    FCB4_CP(0x200FF88);
     /* 0x0200ff88: ldr r1, [sp] */
-    R[1] = *(volatile u32*)(uintptr_t)R[13];
+    R[1] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200ff8c:
+    FCB4_CP(0x200FF8C);
     /* 0x0200ff8c: str r0, [sp, #32] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x20u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x20u) = (u32)R[0];
 L_0200ff90:
+    FCB4_CP(0x200FF90);
     /* 0x0200ff90: ldr r1, [r1, #124] */
     R[1] = *(volatile u32*)(uintptr_t)(R[1] + 0x7cu);
 L_0200ff94:
+    FCB4_CP(0x200FF94);
     /* 0x0200ff94: lsl r0, r1, #24 */
     R[0] = (R[1] << 24);
 L_0200ff98:
+    FCB4_CP(0x200FF98);
     /* 0x0200ff98: lsr r0, r0, #29 */
     R[0] = (R[0] >> 29);
 L_0200ff9c:
+    FCB4_CP(0x200FF9C);
     /* 0x0200ff9c: cmp r0, #3 */
     { u32 _a = R[0], _b = 0x3u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_0200ffa0:
+    FCB4_CP(0x200FFA0);
     /* 0x0200ffa0: lsl r0, r8, #26 */
     R[0] = (R[8] << 26);
 L_0200ffa4:
+    FCB4_CP(0x200FFA4);
     /* 0x0200ffa4: str r0, [sp, #36] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x24u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x24u) = (u32)R[0];
 L_0200ffa8:
+    FCB4_CP(0x200FFA8);
     /* 0x0200ffa8: movne r0, #1 */
     if (!Z) { R[0] = 0x1u; }
 L_0200ffac:
+    FCB4_CP(0x200FFAC);
     /* 0x0200ffac: strne r0, [sp, #4] */
-    if (!Z) { *(volatile u32*)(uintptr_t)(R[13] + 0x4u) = (u32)R[0]; }
+    if (!Z) { *(volatile u32*)(uintptr_t)(sp_v + 0x4u) = (u32)R[0]; }
 L_0200ffb0:
+    FCB4_CP(0x200FFB0);
     /* 0x0200ffb0: moveq r0, #0 */
     if (Z) { R[0] = 0x0u; }
 L_0200ffb4:
+    FCB4_CP(0x200FFB4);
     /* 0x0200ffb4: streq r0, [sp, #4] */
-    if (Z) { *(volatile u32*)(uintptr_t)(R[13] + 0x4u) = (u32)R[0]; }
+    if (Z) { *(volatile u32*)(uintptr_t)(sp_v + 0x4u) = (u32)R[0]; }
 L_0200ffb8:
+    FCB4_CP(0x200FFB8);
     /* 0x0200ffb8: ldr r0, [sp] */
-    R[0] = *(volatile u32*)(uintptr_t)R[13];
+    R[0] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200ffbc:
+    FCB4_CP(0x200FFBC);
     /* 0x0200ffbc: ldr r0, [r0, #56] */
     R[0] = *(volatile u32*)(uintptr_t)(R[0] + 0x38u);
 L_0200ffc0:
+    FCB4_CP(0x200FFC0);
     /* 0x0200ffc0: bl 0x200e0d8 */
     R[0] = (u32)FUN_0200e0d8((u16*)(uintptr_t)R[0]);
 L_0200ffc4:
+    FCB4_CP(0x200FFC4);
     /* 0x0200ffc4: ldr r1, [sp] */
-    R[1] = *(volatile u32*)(uintptr_t)R[13];
+    R[1] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200ffc8:
+    FCB4_CP(0x200FFC8);
     /* 0x0200ffc8: str r0, [sp, #40] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x28u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x28u) = (u32)R[0];
 L_0200ffcc:
+    FCB4_CP(0x200FFCC);
     /* 0x0200ffcc: ldr r1, [r1, #124] */
     R[1] = *(volatile u32*)(uintptr_t)(R[1] + 0x7cu);
 L_0200ffd0:
+    FCB4_CP(0x200FFD0);
     /* 0x0200ffd0: lsl r0, r1, #6 */
     R[0] = (R[1] << 6);
 L_0200ffd4:
+    FCB4_CP(0x200FFD4);
     /* 0x0200ffd4: lsrs r0, r0, #31 */
     R[0] = (R[0] >> 31); SET_NZ(R[0]);
 L_0200ffd8:
+    FCB4_CP(0x200FFD8);
     /* 0x0200ffd8: ldr r0, [sp] */
-    R[0] = *(volatile u32*)(uintptr_t)R[13];
+    R[0] = *(volatile u32*)(uintptr_t)sp_v;
 L_0200ffdc:
+    FCB4_CP(0x200FFDC);
     /* 0x0200ffdc: ldr r0, [r0, #76] */
     R[0] = *(volatile u32*)(uintptr_t)(R[0] + 0x4cu);
 L_0200ffe0:
+    FCB4_CP(0x200FFE0);
     /* 0x0200ffe0: str r0, [sp, #56] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x38u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x38u) = (u32)R[0];
 L_0200ffe4:
+    FCB4_CP(0x200FFE4);
     /* 0x0200ffe4: beq 0x2010014 */
     if (Z) { goto L_02010014; }
 L_0200ffe8:
+    FCB4_CP(0x200FFE8);
     /* 0x0200ffe8: ldr r0, [sp, #16] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x10u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x10u);
 L_0200ffec:
+    FCB4_CP(0x200FFEC);
     /* 0x0200ffec: cmp r6, r0 */
     { u32 _a = R[6], _b = R[0]; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_0200fff0:
+    FCB4_CP(0x200FFF0);
     /* 0x0200fff0: bge 0x2010014 */
     if ((N == V)) { goto L_02010014; }
 L_0200fff4:
+    FCB4_CP(0x200FFF4);
     /* 0x0200fff4: ldrh r0, [r5, #4] */
     R[0] = *(volatile u16*)(uintptr_t)(R[5] + 0x4u);
 L_0200fff8:
+    FCB4_CP(0x200FFF8);
     /* 0x0200fff8: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_0200fffc:
+    FCB4_CP(0x200FFFC);
     /* 0x0200fffc: bne 0x2010014 */
     if (!Z) { goto L_02010014; }
 L_02010000:
+    FCB4_CP(0x2010000);
     /* 0x02010000: ldr r0, [sp, #16] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x10u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x10u);
 L_02010004:
+    FCB4_CP(0x2010004);
     /* 0x02010004: add r6, r6, #1 */
     R[6] = (R[6] + 0x1u);
 L_02010008:
+    FCB4_CP(0x2010008);
     /* 0x02010008: cmp r6, r0 */
     { u32 _a = R[6], _b = R[0]; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_0201000c:
+    FCB4_CP(0x201000C);
     /* 0x0201000c: add r5, r5, #12 */
     R[5] = (R[5] + 0xcu);
 L_02010010:
+    FCB4_CP(0x2010010);
     /* 0x02010010: blt 0x200fff4 */
     if ((N != V)) { goto L_0200fff4; }
 L_02010014:
+    FCB4_CP(0x2010014);
     /* 0x02010014: ldr r0, [sp, #16] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x10u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x10u);
 L_02010018:
+    FCB4_CP(0x2010018);
     /* 0x02010018: mov fp, #1 */
     R[11] = 0x1u;
 L_0201001c:
+    FCB4_CP(0x201001C);
     /* 0x0201001c: cmp r6, r0 */
     { u32 _a = R[6], _b = R[0]; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_02010020:
+    FCB4_CP(0x2010020);
     /* 0x02010020: ldr r0, [pc, #1208] */
     R[0] = LITERAL_0x020104e0;
 L_02010024:
+    FCB4_CP(0x2010024);
     /* 0x02010024: str fp, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[11];
 L_02010028:
+    FCB4_CP(0x2010028);
     /* 0x02010028: bge 0x20104a8 */
     if ((N == V)) { goto L_020104a8; }
 L_0201002c:
+    FCB4_CP(0x201002C);
     /* 0x0201002c: mov r0, #15 */
     R[0] = 0xfu;
 L_02010030:
+    FCB4_CP(0x2010030);
     /* 0x02010030: str r0, [sp, #68] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x44u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x44u) = (u32)R[0];
 L_02010034:
+    FCB4_CP(0x2010034);
     /* 0x02010034: mvn r0, #14 */
     R[0] = ~(0xeu);
 L_02010038:
+    FCB4_CP(0x2010038);
     /* 0x02010038: str r0, [sp, #64] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x40u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x40u) = (u32)R[0];
 L_0201003c:
+    FCB4_CP(0x201003C);
     /* 0x0201003c: mov r0, #4096 */
     R[0] = 0x1000u;
 L_02010040:
+    FCB4_CP(0x2010040);
     /* 0x02010040: str r0, [sp, #72] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x48u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x48u) = (u32)R[0];
 L_02010044:
+    FCB4_CP(0x2010044);
     /* 0x02010044: mov r0, #0 */
     R[0] = 0x0u;
 L_02010048:
+    FCB4_CP(0x2010048);
     /* 0x02010048: str r0, [sp, #60] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x3cu) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x3cu) = (u32)R[0];
 L_0201004c:
+    FCB4_CP(0x201004C);
     /* 0x0201004c: mov r0, #1024 */
     R[0] = 0x400u;
 L_02010050:
+    FCB4_CP(0x2010050);
     /* 0x02010050: str r0, [sp, #76] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x4cu) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x4cu) = (u32)R[0];
 L_02010054:
+    FCB4_CP(0x2010054);
     /* 0x02010054: mov r0, #4352 */
     R[0] = 0x1100u;
 L_02010058:
+    FCB4_CP(0x2010058);
     /* 0x02010058: add r7, sp, #90 */
-    R[7] = (R[13] + 0x5au);
+    R[7] = (sp_v + 0x5au);
 L_0201005c:
+    FCB4_CP(0x201005C);
     /* 0x0201005c: str r0, [sp, #80] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x50u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x50u) = (u32)R[0];
 L_02010060:
+    FCB4_CP(0x2010060);
     /* 0x02010060: ldr r1, [sp, #60] */
-    R[1] = *(volatile u32*)(uintptr_t)(R[13] + 0x3cu);
+    R[1] = *(volatile u32*)(uintptr_t)(sp_v + 0x3cu);
 L_02010064:
+    FCB4_CP(0x2010064);
     /* 0x02010064: ldr r0, [pc, #1144] */
     R[0] = LITERAL_0x020104e4;
 L_02010068:
+    FCB4_CP(0x2010068);
     /* 0x02010068: ldr r4, [sp, #20] */
-    R[4] = *(volatile u32*)(uintptr_t)(R[13] + 0x14u);
+    R[4] = *(volatile u32*)(uintptr_t)(sp_v + 0x14u);
 L_0201006c:
+    FCB4_CP(0x201006C);
     /* 0x0201006c: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_02010070:
+    FCB4_CP(0x2010070);
     /* 0x02010070: ldrh r0, [r5, #2] */
     R[0] = *(volatile u16*)(uintptr_t)(R[5] + 0x2u);
 L_02010074:
+    FCB4_CP(0x2010074);
     /* 0x02010074: ldrh r1, [r5] */
     R[1] = *(volatile u16*)(uintptr_t)R[5];
 L_02010078:
+    FCB4_CP(0x2010078);
     /* 0x02010078: ldrb r8, [r5] */
     R[8] = *(volatile u8*)(uintptr_t)R[5];
 L_0201007c:
+    FCB4_CP(0x201007C);
     /* 0x0201007c: lsl r0, r0, #23 */
     R[0] = (R[0] << 23);
 L_02010080:
+    FCB4_CP(0x2010080);
     /* 0x02010080: lsr r9, r0, #23 */
     R[9] = (R[0] >> 23);
 L_02010084:
+    FCB4_CP(0x2010084);
     /* 0x02010084: ands r0, r9, #256 */
     R[0] = (R[9] & 0x100u); SET_NZ(R[0]);
 L_02010088:
+    FCB4_CP(0x2010088);
     /* 0x02010088: movne r0, #512 */
     if (!Z) { R[0] = 0x200u; }
 L_0201008c:
+    FCB4_CP(0x201008C);
     /* 0x0201008c: rsbne r0, r0, #0 */
     if (!Z) { R[0] = (0x0u - R[0]); }
 L_02010090:
+    FCB4_CP(0x2010090);
     /* 0x02010090: orrne r9, r9, r0 */
     if (!Z) { R[9] = (R[9] | R[0]); }
 L_02010094:
+    FCB4_CP(0x2010094);
     /* 0x02010094: ands r0, r8, #128 */
     R[0] = (R[8] & 0x80u); SET_NZ(R[0]);
 L_02010098:
+    FCB4_CP(0x2010098);
     /* 0x02010098: mvnne r0, #255 */
     if (!Z) { R[0] = ~(0xffu); }
 L_0201009c:
+    FCB4_CP(0x201009C);
     /* 0x0201009c: orrne r8, r8, r0 */
     if (!Z) { R[8] = (R[8] | R[0]); }
 L_020100a0:
+    FCB4_CP(0x20100A0);
     /* 0x020100a0: ldrh r0, [r5, #2] */
     R[0] = *(volatile u16*)(uintptr_t)(R[5] + 0x2u);
 L_020100a4:
+    FCB4_CP(0x20100A4);
     /* 0x020100a4: lsl r2, r1, #16 */
     R[2] = (R[1] << 16);
 L_020100a8:
+    FCB4_CP(0x20100A8);
     /* 0x020100a8: lsr r2, r2, #30 */
     R[2] = (R[2] >> 30);
 L_020100ac:
+    FCB4_CP(0x20100AC);
     /* 0x020100ac: lsl r2, r2, #2 */
     R[2] = (R[2] << 2);
 L_020100b0:
+    FCB4_CP(0x20100B0);
     /* 0x020100b0: lsl r0, r0, #16 */
     R[0] = (R[0] << 16);
 L_020100b4:
+    FCB4_CP(0x20100B4);
     /* 0x020100b4: orr r0, r2, r0, lsr #30 */
     R[0] = (R[2] | (R[0] >> 30));
 L_020100b8:
+    FCB4_CP(0x20100B8);
     /* 0x020100b8: str r0, [sp, #52] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x34u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x34u) = (u32)R[0];
 L_020100bc:
+    FCB4_CP(0x20100BC);
     /* 0x020100bc: lsl r0, r1, #22 */
     R[0] = (R[1] << 22);
 L_020100c0:
+    FCB4_CP(0x20100C0);
     /* 0x020100c0: lsr r0, r0, #30 */
     R[0] = (R[0] >> 30);
 L_020100c4:
+    FCB4_CP(0x20100C4);
     /* 0x020100c4: ands r0, r0, #2 */
     R[0] = (R[0] & 0x2u); SET_NZ(R[0]);
 L_020100c8:
+    FCB4_CP(0x20100C8);
     /* 0x020100c8: ldr r1, [pc, #1048] */
     R[1] = LITERAL_0x020104e8;
 L_020100cc:
+    FCB4_CP(0x20100CC);
     /* 0x020100cc: ldr r0, [sp, #52] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x34u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x34u);
 L_020100d0:
+    FCB4_CP(0x20100D0);
     /* 0x020100d0: ldrb r0, [r1, r0] */
     R[0] = *(volatile u8*)(uintptr_t)(R[1] + R[0]);
 L_020100d4:
+    FCB4_CP(0x20100D4);
     /* 0x020100d4: ldr r1, [pc, #1040] */
     R[1] = LITERAL_0x020104ec;
 L_020100d8:
+    FCB4_CP(0x20100D8);
     /* 0x020100d8: str r0, [sp, #44] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x2cu) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x2cu) = (u32)R[0];
 L_020100dc:
+    FCB4_CP(0x20100DC);
     /* 0x020100dc: ldr r0, [sp, #52] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x34u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x34u);
 L_020100e0:
+    FCB4_CP(0x20100E0);
     /* 0x020100e0: ldrb r0, [r1, r0] */
     R[0] = *(volatile u8*)(uintptr_t)(R[1] + R[0]);
 L_020100e4:
+    FCB4_CP(0x20100E4);
     /* 0x020100e4: mov r1, r5 */
     R[1] = R[5];
 L_020100e8:
+    FCB4_CP(0x20100E8);
     /* 0x020100e8: str r0, [sp, #48] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x30u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x30u) = (u32)R[0];
 L_020100ec:
+    FCB4_CP(0x20100EC);
     /* 0x020100ec: ldrne r0, [sp, #44] */
-    if (!Z) { R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x2cu); }
+    if (!Z) { R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x2cu); }
 L_020100f0:
+    FCB4_CP(0x20100F0);
     /* 0x020100f0: addne r9, r9, r0, asr #1 */
     if (!Z) { R[9] = (R[9] + ((u32)((s32)R[0] >> 1))); }
 L_020100f4:
+    FCB4_CP(0x20100F4);
     /* 0x020100f4: ldrne r0, [sp, #48] */
-    if (!Z) { R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x30u); }
+    if (!Z) { R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x30u); }
 L_020100f8:
+    FCB4_CP(0x20100F8);
     /* 0x020100f8: addne r8, r8, r0, asr #1 */
     if (!Z) { R[8] = (R[8] + ((u32)((s32)R[0] >> 1))); }
 L_020100fc:
+    FCB4_CP(0x20100FC);
     /* 0x020100fc: ldr r0, [sp] */
-    R[0] = *(volatile u32*)(uintptr_t)R[13];
+    R[0] = *(volatile u32*)(uintptr_t)sp_v;
 L_02010100:
+    FCB4_CP(0x2010100);
     /* 0x02010100: ldr r2, [r0] */
     R[2] = *(volatile u32*)(uintptr_t)R[0];
 L_02010104:
+    FCB4_CP(0x2010104);
     /* 0x02010104: ldr r2, [r2, #88] */
     R[2] = *(volatile u32*)(uintptr_t)(R[2] + 0x58u);
 L_02010108:
+    FCB4_CP(0x2010108);
     /* 0x02010108: blx r2 */
     call_indirect_2arg(R[2], R[0], R[1]);
 L_0201010c:
+    FCB4_CP(0x201010C);
     /* 0x0201010c: mov sl, r0 */
     R[10] = R[0];
 L_02010110:
+    FCB4_CP(0x2010110);
     /* 0x02010110: ldr r0, [sp, #44] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x2cu);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x2cu);
 L_02010114:
+    FCB4_CP(0x2010114);
     /* 0x02010114: add r9, r9, r0, asr #1 */
     R[9] = (R[9] + ((u32)((s32)R[0] >> 1)));
 L_02010118:
+    FCB4_CP(0x2010118);
     /* 0x02010118: ldr r0, [sp, #48] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x30u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x30u);
 L_0201011c:
+    FCB4_CP(0x201011C);
     /* 0x0201011c: add r8, r8, r0, asr #1 */
     R[8] = (R[8] + ((u32)((s32)R[0] >> 1)));
 L_02010120:
+    FCB4_CP(0x2010120);
     /* 0x02010120: ldrh r0, [r5] */
     R[0] = *(volatile u16*)(uintptr_t)R[5];
 L_02010124:
+    FCB4_CP(0x2010124);
     /* 0x02010124: lsl r0, r0, #22 */
     R[0] = (R[0] << 22);
 L_02010128:
+    FCB4_CP(0x2010128);
     /* 0x02010128: lsr r0, r0, #30 */
     R[0] = (R[0] >> 30);
 L_0201012c:
+    FCB4_CP(0x201012C);
     /* 0x0201012c: ands r0, r0, #1 */
     R[0] = (R[0] & 0x1u); SET_NZ(R[0]);
 L_02010130:
+    FCB4_CP(0x2010130);
     /* 0x02010130: beq 0x20102a0 */
     if (Z) { goto L_020102a0; }
 L_02010134:
+    FCB4_CP(0x2010134);
     /* 0x02010134: ldr r0, [sp, #4] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x4u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x4u);
 L_02010138:
+    FCB4_CP(0x2010138);
     /* 0x02010138: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_0201013c:
+    FCB4_CP(0x201013C);
     /* 0x0201013c: beq 0x20102a0 */
     if (Z) { goto L_020102a0; }
 L_02010140:
+    FCB4_CP(0x2010140);
     /* 0x02010140: ldrh r3, [r5, #8] */
     R[3] = *(volatile u16*)(uintptr_t)(R[5] + 0x8u);
 L_02010144:
+    FCB4_CP(0x2010144);
     /* 0x02010144: mov r2, #12 */
     R[2] = 0xcu;
 L_02010148:
+    FCB4_CP(0x2010148);
     /* 0x02010148: lsl r0, r8, #8 */
     R[0] = (R[8] << 8);
 L_0201014c:
+    FCB4_CP(0x201014C);
     /* 0x0201014c: lsl r3, r3, #22 */
     R[3] = (R[3] << 22);
 L_02010150:
+    FCB4_CP(0x2010150);
     /* 0x02010150: lsr r3, r3, #22 */
     R[3] = (R[3] >> 22);
 L_02010154:
+    FCB4_CP(0x2010154);
     /* 0x02010154: mul r8, r3, r2 */
     R[8] = (R[3] * R[2]);
 L_02010158:
+    FCB4_CP(0x2010158);
     /* 0x02010158: ldr r2, [sp, #56] */
-    R[2] = *(volatile u32*)(uintptr_t)(R[13] + 0x38u);
+    R[2] = *(volatile u32*)(uintptr_t)(sp_v + 0x38u);
 L_0201015c:
+    FCB4_CP(0x201015C);
     /* 0x0201015c: lsl r1, r9, #8 */
     R[1] = (R[9] << 8);
 L_02010160:
+    FCB4_CP(0x2010160);
     /* 0x02010160: add r3, r2, r8 */
     R[3] = (R[2] + R[8]);
 L_02010164:
+    FCB4_CP(0x2010164);
     /* 0x02010164: ldrh r2, [r2, r8] */
     R[2] = *(volatile u16*)(uintptr_t)(R[2] + R[8]);
 L_02010168:
+    FCB4_CP(0x2010168);
     /* 0x02010168: ldrsh r9, [r3, #2] */
     R[9] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[3] + 0x2u);
 L_0201016c:
+    FCB4_CP(0x201016C);
     /* 0x0201016c: ldrsh r8, [r3, #4] */
     R[8] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[3] + 0x4u);
 L_02010170:
+    FCB4_CP(0x2010170);
     /* 0x02010170: ldr r3, [pc, #864] */
     R[3] = LITERAL_0x020104d8;
 L_02010174:
+    FCB4_CP(0x2010174);
     /* 0x02010174: cmp r2, #0 */
     { u32 _a = R[2], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_02010178:
+    FCB4_CP(0x2010178);
     /* 0x02010178: str r1, [r3] */
     *(volatile u32*)(uintptr_t)R[3] = (u32)R[1];
 L_0201017c:
+    FCB4_CP(0x201017C);
     /* 0x0201017c: mov r1, r3 */
     R[1] = R[3];
 L_02010180:
+    FCB4_CP(0x2010180);
     /* 0x02010180: str r0, [r1] */
     *(volatile u32*)(uintptr_t)R[1] = (u32)R[0];
 L_02010184:
+    FCB4_CP(0x2010184);
     /* 0x02010184: add r0, sp, #132 */
-    R[0] = (R[13] + 0x84u);
+    R[0] = (sp_v + 0x84u);
 L_02010188:
+    FCB4_CP(0x2010188);
     /* 0x02010188: ldr r1, [r0, sl, lsl #2] */
     R[1] = *(volatile u32*)(uintptr_t)(R[0] + (R[10] << 2));
 L_0201018c:
+    FCB4_CP(0x201018C);
     /* 0x0201018c: mov r0, r3 */
     R[0] = R[3];
 L_02010190:
+    FCB4_CP(0x2010190);
     /* 0x02010190: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_02010194:
+    FCB4_CP(0x2010194);
     /* 0x02010194: beq 0x20101cc */
     if (Z) { goto L_020101cc; }
 L_02010198:
+    FCB4_CP(0x2010198);
     /* 0x02010198: asr r0, r2, #4 */
     R[0] = ((u32)((s32)R[2] >> 4));
 L_0201019c:
+    FCB4_CP(0x201019C);
     /* 0x0201019c: lsl r3, r0, #1 */
     R[3] = (R[0] << 1);
 L_020101a0:
+    FCB4_CP(0x20101A0);
     /* 0x020101a0: ldr r1, [pc, #808] */
     R[1] = LITERAL_0x020104d0;
 L_020101a4:
+    FCB4_CP(0x20101A4);
     /* 0x020101a4: lsl r2, r3, #1 */
     R[2] = (R[3] << 1);
 L_020101a8:
+    FCB4_CP(0x20101A8);
     /* 0x020101a8: ldrsh r1, [r1, r2] */
     R[1] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[1] + R[2]);
 L_020101ac:
+    FCB4_CP(0x20101AC);
     /* 0x020101ac: add r2, r3, #1 */
     R[2] = (R[3] + 0x1u);
 L_020101b0:
+    FCB4_CP(0x20101B0);
     /* 0x020101b0: lsl r3, r2, #1 */
     R[3] = (R[2] << 1);
 L_020101b4:
+    FCB4_CP(0x20101B4);
     /* 0x020101b4: ldr r2, [pc, #788] */
     R[2] = LITERAL_0x020104d0;
 L_020101b8:
+    FCB4_CP(0x20101B8);
     /* 0x020101b8: add r0, sp, #96 */
-    R[0] = (R[13] + 0x60u);
+    R[0] = (sp_v + 0x60u);
 L_020101bc:
+    FCB4_CP(0x20101BC);
     /* 0x020101bc: ldrsh r2, [r2, r3] */
     R[2] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[2] + R[3]);
 L_020101c0:
+    FCB4_CP(0x20101C0);
     /* 0x020101c0: blx 0x203420c */
     FUN_0203420c((u32*)(uintptr_t)R[0], (int)R[1], R[2]);
 L_020101c4:
+    FCB4_CP(0x20101C4);
     /* 0x020101c4: add r0, sp, #96 */
-    R[0] = (R[13] + 0x60u);
+    R[0] = (sp_v + 0x60u);
 L_020101c8:
+    FCB4_CP(0x20101C8);
     /* 0x020101c8: bl 0x2036cc4 */
     FUN_02036cc4();
 L_020101cc:
+    FCB4_CP(0x20101CC);
     /* 0x020101cc: orr r0, r9, r8 */
     R[0] = (R[9] | R[8]);
 L_020101d0:
+    FCB4_CP(0x20101D0);
     /* 0x020101d0: cmp r0, #256 */
     { u32 _a = R[0], _b = 0x100u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_020101d4:
+    FCB4_CP(0x20101D4);
     /* 0x020101d4: beq 0x2010224 */
     if (Z) { goto L_02010224; }
 L_020101d8:
+    FCB4_CP(0x20101D8);
     /* 0x020101d8: lsl r9, r9, #4 */
     R[9] = (R[9] << 4);
 L_020101dc:
+    FCB4_CP(0x20101DC);
     /* 0x020101dc: cmp r9, #4096 */
     { u32 _a = R[9], _b = 0x1000u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_020101e0:
+    FCB4_CP(0x20101E0);
     /* 0x020101e0: lsl r8, r8, #4 */
     R[8] = (R[8] << 4);
 L_020101e4:
+    FCB4_CP(0x20101E4);
     /* 0x020101e4: beq 0x20101f8 */
     if (Z) { goto L_020101f8; }
 L_020101e8:
+    FCB4_CP(0x20101E8);
     /* 0x020101e8: cmp r9, #0 */
     { u32 _a = R[9], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_020101ec:
+    FCB4_CP(0x20101EC);
     /* 0x020101ec: ldrlt r0, [sp, #64] */
-    if ((N != V)) { R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x40u); }
+    if ((N != V)) { R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x40u); }
 L_020101f0:
+    FCB4_CP(0x20101F0);
     /* 0x020101f0: ldrge r0, [sp, #68] */
-    if ((N == V)) { R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x44u); }
+    if ((N == V)) { R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x44u); }
 L_020101f4:
+    FCB4_CP(0x20101F4);
     /* 0x020101f4: add r9, r9, r0 */
     R[9] = (R[9] + R[0]);
 L_020101f8:
+    FCB4_CP(0x20101F8);
     /* 0x020101f8: cmp r8, #4096 */
     { u32 _a = R[8], _b = 0x1000u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_020101fc:
+    FCB4_CP(0x20101FC);
     /* 0x020101fc: beq 0x2010210 */
     if (Z) { goto L_02010210; }
 L_02010200:
+    FCB4_CP(0x2010200);
     /* 0x02010200: cmp r8, #0 */
     { u32 _a = R[8], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_02010204:
+    FCB4_CP(0x2010204);
     /* 0x02010204: ldrlt r0, [sp, #64] */
-    if ((N != V)) { R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x40u); }
+    if ((N != V)) { R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x40u); }
 L_02010208:
+    FCB4_CP(0x2010208);
     /* 0x02010208: ldrge r0, [sp, #68] */
-    if ((N == V)) { R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x44u); }
+    if ((N == V)) { R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x44u); }
 L_0201020c:
+    FCB4_CP(0x201020C);
     /* 0x0201020c: add r8, r8, r0 */
     R[8] = (R[8] + R[0]);
 L_02010210:
+    FCB4_CP(0x2010210);
     /* 0x02010210: ldr r0, [pc, #700] */
     R[0] = LITERAL_0x020104d4;
 L_02010214:
+    FCB4_CP(0x2010214);
     /* 0x02010214: ldr r1, [sp, #72] */
-    R[1] = *(volatile u32*)(uintptr_t)(R[13] + 0x48u);
+    R[1] = *(volatile u32*)(uintptr_t)(sp_v + 0x48u);
 L_02010218:
+    FCB4_CP(0x2010218);
     /* 0x02010218: str r9, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[9];
 L_0201021c:
+    FCB4_CP(0x201021C);
     /* 0x0201021c: str r8, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[8];
 L_02010220:
+    FCB4_CP(0x2010220);
     /* 0x02010220: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_02010224:
+    FCB4_CP(0x2010224);
     /* 0x02010224: ldr r0, [pc, #688] */
     R[0] = LITERAL_0x020104dc;
 L_02010228:
+    FCB4_CP(0x2010228);
     /* 0x02010228: str fp, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[11];
 L_0201022c:
+    FCB4_CP(0x201022C);
     /* 0x0201022c: ldr r0, [sp, #60] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x3cu);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x3cu);
 L_02010230:
+    FCB4_CP(0x2010230);
     /* 0x02010230: str r0, [sp, #20] */
-    *(volatile u32*)(uintptr_t)(R[13] + 0x14u) = (u32)R[0];
+    *(volatile u32*)(uintptr_t)(sp_v + 0x14u) = (u32)R[0];
 L_02010234:
+    FCB4_CP(0x2010234);
     /* 0x02010234: mov r0, r7 */
     R[0] = R[7];
 L_02010238:
+    FCB4_CP(0x2010238);
     /* 0x02010238: bl 0x2036dbc */
     R[0] = (u32)FUN_02036dbc((int)R[0]);
 L_0201023c:
+    FCB4_CP(0x201023C);
     /* 0x0201023c: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_02010240:
+    FCB4_CP(0x2010240);
     /* 0x02010240: bne 0x2010234 */
     if (!Z) { goto L_02010234; }
 L_02010244:
+    FCB4_CP(0x2010244);
     /* 0x02010244: ldrsh r0, [sp, #90] */
-    R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[13] + 0x5au);
+    R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(sp_v + 0x5au);
 L_02010248:
+    FCB4_CP(0x2010248);
     /* 0x02010248: ldr r1, [sp, #76] */
-    R[1] = *(volatile u32*)(uintptr_t)(R[13] + 0x4cu);
+    R[1] = *(volatile u32*)(uintptr_t)(sp_v + 0x4cu);
 L_0201024c:
+    FCB4_CP(0x201024C);
     /* 0x0201024c: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_02010250:
+    FCB4_CP(0x2010250);
     /* 0x02010250: ldr r0, [pc, #644] */
     R[0] = LITERAL_0x020104dc;
 L_02010254:
+    FCB4_CP(0x2010254);
     /* 0x02010254: orrlt r4, r4, #8 */
     if ((N != V)) { R[4] = (R[4] | 0x8u); }
 L_02010258:
+    FCB4_CP(0x2010258);
     /* 0x02010258: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_0201025c:
+    FCB4_CP(0x201025C);
     /* 0x0201025c: mov r0, r7 */
     R[0] = R[7];
 L_02010260:
+    FCB4_CP(0x2010260);
     /* 0x02010260: bl 0x2036dbc */
     R[0] = (u32)FUN_02036dbc((int)R[0]);
 L_02010264:
+    FCB4_CP(0x2010264);
     /* 0x02010264: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_02010268:
+    FCB4_CP(0x2010268);
     /* 0x02010268: bne 0x201025c */
     if (!Z) { goto L_0201025c; }
 L_0201026c:
+    FCB4_CP(0x201026C);
     /* 0x0201026c: ldrsh r0, [sp, #92] */
-    R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[13] + 0x5cu);
+    R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(sp_v + 0x5cu);
 L_02010270:
+    FCB4_CP(0x2010270);
     /* 0x02010270: ldr r1, [sp, #80] */
-    R[1] = *(volatile u32*)(uintptr_t)(R[13] + 0x50u);
+    R[1] = *(volatile u32*)(uintptr_t)(sp_v + 0x50u);
 L_02010274:
+    FCB4_CP(0x2010274);
     /* 0x02010274: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_02010278:
+    FCB4_CP(0x2010278);
     /* 0x02010278: ldrsh r0, [sp, #90] */
-    R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[13] + 0x5au);
+    R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(sp_v + 0x5au);
 L_0201027c:
+    FCB4_CP(0x201027C);
     /* 0x0201027c: orrlt r4, r4, #16 */
     if ((N != V)) { R[4] = (R[4] | 0x10u); }
 L_02010280:
+    FCB4_CP(0x2010280);
     /* 0x02010280: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_02010284:
+    FCB4_CP(0x2010284);
     /* 0x02010284: ldr r0, [pc, #584] */
     R[0] = LITERAL_0x020104d4;
 L_02010288:
+    FCB4_CP(0x2010288);
     /* 0x02010288: orrlt r4, r4, #8 */
     if ((N != V)) { R[4] = (R[4] | 0x8u); }
 L_0201028c:
+    FCB4_CP(0x201028C);
     /* 0x0201028c: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_02010290:
+    FCB4_CP(0x2010290);
     /* 0x02010290: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_02010294:
+    FCB4_CP(0x2010294);
     /* 0x02010294: ldr r1, [sp, #72] */
-    R[1] = *(volatile u32*)(uintptr_t)(R[13] + 0x48u);
+    R[1] = *(volatile u32*)(uintptr_t)(sp_v + 0x48u);
 L_02010298:
+    FCB4_CP(0x2010298);
     /* 0x02010298: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_0201029c:
+    FCB4_CP(0x201029C);
     /* 0x0201029c: b 0x20102c4 */
     goto L_020102c4;
 L_020102a0:
+    FCB4_CP(0x20102A0);
     /* 0x020102a0: ldr r0, [pc, #560] */
     R[0] = LITERAL_0x020104d8;
 L_020102a4:
+    FCB4_CP(0x20102A4);
     /* 0x020102a4: lsl r1, r9, #8 */
     R[1] = (R[9] << 8);
 L_020102a8:
+    FCB4_CP(0x20102A8);
     /* 0x020102a8: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_020102ac:
+    FCB4_CP(0x20102AC);
     /* 0x020102ac: lsl r1, r8, #8 */
     R[1] = (R[8] << 8);
 L_020102b0:
+    FCB4_CP(0x20102B0);
     /* 0x020102b0: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_020102b4:
+    FCB4_CP(0x20102B4);
     /* 0x020102b4: add r0, sp, #132 */
-    R[0] = (R[13] + 0x84u);
+    R[0] = (sp_v + 0x84u);
 L_020102b8:
+    FCB4_CP(0x20102B8);
     /* 0x020102b8: ldr r1, [r0, sl, lsl #2] */
     R[1] = *(volatile u32*)(uintptr_t)(R[0] + (R[10] << 2));
 L_020102bc:
+    FCB4_CP(0x20102BC);
     /* 0x020102bc: ldr r0, [pc, #532] */
     R[0] = LITERAL_0x020104d8;
 L_020102c0:
+    FCB4_CP(0x20102C0);
     /* 0x020102c0: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_020102c4:
+    FCB4_CP(0x20102C4);
     /* 0x020102c4: ldr r0, [sp, #8] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x8u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x8u);
 L_020102c8:
+    FCB4_CP(0x20102C8);
     /* 0x020102c8: cmp r0, #0 */
     { u32 _a = R[0], _b = 0x0u; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_020102cc:
+    FCB4_CP(0x20102CC);
     /* 0x020102cc: add r0, sp, #132 */
-    R[0] = (R[13] + 0x84u);
+    R[0] = (sp_v + 0x84u);
 L_020102d0:
+    FCB4_CP(0x20102D0);
     /* 0x020102d0: ldr r1, [r0, sl, lsl #2] */
     R[1] = *(volatile u32*)(uintptr_t)(R[0] + (R[10] << 2));
 L_020102d4:
+    FCB4_CP(0x20102D4);
     /* 0x020102d4: ldr r0, [sp, #24] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x18u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x18u);
 L_020102d8:
+    FCB4_CP(0x20102D8);
     /* 0x020102d8: add r1, r1, r0 */
     R[1] = (R[1] + R[0]);
 L_020102dc:
+    FCB4_CP(0x20102DC);
     /* 0x020102dc: add r0, sp, #132 */
-    R[0] = (R[13] + 0x84u);
+    R[0] = (sp_v + 0x84u);
 L_020102e0:
+    FCB4_CP(0x20102E0);
     /* 0x020102e0: str r1, [r0, sl, lsl #2] */
     *(volatile u32*)(uintptr_t)(R[0] + (R[10] << 2)) = (u32)R[1];
 L_020102e4:
+    FCB4_CP(0x20102E4);
     /* 0x020102e4: beq 0x201030c */
     if (Z) { goto L_0201030c; }
 L_020102e8:
+    FCB4_CP(0x20102E8);
     /* 0x020102e8: ldrh r0, [r5, #8] */
     R[0] = *(volatile u16*)(uintptr_t)(R[5] + 0x8u);
 L_020102ec:
+    FCB4_CP(0x20102EC);
     /* 0x020102ec: ldr r1, [sp, #12] */
-    R[1] = *(volatile u32*)(uintptr_t)(R[13] + 0xcu);
+    R[1] = *(volatile u32*)(uintptr_t)(sp_v + 0xcu);
 L_020102f0:
+    FCB4_CP(0x20102F0);
     /* 0x020102f0: lsl r0, r0, #18 */
     R[0] = (R[0] << 18);
 L_020102f4:
+    FCB4_CP(0x20102F4);
     /* 0x020102f4: lsr r2, r0, #28 */
     R[2] = (R[0] >> 28);
 L_020102f8:
+    FCB4_CP(0x20102F8);
     /* 0x020102f8: ldr r0, [sp, #40] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x28u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x28u);
 L_020102fc:
+    FCB4_CP(0x20102FC);
     /* 0x020102fc: add r0, r1, r2, lsl r0 */
     R[0] = (R[1] + (R[2] << (R[0] & 31)));
 L_02010300:
+    FCB4_CP(0x2010300);
     /* 0x02010300: lsr r1, r0, #4 */
     R[1] = (R[0] >> 4);
 L_02010304:
+    FCB4_CP(0x2010304);
     /* 0x02010304: ldr r0, [pc, #448] */
     R[0] = LITERAL_0x020104cc;
 L_02010308:
+    FCB4_CP(0x2010308);
     /* 0x02010308: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_0201030c:
+    FCB4_CP(0x201030C);
     /* 0x0201030c: lsl r1, r6, #16 */
     R[1] = (R[6] << 16);
 L_02010310:
+    FCB4_CP(0x2010310);
     /* 0x02010310: ldr r2, [sp, #32] */
-    R[2] = *(volatile u32*)(uintptr_t)(R[13] + 0x20u);
+    R[2] = *(volatile u32*)(uintptr_t)(sp_v + 0x20u);
 L_02010314:
+    FCB4_CP(0x2010314);
     /* 0x02010314: mov r0, r5 */
     R[0] = R[5];
 L_02010318:
+    FCB4_CP(0x2010318);
     /* 0x02010318: lsr r1, r1, #16 */
     R[1] = (R[1] >> 16);
 L_0201031c:
+    FCB4_CP(0x201031C);
     /* 0x0201031c: blx r2 */
     call_indirect_2arg(R[2], R[0], R[1]);
 L_02010320:
+    FCB4_CP(0x2010320);
     /* 0x02010320: ldr r1, [sp, #28] */
-    R[1] = *(volatile u32*)(uintptr_t)(R[13] + 0x1cu);
+    R[1] = *(volatile u32*)(uintptr_t)(sp_v + 0x1cu);
 L_02010324:
+    FCB4_CP(0x2010324);
     /* 0x02010324: mov r2, #12 */
     R[2] = 0xcu;
 L_02010328:
+    FCB4_CP(0x2010328);
     /* 0x02010328: add r0, r1, r0, lsl #3 */
     R[0] = (R[1] + (R[0] << 3));
 L_0201032c:
+    FCB4_CP(0x201032C);
     /* 0x0201032c: lsr r0, r0, #3 */
     R[0] = (R[0] >> 3);
 L_02010330:
+    FCB4_CP(0x2010330);
     /* 0x02010330: orr r3, r0, #1073741824 */
     R[3] = (R[0] | 0x40000000u);
 L_02010334:
+    FCB4_CP(0x2010334);
     /* 0x02010334: ldr r1, [pc, #436] */
     R[1] = LITERAL_0x020104f0;
 L_02010338:
+    FCB4_CP(0x2010338);
     /* 0x02010338: ldr r0, [sp, #52] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x34u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x34u);
 L_0201033c:
+    FCB4_CP(0x201033C);
     /* 0x0201033c: add r6, r6, #1 */
     R[6] = (R[6] + 0x1u);
 L_02010340:
+    FCB4_CP(0x2010340);
     /* 0x02010340: ldrb r9, [r1, r0] */
     R[9] = *(volatile u8*)(uintptr_t)(R[1] + R[0]);
 L_02010344:
+    FCB4_CP(0x2010344);
     /* 0x02010344: ldr r1, [pc, #424] */
     R[1] = LITERAL_0x020104f4;
 L_02010348:
+    FCB4_CP(0x2010348);
     /* 0x02010348: add r8, r1, r0, lsl #4 */
     R[8] = (R[1] + (R[0] << 4));
 L_0201034c:
+    FCB4_CP(0x201034C);
     /* 0x0201034c: mov r1, r0 */
     R[1] = R[0];
 L_02010350:
+    FCB4_CP(0x2010350);
     /* 0x02010350: ldr r0, [pc, #416] */
     R[0] = LITERAL_0x020104f8;
 L_02010354:
+    FCB4_CP(0x2010354);
     /* 0x02010354: orr r9, r3, r9, lsl #20 */
     R[9] = (R[3] | (R[9] << 20));
 L_02010358:
+    FCB4_CP(0x2010358);
     /* 0x02010358: mla r3, r1, r2, r0 */
     R[3] = (R[1] * R[2] + R[0]);
 L_0201035c:
+    FCB4_CP(0x201035C);
     /* 0x0201035c: ldr r0, [sp, #36] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x24u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x24u);
 L_02010360:
+    FCB4_CP(0x2010360);
     /* 0x02010360: orr r1, r9, #536870912 */
     R[1] = (R[9] | 0x20000000u);
 L_02010364:
+    FCB4_CP(0x2010364);
     /* 0x02010364: orr r1, r0, r1 */
     R[1] = (R[0] | R[1]);
 L_02010368:
+    FCB4_CP(0x2010368);
     /* 0x02010368: ldr r0, [pc, #396] */
     R[0] = LITERAL_0x020104fc;
 L_0201036c:
+    FCB4_CP(0x201036C);
     /* 0x0201036c: ldr r2, [sp, #60] */
-    R[2] = *(volatile u32*)(uintptr_t)(R[13] + 0x3cu);
+    R[2] = *(volatile u32*)(uintptr_t)(sp_v + 0x3cu);
 L_02010370:
+    FCB4_CP(0x2010370);
     /* 0x02010370: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_02010374:
+    FCB4_CP(0x2010374);
     /* 0x02010374: ldrh r0, [r5, #2] */
     R[0] = *(volatile u16*)(uintptr_t)(R[5] + 0x2u);
 L_02010378:
+    FCB4_CP(0x2010378);
     /* 0x02010378: mov r1, r2 */
     R[1] = R[2];
 L_0201037c:
+    FCB4_CP(0x201037C);
     /* 0x0201037c: add r5, r5, #12 */
     R[5] = (R[5] + 0xcu);
 L_02010380:
+    FCB4_CP(0x2010380);
     /* 0x02010380: lsl sl, r0, #18 */
     R[10] = (R[0] << 18);
 L_02010384:
+    FCB4_CP(0x2010384);
     /* 0x02010384: ldr r0, [pc, #372] */
     R[0] = LITERAL_0x02010500;
 L_02010388:
+    FCB4_CP(0x2010388);
     /* 0x02010388: lsr r9, sl, #27 */
     R[9] = (R[10] >> 27);
 L_0201038c:
+    FCB4_CP(0x201038C);
     /* 0x0201038c: eor r4, r4, sl, lsr #27 */
     R[4] = (R[4] ^ (R[10] >> 27));
 L_02010390:
+    FCB4_CP(0x2010390);
     /* 0x02010390: add r9, r0, r9, asr #1 */
     R[9] = (R[0] + ((u32)((s32)R[9] >> 1)));
 L_02010394:
+    FCB4_CP(0x2010394);
     /* 0x02010394: ands r0, r4, #8 */
     R[0] = (R[4] & 0x8u); SET_NZ(R[0]);
 L_02010398:
+    FCB4_CP(0x2010398);
     /* 0x02010398: movne r2, fp */
     if (!Z) { R[2] = R[11]; }
 L_0201039c:
+    FCB4_CP(0x201039C);
     /* 0x0201039c: ands r0, r4, #16 */
     R[0] = (R[4] & 0x10u); SET_NZ(R[0]);
 L_020103a0:
+    FCB4_CP(0x20103A0);
     /* 0x020103a0: rsb r0, r2, #0 */
     R[0] = (0x0u - R[2]);
 L_020103a4:
+    FCB4_CP(0x20103A4);
     /* 0x020103a4: lsl r0, r0, #16 */
     R[0] = (R[0] << 16);
 L_020103a8:
+    FCB4_CP(0x20103A8);
     /* 0x020103a8: movne r1, fp */
     if (!Z) { R[1] = R[11]; }
 L_020103ac:
+    FCB4_CP(0x20103AC);
     /* 0x020103ac: lsr r4, r0, #16 */
     R[4] = (R[0] >> 16);
 L_020103b0:
+    FCB4_CP(0x20103B0);
     /* 0x020103b0: rsb r0, r1, #0 */
     R[0] = (0x0u - R[1]);
 L_020103b4:
+    FCB4_CP(0x20103B4);
     /* 0x020103b4: lsl r0, r0, #16 */
     R[0] = (R[0] << 16);
 L_020103b8:
+    FCB4_CP(0x20103B8);
     /* 0x020103b8: lsr r0, r0, #16 */
     R[0] = (R[0] >> 16);
 L_020103bc:
+    FCB4_CP(0x20103BC);
     /* 0x020103bc: orr r4, r4, r0, lsl #16 */
     R[4] = (R[4] | (R[0] << 16));
 L_020103c0:
+    FCB4_CP(0x20103C0);
     /* 0x020103c0: ldr r0, [pc, #316] */
     R[0] = LITERAL_0x02010504;
 L_020103c4:
+    FCB4_CP(0x20103C4);
     /* 0x020103c4: str r4, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[4];
 L_020103c8:
+    FCB4_CP(0x20103C8);
     /* 0x020103c8: ldrb r4, [r9] */
     R[4] = *(volatile u8*)(uintptr_t)R[9];
 L_020103cc:
+    FCB4_CP(0x20103CC);
     /* 0x020103cc: ldr r0, [sp, #16] */
-    R[0] = *(volatile u32*)(uintptr_t)(R[13] + 0x10u);
+    R[0] = *(volatile u32*)(uintptr_t)(sp_v + 0x10u);
 L_020103d0:
+    FCB4_CP(0x20103D0);
     /* 0x020103d0: cmp r6, r0 */
     { u32 _a = R[6], _b = R[0]; u32 _r = _a - _b; Z = (_r == 0); N = ((s32)_r < 0); C = (_a >= _b); V = ((s32)(_a ^ _b) < 0) && ((s32)(_a ^ _r) < 0); }
 L_020103d4:
+    FCB4_CP(0x20103D4);
     /* 0x020103d4: ldr r4, [r8, r4, lsl #2] */
     R[4] = *(volatile u32*)(uintptr_t)(R[8] + (R[4] << 2));
 L_020103d8:
+    FCB4_CP(0x20103D8);
     /* 0x020103d8: ldr r0, [pc, #296] */
     R[0] = LITERAL_0x02010508;
 L_020103dc:
+    FCB4_CP(0x20103DC);
     /* 0x020103dc: str r4, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[4];
 L_020103e0:
+    FCB4_CP(0x20103E0);
     /* 0x020103e0: ldr r4, [sp, #60] */
-    R[4] = *(volatile u32*)(uintptr_t)(R[13] + 0x3cu);
+    R[4] = *(volatile u32*)(uintptr_t)(sp_v + 0x3cu);
 L_020103e4:
+    FCB4_CP(0x20103E4);
     /* 0x020103e4: str r4, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[4];
 L_020103e8:
+    FCB4_CP(0x20103E8);
     /* 0x020103e8: ldrsh r0, [r3] */
     R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)R[3];
 L_020103ec:
+    FCB4_CP(0x20103EC);
     /* 0x020103ec: ldrsh r4, [r3, #2] */
     R[4] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[3] + 0x2u);
 L_020103f0:
+    FCB4_CP(0x20103F0);
     /* 0x020103f0: sub r0, r0, r2 */
     R[0] = (R[0] - R[2]);
 L_020103f4:
+    FCB4_CP(0x20103F4);
     /* 0x020103f4: sub r4, r4, r1 */
     R[4] = (R[4] - R[1]);
 L_020103f8:
+    FCB4_CP(0x20103F8);
     /* 0x020103f8: lsl r0, r0, #16 */
     R[0] = (R[0] << 16);
 L_020103fc:
+    FCB4_CP(0x20103FC);
     /* 0x020103fc: lsl r4, r4, #16 */
     R[4] = (R[4] << 16);
 L_02010400:
+    FCB4_CP(0x2010400);
     /* 0x02010400: lsr r0, r0, #16 */
     R[0] = (R[0] >> 16);
 L_02010404:
+    FCB4_CP(0x2010404);
     /* 0x02010404: lsr r4, r4, #16 */
     R[4] = (R[4] >> 16);
 L_02010408:
+    FCB4_CP(0x2010408);
     /* 0x02010408: orr r4, r0, r4, lsl #16 */
     R[4] = (R[0] | (R[4] << 16));
 L_0201040c:
+    FCB4_CP(0x201040C);
     /* 0x0201040c: ldr r0, [pc, #240] */
     R[0] = LITERAL_0x02010504;
 L_02010410:
+    FCB4_CP(0x2010410);
     /* 0x02010410: str r4, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[4];
 L_02010414:
+    FCB4_CP(0x2010414);
     /* 0x02010414: ldrb r0, [r9, #1] */
     R[0] = *(volatile u8*)(uintptr_t)(R[9] + 0x1u);
 L_02010418:
+    FCB4_CP(0x2010418);
     /* 0x02010418: ldr r4, [r8, r0, lsl #2] */
     R[4] = *(volatile u32*)(uintptr_t)(R[8] + (R[0] << 2));
 L_0201041c:
+    FCB4_CP(0x201041C);
     /* 0x0201041c: ldr r0, [pc, #232] */
     R[0] = LITERAL_0x0201050c;
 L_02010420:
+    FCB4_CP(0x2010420);
     /* 0x02010420: str r4, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[4];
 L_02010424:
+    FCB4_CP(0x2010424);
     /* 0x02010424: ldrsh r0, [r3, #4] */
     R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[3] + 0x4u);
 L_02010428:
+    FCB4_CP(0x2010428);
     /* 0x02010428: ldrsh r4, [r3, #6] */
     R[4] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[3] + 0x6u);
 L_0201042c:
+    FCB4_CP(0x201042C);
     /* 0x0201042c: sub r0, r0, r2 */
     R[0] = (R[0] - R[2]);
 L_02010430:
+    FCB4_CP(0x2010430);
     /* 0x02010430: sub r4, r4, r1 */
     R[4] = (R[4] - R[1]);
 L_02010434:
+    FCB4_CP(0x2010434);
     /* 0x02010434: lsl r0, r0, #16 */
     R[0] = (R[0] << 16);
 L_02010438:
+    FCB4_CP(0x2010438);
     /* 0x02010438: lsl r4, r4, #16 */
     R[4] = (R[4] << 16);
 L_0201043c:
+    FCB4_CP(0x201043C);
     /* 0x0201043c: lsr r0, r0, #16 */
     R[0] = (R[0] >> 16);
 L_02010440:
+    FCB4_CP(0x2010440);
     /* 0x02010440: lsr r4, r4, #16 */
     R[4] = (R[4] >> 16);
 L_02010444:
+    FCB4_CP(0x2010444);
     /* 0x02010444: orr r4, r0, r4, lsl #16 */
     R[4] = (R[0] | (R[4] << 16));
 L_02010448:
+    FCB4_CP(0x2010448);
     /* 0x02010448: ldr r0, [pc, #180] */
     R[0] = LITERAL_0x02010504;
 L_0201044c:
+    FCB4_CP(0x201044C);
     /* 0x0201044c: str r4, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[4];
 L_02010450:
+    FCB4_CP(0x2010450);
     /* 0x02010450: ldrb r0, [r9, #2] */
     R[0] = *(volatile u8*)(uintptr_t)(R[9] + 0x2u);
 L_02010454:
+    FCB4_CP(0x2010454);
     /* 0x02010454: ldr r4, [r8, r0, lsl #2] */
     R[4] = *(volatile u32*)(uintptr_t)(R[8] + (R[0] << 2));
 L_02010458:
+    FCB4_CP(0x2010458);
     /* 0x02010458: ldr r0, [pc, #172] */
     R[0] = LITERAL_0x0201050c;
 L_0201045c:
+    FCB4_CP(0x201045C);
     /* 0x0201045c: str r4, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[4];
 L_02010460:
+    FCB4_CP(0x2010460);
     /* 0x02010460: ldrsh r4, [r3, #8] */
     R[4] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[3] + 0x8u);
 L_02010464:
+    FCB4_CP(0x2010464);
     /* 0x02010464: ldrsh r0, [r3, #10] */
     R[0] = (u32)(s32)*(volatile s16*)(uintptr_t)(R[3] + 0xau);
 L_02010468:
+    FCB4_CP(0x2010468);
     /* 0x02010468: sub r2, r4, r2 */
     R[2] = (R[4] - R[2]);
 L_0201046c:
+    FCB4_CP(0x201046C);
     /* 0x0201046c: sub r1, r0, r1 */
     R[1] = (R[0] - R[1]);
 L_02010470:
+    FCB4_CP(0x2010470);
     /* 0x02010470: lsl r0, r2, #16 */
     R[0] = (R[2] << 16);
 L_02010474:
+    FCB4_CP(0x2010474);
     /* 0x02010474: lsr r2, r0, #16 */
     R[2] = (R[0] >> 16);
 L_02010478:
+    FCB4_CP(0x2010478);
     /* 0x02010478: lsl r0, r1, #16 */
     R[0] = (R[1] << 16);
 L_0201047c:
+    FCB4_CP(0x201047C);
     /* 0x0201047c: lsr r0, r0, #16 */
     R[0] = (R[0] >> 16);
 L_02010480:
+    FCB4_CP(0x2010480);
     /* 0x02010480: orr r1, r2, r0, lsl #16 */
     R[1] = (R[2] | (R[0] << 16));
 L_02010484:
+    FCB4_CP(0x2010484);
     /* 0x02010484: ldr r0, [pc, #120] */
     R[0] = LITERAL_0x02010504;
 L_02010488:
+    FCB4_CP(0x2010488);
     /* 0x02010488: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_0201048c:
+    FCB4_CP(0x201048C);
     /* 0x0201048c: ldrb r0, [r9, #3] */
     R[0] = *(volatile u8*)(uintptr_t)(R[9] + 0x3u);
 L_02010490:
+    FCB4_CP(0x2010490);
     /* 0x02010490: ldr r1, [r8, r0, lsl #2] */
     R[1] = *(volatile u32*)(uintptr_t)(R[8] + (R[0] << 2));
 L_02010494:
+    FCB4_CP(0x2010494);
     /* 0x02010494: ldr r0, [pc, #112] */
     R[0] = LITERAL_0x0201050c;
 L_02010498:
+    FCB4_CP(0x2010498);
     /* 0x02010498: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_0201049c:
+    FCB4_CP(0x201049C);
     /* 0x0201049c: ldr r0, [pc, #108] */
     R[0] = LITERAL_0x02010510;
 L_020104a0:
+    FCB4_CP(0x20104A0);
     /* 0x020104a0: str fp, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[11];
 L_020104a4:
+    FCB4_CP(0x20104A4);
     /* 0x020104a4: blt 0x2010060 */
     if ((N != V)) { goto L_02010060; }
 L_020104a8:
+    FCB4_CP(0x20104A8);
     /* 0x020104a8: ldr r0, [pc, #100] */
     R[0] = LITERAL_0x02010514;
 L_020104ac:
+    FCB4_CP(0x20104AC);
     /* 0x020104ac: mov r1, #0 */
     R[1] = 0x0u;
 L_020104b0:
+    FCB4_CP(0x20104B0);
     /* 0x020104b0: str r1, [r0] */
     *(volatile u32*)(uintptr_t)R[0] = (u32)R[1];
 L_020104b4:
+    FCB4_CP(0x20104B4);
     /* 0x020104b4: add sp, sp, #148 */
-    R[13] = (R[13] + 0x94u);
+    sp_v = (sp_v + 0x94u);
 L_020104b8:
+    FCB4_CP(0x20104B8);
     /* 0x020104b8: pop {r4, r5, r6, r7, r8, r9, sl, fp, lr} */
     /* pop {r4, r5, r6, r7, r8, r9, sl, fp, lr} -- handled by C frame */
 L_020104bc:
+    FCB4_CP(0x20104BC);
     /* 0x020104bc: bx lr */
     goto L_epilogue;
 
@@ -1644,3 +2169,4 @@ L_020104bc:
 L_epilogue:
     return;
 }
+

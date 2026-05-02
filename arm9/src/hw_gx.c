@@ -453,14 +453,30 @@ void FUN_02036c84(u32 *param_1, u8 param_2, u32 param_3) {
 
 // --- FUN_02036cc4 @ 0x02036cc4 ---
 void FUN_02036cc4(void) {
+#ifdef HOST_PORT
+    /* GX list-end flush: writes 0x1A to *DAT_02036cd8 then tail-calls
+     * *DAT_02036cdc.  In the original ROM both are pointers to live
+     * runtime structures set up by the GX init path; in the host port
+     * they're zero-init globals and dereferencing them faults.  Nothing
+     * in the host needs the flush — every GXFIFO/MMIO write is already
+     * observed by host_gxfifo_observer / nds_hw_stubs at the IO site.
+     * Skip the body. */
+    return;
+#else
     *DAT_02036cd8 = 0x1A;
     DAT_02036cdc();
+#endif
 }
 
 // --- FUN_02036cfc @ 0x02036cfc ---
 void FUN_02036cfc(void) {
+#ifdef HOST_PORT
+    /* GX list-begin flush — see FUN_02036cc4 for rationale. */
+    return;
+#else
     *DAT_02036d10 = 0x16;
     DAT_02036d14();
+#endif
 }
 
 // --- FUN_02037364 @ 0x02037364 ---

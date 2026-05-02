@@ -25,6 +25,12 @@
 void arm_swi_03_stop(void);
 void arm_swi_05_vblank_intr_wait(void);
 void arm_swi_0b_cpuset(const void *src, void *dst, u32 mode);
+/* SWI 0x11: LZ77UnCompVram  — decompress LZ77-encoded data */
+void arm_swi_11_lz77_decomp(const void *src, void *dst);
+/* SWI 0x12: HuffUnComp       — decompress Huffman-encoded data */
+void arm_swi_12_huff_decomp(const void *src, void *dst);
+/* SWI 0x13: RLUnCompVram     — decompress RLE-encoded data */
+void arm_swi_13_rle_decomp(const void *src, void *dst);
 int  arm_clz(u32 value);
 void arm_cp15_invalidate_dcache_mva(u32 line);
 void arm_cp15_clean_dcache_mva(u32 line);

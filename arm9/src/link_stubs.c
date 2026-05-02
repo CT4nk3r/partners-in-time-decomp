@@ -229,10 +229,44 @@ void FS_InitOverlay(void) {}
 u32  FS_LoadOverlay(u32 id, u32 flags, void *callback, u32 param) {
     (void)flags; (void)callback; (void)param;
 #ifdef HOST_PORT
+    /* Overlay base addresses from ROM overlay table.
+     * Groups sharing the same base are mutually exclusive. */
+    static const struct { u32 base; u32 code_size; } ov_info[] = {
+        [0]  = {0x020659C0, 368672},
+        [1]  = {0x020BFA00,     32},
+        [2]  = {0x020659C0, 369760},
+        [3]  = {0x020C0780,     32},
+        [4]  = {0x020C0780,     32},
+        [5]  = {0x020659C0,  17440},
+        [6]  = {0x0206A800,  63232},
+        [7]  = {0x0206A800, 145056},
+        [8]  = {0x0206A800,  55008},
+        [9]  = {0x0206A800,  81504},
+        [10] = {0x0206A800,  16000},
+        [11] = {0x0206A800,  24480},
+    };
+    void *data = NULL;
+    size_t sz = 0;
     if (pack_is_loaded())
-        pack_get_overlay(id, NULL, NULL);   /* prefetch from pack */
+        pack_get_overlay(id, &data, &sz);
     else
-        rom_read_overlay((int)id);          /* ROM fallback       */
+        rom_read_overlay((int)id);
+
+    /* Copy overlay binary to the correct NDS address so data/vtable
+     * references from decompiled code resolve properly. */
+    if (data && sz > 0 && id < sizeof(ov_info)/sizeof(ov_info[0]) && ov_info[id].base) {
+        void *dst = (void *)(uintptr_t)ov_info[id].base;
+        u32 copy_sz = (u32)sz;
+        if (copy_sz > ov_info[id].code_size) copy_sz = ov_info[id].code_size;
+        memcpy(dst, data, copy_sz);
+        fprintf(stderr, "[FS_LoadOverlay] OV%u: %u bytes -> 0x%08X\n",
+                (unsigned)id, (unsigned)copy_sz, (unsigned)ov_info[id].base);
+        fflush(stderr);
+    } else if (id < sizeof(ov_info)/sizeof(ov_info[0]) && ov_info[id].base) {
+        fprintf(stderr, "[FS_LoadOverlay] OV%u: no data available (sz=%zu)\n",
+                (unsigned)id, sz);
+        fflush(stderr);
+    }
 #endif
     return id + 1; /* non-zero handle */
 }

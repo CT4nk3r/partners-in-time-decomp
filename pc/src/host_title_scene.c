@@ -286,6 +286,13 @@ void FUN_02077784(void *ptr, int type, int param)
     *(volatile u32 *)(uintptr_t)obj_nds = OV8_VTABLE_ADDR;
     *(volatile u32 *)(uintptr_t)OV8_GLOBAL_OBJ_ADDR = obj_nds;
 
+    /* Patch the vtable entries in NDS memory so the scene queue processor
+     * can read vtable[2] (tick) and vtable[1] (dtor) from the correct
+     * addresses, even though OV0's data occupies this memory range.
+     * vtable layout: [0]=???, [1]=dtor, [2]=tick (each 4 bytes) */
+    *(volatile u32 *)(uintptr_t)(OV8_VTABLE_ADDR + 4) = OV8_DTOR_ADDR;
+    *(volatile u32 *)(uintptr_t)(OV8_VTABLE_ADDR + 8) = OV8_TICK_ADDR;
+
     /* Register host tick/dtor so fnptr resolver can dispatch vtable calls */
     host_fnptr_register(OV8_TICK_ADDR, (void *)host_title_tick);
     host_fnptr_register(OV8_DTOR_ADDR, (void *)host_title_dtor);

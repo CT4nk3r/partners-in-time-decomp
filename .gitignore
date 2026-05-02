@@ -76,3 +76,9 @@ pc/workspace/
 
 run*.log
 
+
+# ds-decomp tool output
+dsd_extract/
+dsd_config/
+dsd_build/
+tools/ds-decomp/

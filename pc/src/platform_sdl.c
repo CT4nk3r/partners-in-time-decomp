@@ -166,16 +166,54 @@ static void pump_input_to_io(void)
  * stay on after game code calls GX_SetVisiblePlane(0xFFFFFFFF, 0)
  * during init.  Disabled when MLPIT_LET_GAME_DISPLAY=1 so the user
  * can see what the game actually does once it can render on its own.
+ *
+ * MLPIT_DISPCNT_PULSE=1 (Task 3): every 60 frames toggle DISPCNT bit 15
+ * off then back on so game_start()'s inner do/while exits and the outer
+ * for(;;) gets a chance to call game_do_transition().  Logs every state
+ * transition observed in g_game_frame_counter / g_game_transition_counter.
  */
+extern unsigned g_game_frame_counter;
+extern unsigned g_game_transition_counter;
 static void keep_boot_screen_visible(void)
 {
+    static int s_pulse_mode = -1;
+    static int s_pulse_frame = 0;
+    static unsigned s_last_trans = 0;
+    static unsigned s_last_inner = 0;
+    if (s_pulse_mode < 0) s_pulse_mode = getenv("MLPIT_DISPCNT_PULSE") ? 1 : 0;
+
     if (getenv("MLPIT_LET_GAME_DISPLAY")) return;
     uint32_t dispcnt = nds_reg_read32(0x04000000u);
     /* Mode 0 + BG0 enable (bit 8). Preserve other bits. */
     dispcnt = (dispcnt & ~0x7u) | 0x100u;
+
+    if (s_pulse_mode) {
+        s_pulse_frame++;
+        /* Every 60 frames clear bit 15 for one frame so the game's inner
+         * do/while exits.  On the next call we restore it so subsequent
+         * frames continue rendering. */
+        if ((s_pulse_frame % 60) == 0) {
+            dispcnt &= ~0x8000u;
+            fprintf(stderr,
+                    "[dispcnt-pulse] frame=%d clearing bit15 "
+                    "(inner=%u trans=%u, delta_inner=%u delta_trans=%u)\n",
+                    s_pulse_frame,
+                    g_game_frame_counter,
+                    g_game_transition_counter,
+                    g_game_frame_counter - s_last_inner,
+                    g_game_transition_counter - s_last_trans);
+            fflush(stderr);
+            s_last_inner = g_game_frame_counter;
+            s_last_trans = g_game_transition_counter;
+        } else {
+            dispcnt |= 0x8000u;
+        }
+    } else {
+        dispcnt |= 0x8000u;  /* legacy: keep bit 15 set so loop exits each iter */
+    }
     nds_reg_write32(0x04000000u, dispcnt);
     uint32_t dispcnt_sub = nds_reg_read32(0x04001000u);
-    dispcnt_sub = (dispcnt_sub & ~0x7u) | 0x100u;
+    dispcnt_sub = (dispcnt_sub & ~0x7u) | 0x100u | 0x8000u;
     nds_reg_write32(0x04001000u, dispcnt_sub);
 }
 

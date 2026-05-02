@@ -6,6 +6,7 @@
  */
 
 #include <string.h>
+#include <stdio.h>
 #include "types.h"
 #include "arm_compat.h"
 
@@ -311,8 +312,57 @@ u32 g_game_frame_counter = 0;
 extern u32 g_game_transition_counter;
 u32 g_game_transition_counter = 0;
 
+/* Task 3: per-frame snapshot of the post-loop u16 staging arrays at
+ * DAT_0201977c..02019790.  Logged the first time a write is observed
+ * relative to the post-init baseline, then again every 240 frames. */
+static u32 g_shadow_baseline_hash = 0;
+static int g_shadow_baseline_taken = 0;
+static int g_shadow_first_diff_logged = 0;
+
+static u32 shadow_probe_hash(const volatile u8 *p, u32 len) {
+    u32 h = 0;
+    for (u32 i = 0; i < len; i++) h = h * 131u + p[i];
+    return h;
+}
+
+static void shadow_probe_tick(u32 frame) {
+    /* Range 0x02019700..0x02019820 inside our VirtualAlloc'd ARM9 RAM. */
+    const volatile u8 *p = (const volatile u8 *)(uintptr_t)0x02019700u;
+    const u32 len = 0x120u;
+    u32 h = shadow_probe_hash(p, len);
+    if (!g_shadow_baseline_taken) {
+        g_shadow_baseline_hash = h;
+        g_shadow_baseline_taken = 1;
+        return;
+    }
+    int changed = (h != g_shadow_baseline_hash);
+    if (changed && !g_shadow_first_diff_logged) {
+        g_shadow_first_diff_logged = 1;
+        u32 w0 = *(volatile u32 *)(uintptr_t)0x0201977cu;
+        u32 w1 = *(volatile u32 *)(uintptr_t)0x02019780u;
+        u32 w2 = *(volatile u32 *)(uintptr_t)0x02019784u;
+        u32 w3 = *(volatile u32 *)(uintptr_t)0x0201978cu;
+        fprintf(stderr,
+                "[shadow] FIRST DIFF at frame=%u: hash %08X -> %08X "
+                "w[77c]=%08X w[780]=%08X w[784]=%08X w[78c]=%08X\n",
+                (unsigned)frame, (unsigned)g_shadow_baseline_hash,
+                (unsigned)h, (unsigned)w0, (unsigned)w1,
+                (unsigned)w2, (unsigned)w3);
+        fflush(stderr);
+    }
+    if ((frame % 240u) == 0u) {
+        fprintf(stderr,
+                "[shadow] frame=%u hash=%08X (%s baseline %08X)\n",
+                (unsigned)frame, (unsigned)h,
+                changed ? "DIFFERS_FROM" : "matches",
+                (unsigned)g_shadow_baseline_hash);
+        fflush(stderr);
+    }
+}
+
 void game_update_display(void) {
     g_game_frame_counter++;
+    shadow_probe_tick(g_game_frame_counter);
     /* Keep the inner-loop exit condition satisfied: bit 15 of DISPCNT must be
      * set for `(*sDispCnt & 0x8000) >> 15 != 1` to be false.  The IO shadow's
      * MMIO at 0x04000000 already mirrors hardware, so RMW it here per frame —

@@ -76,6 +76,11 @@ void platform_stop_game_thread(void);
 /* === Logging === */
 void nds_log(const char* fmt, ...);
 
+/* === BG Rendering === */
+void bg_render_sync_vram(void);
+void bg_render_top(uint16_t* fb);
+void bg_render_bottom(uint16_t* fb);
+
 #ifdef __cplusplus
 }
 #endif

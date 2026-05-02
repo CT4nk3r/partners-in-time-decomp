@@ -126,7 +126,7 @@ static void render_bg_layer(uint16_t *fb, const uint8_t *vram,
                              const uint8_t *palette,
                              const uint8_t ext_pal[4][512],
                              int bg_index, uint16_t bgcnt,
-                             int hofs, int vofs)
+                             int hofs, int vofs, int use_ext_pal)
 {
     int char_base   = ((bgcnt >> 2) & 0xF);
     int screen_base = ((bgcnt >> 8) & 0x1F);
@@ -179,8 +179,14 @@ static void render_bg_layer(uint16_t *fb, const uint8_t *vram,
                 uint8_t b = tile_base[byte_off];
                 color_idx = (px & 1) ? (b >> 4) : (b & 0xF);
                 if (color_idx == 0) continue;
-                color_idx += pal_bank * 16;
-                pal_src = palette;
+                /* In extended palette mode (4bpp), use per-BG palette */
+                if (use_ext_pal) {
+                    color_idx += pal_bank * 16;
+                    pal_src = ext_pal[bg_index];
+                } else {
+                    color_idx += pal_bank * 16;
+                    pal_src = palette;
+                }
             } else {
                 int byte_off = tile_num * 64 + py * 8 + px;
                 color_idx = tile_base[byte_off];
@@ -199,7 +205,11 @@ void bg_render_top(uint16_t *fb) {
     uint32_t dispcnt = nds_reg_read32(REG_DISPCNT);
     int bg_mode = dispcnt & 7;
 
-    memset(fb, 0, NDS_SCREEN_WIDTH * NDS_SCREEN_HEIGHT * 2);
+    /* Fill with backdrop color (palette entry 0) instead of black */
+    uint16_t backdrop = (uint16_t)(g_palette_main[0] | (g_palette_main[1] << 8));
+    backdrop &= 0x7FFF;  /* mask off alpha bit */
+    for (int i = 0; i < NDS_SCREEN_WIDTH * NDS_SCREEN_HEIGHT; i++)
+        fb[i] = backdrop;
     if (bg_mode > 2) return;
 
     int bg_enable[4];
@@ -223,13 +233,16 @@ void bg_render_top(uint16_t *fb) {
     hofs[3]  = nds_reg_read16(REG_BG3HOFS) & 0x1FF;
     vofs[3]  = nds_reg_read16(REG_BG3VOFS) & 0x1FF;
 
+    /* Check if extended palettes are enabled (DISPCNT bit 30) */
+    int use_ext_pal = (dispcnt >> 30) & 1;
+
     for (int pri = 3; pri >= 0; pri--) {
         for (int bg = 3; bg >= 0; bg--) {
             if (!bg_enable[bg]) continue;
             if ((bgcnt[bg] & 3) != (uint16_t)pri) continue;
             render_bg_layer(fb, g_vram_main, g_palette_main,
                             g_ext_palette_main, bg,
-                            bgcnt[bg], hofs[bg], vofs[bg]);
+                            bgcnt[bg], hofs[bg], vofs[bg], use_ext_pal);
         }
     }
 
@@ -294,7 +307,7 @@ void bg_render_bottom(uint16_t *fb) {
             if ((bgcnt[bg] & 3) != (uint16_t)pri) continue;
             render_bg_layer(fb, g_vram_sub, g_palette_sub,
                             g_ext_palette_sub, bg,
-                            bgcnt[bg], hofs[bg], vofs[bg]);
+                            bgcnt[bg], hofs[bg], vofs[bg], 0);
         }
     }
 }

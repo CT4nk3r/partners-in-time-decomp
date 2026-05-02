@@ -64,7 +64,7 @@ uint8_t *ad_decompress(const uint8_t *src, uint32_t src_len, uint32_t *out_size)
         if (block_end > src_len) block_end = src_len;
 
         int done = 0;
-        for (int iter = 0; iter < 256 && !done && pos < block_end; iter++) {
+        for (int iter = 0; iter < 65536 && !done && pos < block_end; iter++) {
             uint8_t cmd_byte = src[pos++];
             for (int c = 0; c < 4; c++) {
                 uint8_t cmd = cmd_byte & 0x03;

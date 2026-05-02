@@ -3,15 +3,8 @@
  * scene constructor (FUN_0206DE6C), tick (FUN_0206C34C), and destructor
  * (FUN_0206DE48).
  *
- * Overlay 0 is the main gameplay overlay containing the world map, battle
- * system, NPCs, and all core game logic.  The full overlay is ~360KB of ARM
- * code with hundreds of functions — far too much to decompile in one pass.
- *
- * This file provides minimal HOST_PORT stubs that:
- *   - Register the scene in the scene queue so the state machine works
- *   - Install vtable entries so per-frame dispatch reaches our tick
- *   - Render basic gameplay background from ROM assets
- *   - Provide a framework for incremental overlay 0 decompilation
+ * Loads real game map backgrounds from FMapData.dat and renders them
+ * using the NDS BG tile engine. Player can scroll the map with arrow keys.
  *
  * Original vtable at 0x020BF164:
  *   [0] = 0x0206DE48 (dtor)
@@ -24,215 +17,213 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 /* ---- External interfaces ---- */
 extern void  host_fnptr_register(uint32_t nds_addr, void *host_fn);
 extern int   nds_arm9_ram_is_mapped(void);
 extern void *nds_vram_bank(char bank);
 extern uint32_t nds_vram_bank_size(char bank);
-extern void  arm_swi_11_lz77_decomp(const void *src, void *dst);
+extern uint8_t *ad_decompress(const uint8_t *src, uint32_t src_len, uint32_t *out_size);
 
-/* Scene queue insert (same as title/file select) */
+/* Scene queue insert */
 extern void FUN_0202a74c_real(u32 node_addr, u8 priority, u32 r2_unused, u32 r3_param);
 
 /* NDS memory helpers */
 extern u32   nds_bump_alloc(u32 size);
-extern void *nds_get_host_ptr(u32 nds_addr);
 
 /* Scene transition */
 extern void FUN_02005d3c(int scene_anchor, int next_state);
 
 /* ---- Overlay 0 NDS addresses ---- */
-#define OV0_VTABLE_ADDR     0x020BF164u  /* original vtable location    */
-#define OV0_TICK_ADDR       0x0206C34Cu  /* vtable[2] = gameplay tick   */
-#define OV0_DTOR_ADDR       0x0206DE48u  /* vtable[0] = destructor      */
-#define OV0_SETUP_ADDR      0x0206DE1Cu  /* vtable[1] = setup           */
-#define SCENE_PTR_NDS       0x02059C7Cu
+#define OV0_VTABLE_ADDR     0x020BF164u
+#define OV0_TICK_ADDR       0x0206C34Cu
+#define OV0_DTOR_ADDR       0x0206DE48u
+#define OV0_SETUP_ADDR      0x0206DE1Cu
 
 /* Register addresses */
 #define REG_DISPCNT_TOP     0x04000000u
 #define REG_BG0CNT          0x04000008u
 #define REG_BG1CNT          0x0400000Au
+#define REG_BG2CNT          0x0400000Cu
 #define REG_BG0HOFS         0x04000010u
 #define REG_BG0VOFS         0x04000012u
 #define REG_BG1HOFS         0x04000014u
 #define REG_BG1VOFS         0x04000016u
+#define REG_BG2HOFS         0x04000018u
+#define REG_BG2VOFS         0x0400001Au
 #define REG_MASTER_BRIGHT   0x0400006Cu
 #define REG_DISPCNT_SUB     0x04001000u
 #define REG_SUB_BRIGHT      0x0400106Cu
+
+/* FMapData.dat ROM offset (from NDS filesystem analysis) */
+#define FMAP_ROM_OFFSET     0xD42600u
+
+/* Map descriptor internal structure:
+ * u32[0] = offset to BG0 tilemap (typically 0x38)
+ * u32[1] = offset to BG1 tilemap
+ * u32[2] = offset to BG2 tilemap
+ * u32[3] = offset to palette 0 (512 bytes)
+ * u32[4] = offset to palette 1 (512 bytes)
+ * u32[5] = offset to palette 2 (512 bytes)
+ * u32[6] = end/extra offset
+ */
 
 /* Gameplay state */
 static u32  s_gameplay_obj_nds = 0;
 static u32  s_gameplay_frame   = 0;
 static int  s_gameplay_loaded  = 0;
-static int  s_gameplay_state   = 0;  /* 0=fadein, 1=active, 2=fadeout */
+static int  s_gameplay_state   = 0;  /* 0=fadein, 1=active */
+static int  s_scroll_x         = 0;
+static int  s_scroll_y         = 0;
+static int  s_map_loaded       = 0;
+static int  s_current_map      = 0;
 #define GAMEPLAY_FADE_DURATION 30
+#define SCROLL_SPEED 2
+#define MAP_PX_W 512  /* 64 tiles * 8px */
+#define MAP_PX_H 512
 
-/* Simple character glyph table for text rendering (ASCII 0x20..0x7E) */
-static void gameplay_write_tile(volatile u8 *tile_data, int tile_idx, u8 fill)
+/* Load a full FMapData map group into VRAM (all 3 BG layers).
+ * grp_base: first entry index of the group (e.g., 0 for entries 0,1,2)
+ * desc_entry: descriptor entry index (e.g., 3)
+ * Returns number of layers loaded (0-3).
+ */
+static int load_fmap_all_layers(int grp_base, int desc_entry)
 {
-    /* 4bpp tile = 32 bytes per 8x8 tile. Fill with a pattern. */
-    volatile u8 *dst = tile_data + tile_idx * 32;
-    for (int i = 0; i < 32; i++) dst[i] = fill;
-}
+    const uint8_t *rom = rom_data();
+    size_t rom_sz = rom_size();
+    if (!rom || rom_sz < FMAP_ROM_OFFSET + 16) return 0;
 
-/* Generate a simple monochrome font in VRAM for text display */
-static void gameplay_gen_font(volatile u8 *tile_base, volatile u16 *pal_base)
-{
-    /* Tile 0: blank (all 0) */
-    for (int i = 0; i < 32; i++) tile_base[i] = 0;
+    const uint8_t *fmap = rom + FMAP_ROM_OFFSET;
 
-    /* Basic 4x6 font bitmaps for A-Z, 0-9, and some punctuation.
-     * Each character is an 8x8 4bpp tile (32 bytes). We store pixels
-     * as nybble pairs: high nybble = right pixel, low nybble = left pixel.
-     * Palette index 1 = text color, 0 = transparent. */
+    /* Read offset table header */
+    uint32_t first_off = fmap[0] | (fmap[1]<<8) | (fmap[2]<<16) | (fmap[3]<<24);
+    int num_entries = (int)(first_off / 4);
+    if (desc_entry >= num_entries || grp_base + 2 >= num_entries) return 0;
 
-    /* For simplicity, generate block characters for printable ASCII 0x20..0x7F */
-    for (int ch = 0x20; ch < 0x80; ch++) {
-        int tile_idx = ch - 0x20 + 1;  /* tile 0 is blank */
-        volatile u8 *dst = tile_base + tile_idx * 32;
+    #define FMAP_OFF(idx) (fmap[(idx)*4] | (fmap[(idx)*4+1]<<8) | \
+                          (fmap[(idx)*4+2]<<16) | (fmap[(idx)*4+3]<<24))
 
-        if (ch == ' ') {
-            /* Space: all transparent */
-            for (int i = 0; i < 32; i++) dst[i] = 0;
-            continue;
-        }
+    /* Decompress descriptor */
+    uint32_t d_off = FMAP_OFF(desc_entry);
+    uint32_t d_next = FMAP_OFF(desc_entry + 1);
+    uint32_t desc_size = 0;
+    uint8_t *desc = ad_decompress(fmap + d_off, d_next - d_off, &desc_size);
+    if (!desc || desc_size < 28) { free(desc); return 0; }
 
-        /* Simple block letter rendering — each row is a byte pattern */
-        static const u8 font_5x7[96][7] = {
-            /* Space already handled above, fill with minimal patterns */
-            /* ! */ {0x04,0x04,0x04,0x04,0x04,0x00,0x04},
-            /* " */ {0x0A,0x0A,0x00,0x00,0x00,0x00,0x00},
-            /* # */ {0x0A,0x1F,0x0A,0x1F,0x0A,0x00,0x00},
-            /* $ */ {0x04,0x1F,0x14,0x0E,0x05,0x1F,0x04},
-            /* % */ {0x18,0x19,0x02,0x04,0x08,0x13,0x03},
-            /* & */ {0x04,0x0A,0x04,0x0A,0x11,0x11,0x0E},
-            /* ' */ {0x04,0x04,0x00,0x00,0x00,0x00,0x00},
-            /* ( */ {0x02,0x04,0x08,0x08,0x08,0x04,0x02},
-            /* ) */ {0x08,0x04,0x02,0x02,0x02,0x04,0x08},
-            /* * */ {0x00,0x0A,0x04,0x1F,0x04,0x0A,0x00},
-            /* + */ {0x00,0x04,0x04,0x1F,0x04,0x04,0x00},
-            /* , */ {0x00,0x00,0x00,0x00,0x00,0x04,0x08},
-            /* - */ {0x00,0x00,0x00,0x1F,0x00,0x00,0x00},
-            /* . */ {0x00,0x00,0x00,0x00,0x00,0x00,0x04},
-            /* / */ {0x01,0x02,0x02,0x04,0x08,0x08,0x10},
-            /* 0 */ {0x0E,0x11,0x13,0x15,0x19,0x11,0x0E},
-            /* 1 */ {0x04,0x0C,0x04,0x04,0x04,0x04,0x0E},
-            /* 2 */ {0x0E,0x11,0x01,0x06,0x08,0x10,0x1F},
-            /* 3 */ {0x0E,0x11,0x01,0x06,0x01,0x11,0x0E},
-            /* 4 */ {0x02,0x06,0x0A,0x12,0x1F,0x02,0x02},
-            /* 5 */ {0x1F,0x10,0x1E,0x01,0x01,0x11,0x0E},
-            /* 6 */ {0x06,0x08,0x10,0x1E,0x11,0x11,0x0E},
-            /* 7 */ {0x1F,0x01,0x02,0x04,0x08,0x08,0x08},
-            /* 8 */ {0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E},
-            /* 9 */ {0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C},
-            /* : */ {0x00,0x00,0x04,0x00,0x04,0x00,0x00},
-            /* ; */ {0x00,0x00,0x04,0x00,0x04,0x04,0x08},
-            /* < */ {0x02,0x04,0x08,0x10,0x08,0x04,0x02},
-            /* = */ {0x00,0x00,0x1F,0x00,0x1F,0x00,0x00},
-            /* > */ {0x08,0x04,0x02,0x01,0x02,0x04,0x08},
-            /* ? */ {0x0E,0x11,0x01,0x02,0x04,0x00,0x04},
-            /* @ */ {0x0E,0x11,0x17,0x15,0x17,0x10,0x0E},
-            /* A */ {0x0E,0x11,0x11,0x1F,0x11,0x11,0x11},
-            /* B */ {0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E},
-            /* C */ {0x0E,0x11,0x10,0x10,0x10,0x11,0x0E},
-            /* D */ {0x1E,0x11,0x11,0x11,0x11,0x11,0x1E},
-            /* E */ {0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F},
-            /* F */ {0x1F,0x10,0x10,0x1E,0x10,0x10,0x10},
-            /* G */ {0x0E,0x11,0x10,0x17,0x11,0x11,0x0E},
-            /* H */ {0x11,0x11,0x11,0x1F,0x11,0x11,0x11},
-            /* I */ {0x0E,0x04,0x04,0x04,0x04,0x04,0x0E},
-            /* J */ {0x07,0x02,0x02,0x02,0x12,0x12,0x0C},
-            /* K */ {0x11,0x12,0x14,0x18,0x14,0x12,0x11},
-            /* L */ {0x10,0x10,0x10,0x10,0x10,0x10,0x1F},
-            /* M */ {0x11,0x1B,0x15,0x11,0x11,0x11,0x11},
-            /* N */ {0x11,0x19,0x15,0x13,0x11,0x11,0x11},
-            /* O */ {0x0E,0x11,0x11,0x11,0x11,0x11,0x0E},
-            /* P */ {0x1E,0x11,0x11,0x1E,0x10,0x10,0x10},
-            /* Q */ {0x0E,0x11,0x11,0x11,0x15,0x12,0x0D},
-            /* R */ {0x1E,0x11,0x11,0x1E,0x14,0x12,0x11},
-            /* S */ {0x0E,0x11,0x10,0x0E,0x01,0x11,0x0E},
-            /* T */ {0x1F,0x04,0x04,0x04,0x04,0x04,0x04},
-            /* U */ {0x11,0x11,0x11,0x11,0x11,0x11,0x0E},
-            /* V */ {0x11,0x11,0x11,0x11,0x0A,0x0A,0x04},
-            /* W */ {0x11,0x11,0x11,0x11,0x15,0x1B,0x11},
-            /* X */ {0x11,0x11,0x0A,0x04,0x0A,0x11,0x11},
-            /* Y */ {0x11,0x11,0x0A,0x04,0x04,0x04,0x04},
-            /* Z */ {0x1F,0x01,0x02,0x04,0x08,0x10,0x1F},
-            /* [ */ {0x0E,0x08,0x08,0x08,0x08,0x08,0x0E},
-            /* \ */ {0x10,0x08,0x08,0x04,0x02,0x02,0x01},
-            /* ] */ {0x0E,0x02,0x02,0x02,0x02,0x02,0x0E},
-            /* ^ */ {0x04,0x0A,0x11,0x00,0x00,0x00,0x00},
-            /* _ */ {0x00,0x00,0x00,0x00,0x00,0x00,0x1F},
-            /* ` */ {0x08,0x04,0x00,0x00,0x00,0x00,0x00},
-            /* a */ {0x00,0x00,0x0E,0x01,0x0F,0x11,0x0F},
-            /* b */ {0x10,0x10,0x1E,0x11,0x11,0x11,0x1E},
-            /* c */ {0x00,0x00,0x0E,0x11,0x10,0x11,0x0E},
-            /* d */ {0x01,0x01,0x0F,0x11,0x11,0x11,0x0F},
-            /* e */ {0x00,0x00,0x0E,0x11,0x1F,0x10,0x0E},
-            /* f */ {0x06,0x08,0x1E,0x08,0x08,0x08,0x08},
-            /* g */ {0x00,0x00,0x0F,0x11,0x0F,0x01,0x0E},
-            /* h */ {0x10,0x10,0x1E,0x11,0x11,0x11,0x11},
-            /* i */ {0x04,0x00,0x0C,0x04,0x04,0x04,0x0E},
-            /* j */ {0x02,0x00,0x06,0x02,0x02,0x12,0x0C},
-            /* k */ {0x10,0x10,0x12,0x14,0x18,0x14,0x12},
-            /* l */ {0x0C,0x04,0x04,0x04,0x04,0x04,0x0E},
-            /* m */ {0x00,0x00,0x1A,0x15,0x15,0x11,0x11},
-            /* n */ {0x00,0x00,0x1E,0x11,0x11,0x11,0x11},
-            /* o */ {0x00,0x00,0x0E,0x11,0x11,0x11,0x0E},
-            /* p */ {0x00,0x00,0x1E,0x11,0x1E,0x10,0x10},
-            /* q */ {0x00,0x00,0x0F,0x11,0x0F,0x01,0x01},
-            /* r */ {0x00,0x00,0x16,0x19,0x10,0x10,0x10},
-            /* s */ {0x00,0x00,0x0F,0x10,0x0E,0x01,0x1E},
-            /* t */ {0x08,0x08,0x1E,0x08,0x08,0x09,0x06},
-            /* u */ {0x00,0x00,0x11,0x11,0x11,0x11,0x0F},
-            /* v */ {0x00,0x00,0x11,0x11,0x11,0x0A,0x04},
-            /* w */ {0x00,0x00,0x11,0x11,0x15,0x15,0x0A},
-            /* x */ {0x00,0x00,0x11,0x0A,0x04,0x0A,0x11},
-            /* y */ {0x00,0x00,0x11,0x11,0x0F,0x01,0x0E},
-            /* z */ {0x00,0x00,0x1F,0x02,0x04,0x08,0x1F},
-            /* { */ {0x02,0x04,0x04,0x08,0x04,0x04,0x02},
-            /* | */ {0x04,0x04,0x04,0x04,0x04,0x04,0x04},
-            /* } */ {0x08,0x04,0x04,0x02,0x04,0x04,0x08},
-            /* ~ */ {0x00,0x00,0x08,0x15,0x02,0x00,0x00},
-        };
+    uint32_t sec_off[7];
+    for (int i = 0; i < 7; i++)
+        sec_off[i] = desc[i*4] | (desc[i*4+1]<<8) | (desc[i*4+2]<<16) | (desc[i*4+3]<<24);
 
-        int font_idx = ch - 0x20 - 1;  /* -1 because space is index 0 but handled above */
-        if (font_idx < 0 || font_idx >= 95) font_idx = 0;
+    void *bank_a = nds_vram_bank('A');
+    void *bank_b = nds_vram_bank('B');
+    void *bank_e = nds_vram_bank('E');
+    if (!bank_a || !bank_e) { free(desc); return 0; }
 
-        const u8 *rows = font_5x7[font_idx];
-        for (int row = 0; row < 8; row++) {
-            u8 bits = (row < 7) ? rows[row] : 0;
-            /* 4bpp: 2 pixels per byte. Low nybble = left pixel (even x),
-             * high nybble = right pixel (odd x). Font bits: bit4=leftmost. */
-            for (int col = 0; col < 4; col++) {
-                int px_l_bit = 4 - (col * 2);      /* bit index for left pixel */
-                int px_r_bit = 4 - (col * 2 + 1);  /* bit index for right pixel */
-                u8 px_l = (px_l_bit >= 0) ? ((bits >> px_l_bit) & 1) : 0;
-                u8 px_r = (px_r_bit >= 0) ? ((bits >> px_r_bit) & 1) : 0;
-                dst[row * 4 + col] = (u8)(px_l | (px_r << 4));
-            }
+    /* Clear VRAM */
+    memset(bank_a, 0, nds_vram_bank_size('A'));
+    if (bank_b) memset(bank_b, 0, nds_vram_bank_size('B'));
+
+    /* Write per-BG palettes into extended palette area of Bank E
+     * Layout: offset 0x1000 + bg_index * 512 */
+    if (sec_off[5] + 512 <= desc_size) {
+        /* BG2 palette (section 5) at ext_pal slot 2 */
+        memcpy((uint8_t*)bank_e + 0x1000 + 2*512, desc + sec_off[5], 512);
+    }
+    if (sec_off[3] + 512 <= desc_size) {
+        /* BG0 palette (section 3) at ext_pal slot 0 */
+        memcpy((uint8_t*)bank_e + 0x1000 + 0*512, desc + sec_off[3], 512);
+    }
+    if (sec_off[4] + 512 <= desc_size) {
+        /* BG1 palette (section 4) at ext_pal slot 1 */
+        memcpy((uint8_t*)bank_e + 0x1000 + 1*512, desc + sec_off[4], 512);
+    }
+    /* Also write section 5 to standard palette for backdrop color */
+    if (sec_off[5] + 512 <= desc_size)
+        memcpy(bank_e, desc + sec_off[5], 512);
+
+    /* VRAM layout (within 256KB main BG VRAM = Bank A + Bank B):
+     * BG2 (background/sky): char_base=0 (0x00000), screen_base=16 (0x08000)
+     * BG1 (middle layer):   char_base=2 (0x08000)  — SHARES space after BG2 tilemap
+     *                        screen_base=20 (0x0A000)
+     * BG0 (foreground):     char_base=4 (0x10000), screen_base=24 (0x0C000)
+     *
+     * char_base is in 16KB units, screen_base in 2KB units.
+     * Tile data for each layer is at most ~30KB.
+     * Tilemaps are 8KB each (64x64).
+     */
+    int layers_ok = 0;
+    uint8_t *vram = (uint8_t *)bank_a;  /* 128KB */
+    uint8_t *vram_b = bank_b ? (uint8_t *)bank_b : NULL;
+
+    /* Load BG2 (lowest priority = drawn first = background) */
+    {
+        int tile_entry = grp_base + 2;
+        if (tile_entry < num_entries) {
+            uint32_t t_off = FMAP_OFF(tile_entry);
+            uint32_t t_next = FMAP_OFF(tile_entry + 1);
+            uint32_t tile_sz = 0;
+            uint8_t *tiles = ad_decompress(fmap + t_off, t_next - t_off, &tile_sz);
+            if (tiles && tile_sz > 0) {
+                /* Tiles at char_base=0 → offset 0x0000 */
+                uint32_t copy = tile_sz > 0x8000 ? 0x8000 : tile_sz;
+                memcpy(vram + 0x0000, tiles, copy);
+                free(tiles);
+
+                /* Tilemap at screen_base=16 → offset 0x8000 */
+                uint32_t tmap_off = sec_off[2];
+                uint32_t tmap_end = sec_off[3];
+                if (tmap_off < desc_size && tmap_end <= desc_size) {
+                    uint32_t tmap_sz = tmap_end - tmap_off;
+                    if (tmap_sz > 8192) tmap_sz = 8192;
+                    memcpy(vram + 0x8000, desc + tmap_off, tmap_sz);
+                    layers_ok |= (1 << 2);
+                }
+            } else { free(tiles); }
         }
     }
 
-    /* Set palette: index 0 = transparent black, index 1 = white */
-    pal_base[0] = 0x0000u;  /* transparent */
-    pal_base[1] = 0x7FFFu;  /* white */
-}
+    /* Load BG0 (highest priority = drawn last = foreground) */
+    {
+        int tile_entry = grp_base + 0;
+        if (tile_entry < num_entries) {
+            uint32_t t_off = FMAP_OFF(tile_entry);
+            uint32_t t_next = FMAP_OFF(tile_entry + 1);
+            uint32_t tile_sz = 0;
+            uint8_t *tiles = ad_decompress(fmap + t_off, t_next - t_off, &tile_sz);
+            if (tiles && tile_sz > 0) {
+                /* Tiles at char_base=4 → offset 0x10000 (in bank B if bank A is 128KB) */
+                uint32_t copy = tile_sz > 0x8000 ? 0x8000 : tile_sz;
+                if (0x10000 + copy <= 128*1024) {
+                    memcpy(vram + 0x10000, tiles, copy);
+                } else if (vram_b) {
+                    /* Overflows into Bank B */
+                    memcpy(vram_b, tiles, copy);
+                }
+                free(tiles);
 
-/* Write text to a 32x32 tilemap at tile position (tx, ty) */
-static void gameplay_write_text(volatile u16 *tilemap, int tx, int ty,
-                                const char *text, u16 pal_bank)
-{
-    while (*text) {
-        if (tx < 32 && ty < 32) {
-            int ch = (unsigned char)*text;
-            int tile = (ch >= 0x20 && ch < 0x80) ? (ch - 0x20 + 1) : 0;
-            tilemap[ty * 32 + tx] = (u16)(tile | (pal_bank << 12));
+                /* Tilemap at screen_base=24 → offset 0xC000 */
+                uint32_t tmap_off = sec_off[0];
+                uint32_t tmap_end = sec_off[1];
+                if (tmap_off < desc_size && tmap_end <= desc_size) {
+                    uint32_t tmap_sz = tmap_end - tmap_off;
+                    if (tmap_sz > 8192) tmap_sz = 8192;
+                    memcpy(vram + 0xC000, desc + tmap_off, tmap_sz);
+                    layers_ok |= (1 << 0);
+                }
+            } else { free(tiles); }
         }
-        tx++;
-        text++;
     }
+
+    fprintf(stderr, "[gameplay] multi-layer load: layers_ok=0x%X "
+            "(BG0=%s BG2=%s)\n",
+            layers_ok,
+            (layers_ok & 1) ? "yes" : "no",
+            (layers_ok & 4) ? "yes" : "no");
+
+    free(desc);
+    return layers_ok ? 1 : 0;
+    #undef FMAP_OFF
 }
 
 /* ---- Destructor ---- */
@@ -240,11 +231,11 @@ static void host_gameplay_dtor(uintptr_t node_addr, uintptr_t anchor_addr)
 {
     (void)anchor_addr;
     fprintf(stderr, "[gameplay] dtor: node=0x%08X\n", (unsigned)node_addr);
-    fflush(stderr);
     s_gameplay_obj_nds = 0;
     s_gameplay_frame = 0;
     s_gameplay_loaded = 0;
     s_gameplay_state = 0;
+    s_map_loaded = 0;
 }
 
 /* ---- Per-frame tick ---- */
@@ -253,61 +244,62 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
     (void)anchor_addr;
     s_gameplay_frame++;
 
-    /* One-time setup: generate font and draw initial screen */
+    /* One-time setup: load map from ROM */
     if (!s_gameplay_loaded) {
         s_gameplay_loaded = 1;
 
-        /* Clear all VRAM banks to remove artifacts from previous scenes */
+        /* Clear all VRAM banks */
         for (char bank = 'A'; bank <= 'I'; bank++) {
             void *vram = nds_vram_bank(bank);
             u32 sz = nds_vram_bank_size(bank);
             if (vram && sz > 0) memset(vram, 0, sz);
         }
 
-        /* Set up top screen: Mode 0, BG0 enabled */
-        *(volatile u32 *)(uintptr_t)REG_DISPCNT_TOP = 0x00010100u;  /* mode 0 + BG0 */
-
-        /* BG0: char_base=0, screen_base=4 (0x2000), 4bpp, priority 0 */
-        *(volatile u16 *)(uintptr_t)REG_BG0CNT =
-            (0 << 2) | (4 << 8) | (0 << 7) | (0 << 14) | 0;
-        *(volatile u16 *)(uintptr_t)REG_BG0HOFS = 0;
-        *(volatile u16 *)(uintptr_t)REG_BG0VOFS = 0;
-
-        /* Generate font tiles in Bank A (tile data at offset 0x0000) */
-        volatile u8 *bank_a = (volatile u8 *)nds_vram_bank('A');
-        if (bank_a) {
-            /* Font tiles at char_base=0 */
-            volatile u16 *pal = (volatile u16 *)nds_vram_bank('E');
-            if (pal) {
-                gameplay_gen_font(bank_a, pal);
-            }
-
-            /* Tilemap at screen_base=4 → offset 0x2000 in Bank A */
-            volatile u16 *tilemap = (volatile u16 *)(bank_a + 0x2000);
-            memset((void *)tilemap, 0, 2048);
-
-            /* Draw gameplay status text */
-            gameplay_write_text(tilemap, 4, 4, "MARIO & LUIGI", 0);
-            gameplay_write_text(tilemap, 3, 5, "PARTNERS IN TIME", 0);
-            gameplay_write_text(tilemap, 2, 8, "GAMEPLAY MODE ACTIVE", 0);
-            gameplay_write_text(tilemap, 2, 11, "THE ADVENTURE BEGINS!", 0);
-            gameplay_write_text(tilemap, 6, 14, "CHAPTER 1", 0);
-            gameplay_write_text(tilemap, 3, 15, "PEACH'S CASTLE", 0);
-
-            /* Bottom section: controls info */
-            gameplay_write_text(tilemap, 1, 19, "CONTROLS:", 0);
-            gameplay_write_text(tilemap, 1, 20, "Z=JUMP  X=HAMMER", 0);
-            gameplay_write_text(tilemap, 1, 21, "ARROWS=MOVE", 0);
-            gameplay_write_text(tilemap, 1, 22, "ENTER=MENU", 0);
+        /* Try to load map from FMapData.dat
+         * Map groups: entry N=tiles, entry N+3=descriptor
+         * Group 0: entries 0,1,2 (tiles for 3 BG layers), entry 3 (descriptor)
+         * Allow override via MLPIT_MAP_INDEX env var */
+        {
+            const char *map_env = getenv("MLPIT_MAP_INDEX");
+            if (map_env) s_current_map = atoi(map_env) % 10;
+        }
+        {
+            static const int grp_base[] = {0, 4, 8, 12, 16, 25, 31, 35, 39, 85};
+            static const int map_descs[] = {3, 7, 11, 15, 19, 28, 34, 38, 42, 88};
+            s_map_loaded = load_fmap_all_layers(grp_base[s_current_map],
+                                                map_descs[s_current_map]);
         }
 
-        /* Sub screen: same setup */
-        *(volatile u32 *)(uintptr_t)REG_DISPCNT_SUB = 0x00010100u;
+        if (s_map_loaded) {
+            /* Set up top screen: Mode 0, BG0+BG2, extended palettes (bit 30) */
+            *(volatile u32 *)(uintptr_t)REG_DISPCNT_TOP =
+                0x40010500u;  /* ext_pal(30) + mode 0 + BG0(8) + BG2(10) */
 
-        fprintf(stderr,
-                "[gameplay] scene initialized (frame %u)\n",
+            /* BG2 (background): char_base=0, screen_base=16, 4bpp, 64x64, priority 2 */
+            *(volatile u16 *)(uintptr_t)REG_BG2CNT =
+                (0 << 2) | (16 << 8) | (0 << 7) | (3 << 14) | 2;
+            *(volatile u16 *)(uintptr_t)REG_BG2HOFS = 0;
+            *(volatile u16 *)(uintptr_t)REG_BG2VOFS = 0;
+
+            /* BG0 (foreground): char_base=4, screen_base=24, 4bpp, 64x64, priority 0 */
+            *(volatile u16 *)(uintptr_t)REG_BG0CNT =
+                (4 << 2) | (24 << 8) | (0 << 7) | (3 << 14) | 0;
+            *(volatile u16 *)(uintptr_t)REG_BG0HOFS = (u16)(s_scroll_x & 0x1FF);
+            *(volatile u16 *)(uintptr_t)REG_BG0VOFS = (u16)(s_scroll_y & 0x1FF);
+
+            fprintf(stderr,
+                    "[gameplay] real map loaded! Use arrow keys to scroll\n");
+        } else {
+            /* Fallback: just show text */
+            *(volatile u32 *)(uintptr_t)REG_DISPCNT_TOP = 0x00010100u;
+            fprintf(stderr, "[gameplay] map load failed, using text fallback\n");
+        }
+
+        /* Sub screen: dark */
+        *(volatile u32 *)(uintptr_t)REG_DISPCNT_SUB = 0x00010000u;
+
+        fprintf(stderr, "[gameplay] scene initialized (frame %u)\n",
                 (unsigned)s_gameplay_frame);
-        fflush(stderr);
     }
 
     /* Fade-in from black */
@@ -321,34 +313,59 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
             s_gameplay_state = 1;
             *(volatile u16 *)(uintptr_t)REG_MASTER_BRIGHT = 0;
             fprintf(stderr, "[gameplay] fade-in complete, now active\n");
-            fflush(stderr);
         }
     }
 
-    /* Active gameplay state — animate frame counter display */
-    if (s_gameplay_state == 1) {
-        volatile u8 *bank_a = (volatile u8 *)nds_vram_bank('A');
-        if (bank_a) {
-            volatile u16 *tilemap = (volatile u16 *)(bank_a + 0x2000);
+    /* Active gameplay: handle scrolling */
+    if (s_gameplay_state == 1 && s_map_loaded) {
+        /* Read NDS keypad register (active low) */
+        u16 keyinput = *(volatile u16 *)(uintptr_t)0x04000130u;
+        u16 held = ~keyinput & 0x03FFu;
 
-            /* Update frame counter display */
-            char buf[32];
-            snprintf(buf, sizeof(buf), "FRAME: %u", (unsigned)s_gameplay_frame);
-            /* Clear line 17 first */
-            for (int x = 0; x < 32; x++) tilemap[17 * 32 + x] = 0;
-            gameplay_write_text(tilemap, 1, 17, buf, 0);
+        /* D-pad scroll */
+        if (held & 0x0010) s_scroll_y -= SCROLL_SPEED;  /* Up */
+        if (held & 0x0020) s_scroll_y += SCROLL_SPEED;  /* Down */
+        if (held & 0x0040) s_scroll_x -= SCROLL_SPEED;  /* Left */
+        if (held & 0x0080) s_scroll_x += SCROLL_SPEED;  /* Right */
 
-            /* Read input and display pressed buttons */
-            u16 keyinput = *(volatile u16 *)(uintptr_t)0x04000130u;
-            u16 pressed = ~keyinput & 0x03FFu;  /* active-low to active-high */
+        /* Wrap scroll within map bounds */
+        if (s_scroll_x < 0) s_scroll_x += MAP_PX_W;
+        if (s_scroll_x >= MAP_PX_W) s_scroll_x -= MAP_PX_W;
+        if (s_scroll_y < 0) s_scroll_y += MAP_PX_H;
+        if (s_scroll_y >= MAP_PX_H) s_scroll_y -= MAP_PX_H;
 
-            /* Clear line 24 */
-            for (int x = 0; x < 32; x++) tilemap[24 * 32 + x] = 0;
+        /* Update BG scroll registers */
+        *(volatile u16 *)(uintptr_t)REG_BG0HOFS = (u16)(s_scroll_x & 0x1FF);
+        *(volatile u16 *)(uintptr_t)REG_BG0VOFS = (u16)(s_scroll_y & 0x1FF);
+        /* BG2 scrolls at half speed for parallax effect */
+        *(volatile u16 *)(uintptr_t)REG_BG2HOFS = (u16)((s_scroll_x / 2) & 0x1FF);
+        *(volatile u16 *)(uintptr_t)REG_BG2VOFS = (u16)((s_scroll_y / 2) & 0x1FF);
 
-            if (pressed) {
-                char input_buf[32];
-                snprintf(input_buf, sizeof(input_buf), "INPUT: %03X", pressed);
-                gameplay_write_text(tilemap, 1, 24, input_buf, 0);
+        /* L/R buttons cycle through maps */
+        static u16 s_prev_held = 0;
+        u16 pressed_new = held & ~s_prev_held;
+        s_prev_held = held;
+
+        if (pressed_new & 0x0200) {  /* R button = next map */
+            static const int grp_base[] = {0, 4, 8, 12, 16, 25, 31, 35, 39, 85};
+            static const int map_descs[] = {3, 7, 11, 15, 19, 28, 34, 38, 42, 88};
+            s_current_map = (s_current_map + 1) % 10;
+            if (load_fmap_all_layers(grp_base[s_current_map], map_descs[s_current_map])) {
+                s_scroll_x = 0;
+                s_scroll_y = 0;
+                fprintf(stderr, "[gameplay] switched to map %d (desc=%d)\n",
+                        s_current_map, map_descs[s_current_map]);
+            }
+        }
+        if (pressed_new & 0x0100) {  /* L button = prev map */
+            static const int grp_base[] = {0, 4, 8, 12, 16, 25, 31, 35, 39, 85};
+            static const int map_descs[] = {3, 7, 11, 15, 19, 28, 34, 38, 42, 88};
+            s_current_map = (s_current_map + 9) % 10;
+            if (load_fmap_all_layers(grp_base[s_current_map], map_descs[s_current_map])) {
+                s_scroll_x = 0;
+                s_scroll_y = 0;
+                fprintf(stderr, "[gameplay] switched to map %d (desc=%d)\n",
+                        s_current_map, map_descs[s_current_map]);
             }
         }
     }

@@ -144,6 +144,19 @@ void host_scene_queue_log_state(const char *tag)
     fflush(stderr);
 }
 
+/* Synthetic NDS address that maps to host_draw_test_node — populated
+ * via host_test_node_register() at startup. The fake node's vtable[2]
+ * points here so the trampoline dispatches to host C code. */
+#define HOST_TEST_NODE_FNPTR  0xFA000000u
+
+/* Place the fake vtable inside the same 0x40-byte slab. Layout:
+ *   FAKE_NODE_NDS_ADDR + 0x00 .. 0x1F  — node fields
+ *   FAKE_NODE_NDS_ADDR + 0x20 .. 0x3F  — vtable (4 ptrs)
+ * Node.vtable_ptr (+0x00) -> FAKE_NODE_NDS_ADDR + 0x20
+ * vtable[2] (+0x28 from node base) -> HOST_TEST_NODE_FNPTR */
+#define FAKE_VTABLE_OFFSET   0x20u
+#define FAKE_VTABLE_NDS_ADDR (FAKE_NODE_NDS_ADDR + FAKE_VTABLE_OFFSET)
+
 void host_scene_queue_inject_fake(void)
 {
     if (g_fake_injected) return;
@@ -156,29 +169,48 @@ void host_scene_queue_inject_fake(void)
     void *node = (void *)(uintptr_t)FAKE_NODE_NDS_ADDR;
     memset(node, 0, FAKE_NODE_SIZE);
 
-    /* flags=0 => FUN_0202a33c's `((u8)flags << 0x1f) < 0` test fails =>
-     * the indirect vtable[2] call is skipped, so the unset vtable ptr
-     * (=0) does not matter.  active flag at +0x11 = 0 => FUN_0202a51c
-     * also skips this node's update-bit toggle. */
+    /* Build an embedded vtable so vtable[2] resolves to our synthetic
+     * host trampoline address. The trampoline dispatcher
+     * (host_fnptr_resolver) will translate HOST_TEST_NODE_FNPTR ->
+     * host_draw_test_node(node, anchor). */
+    nds_w32(FAKE_NODE_NDS_ADDR + 0x00, FAKE_VTABLE_NDS_ADDR);  /* node->vtable */
+    nds_w32(FAKE_VTABLE_NDS_ADDR + 0x00, 0);
+    nds_w32(FAKE_VTABLE_NDS_ADDR + 0x04, 0);
+    nds_w32(FAKE_VTABLE_NDS_ADDR + 0x08, HOST_TEST_NODE_FNPTR); /* vtable[2] */
+    nds_w32(FAKE_VTABLE_NDS_ADDR + 0x0c, 0);
     nds_w32(FAKE_NODE_NDS_ADDR + 0x0c, 0);   /* next = NULL */
+
+    /* flags bit0 = "needs update" so vtable[2] fires; bit1 (sched)
+     * starts clear. The processor's second pass will clear bit0 again
+     * after the dispatch — host_scene_queue_rearm_fake() re-sets it
+     * every frame so we can observe a continuous tick. */
+    nds_w16(FAKE_NODE_NDS_ADDR + 0x12, 0x0001);
 
     /* Install into the anchor. */
     nds_w32(SCENE_ANCHOR_NDS_ADDR + 0x00, FAKE_NODE_NDS_ADDR);  /* head */
     nds_w32(SCENE_ANCHOR_NDS_ADDR + 0x04, FAKE_NODE_NDS_ADDR);  /* tail */
     nds_w16(SCENE_ANCHOR_NDS_ADDR + 0x08, 1);                   /* count */
-
-    /* link_offset already 0 in zeroed memory; FUN_0202a33c walks +0xc
-     * unconditionally so it doesn't need a non-zero link_off, but the
-     * push helpers (FUN_0202a56c) read link_off from anchor+0xa.  Set
-     * the conventional 0xc so any future append is consistent. */
     nds_w16(SCENE_ANCHOR_NDS_ADDR + 0x0a, 0x0c);
 
     fprintf(stderr,
-            "[scene-queue] INJECTED fake node at 0x%08X into anchor "
-            "0x%08X (count=1, flags=0)\n",
+            "[scene-queue] INJECTED fake node at 0x%08X (vtable=0x%08X "
+            "vtable[2]=0x%08X) into anchor 0x%08X (count=1, flags=1)\n",
             (unsigned)FAKE_NODE_NDS_ADDR,
+            (unsigned)FAKE_VTABLE_NDS_ADDR,
+            (unsigned)HOST_TEST_NODE_FNPTR,
             (unsigned)SCENE_ANCHOR_NDS_ADDR);
     fflush(stderr);
+}
+
+/* Re-arm the fake node's "needs update" bit so vtable[2] fires every
+ * frame (the queue processor's second pass clears bit0 after dispatch).
+ * Called from the per-frame tick path in arm9/src/link_stubs.c. */
+void host_scene_queue_rearm_fake(void)
+{
+    if (!g_fake_injected) return;
+    if (!nds_arm9_ram_is_mapped()) return;
+    u16 flags = nds_r16(FAKE_NODE_NDS_ADDR + 0x12);
+    nds_w16(FAKE_NODE_NDS_ADDR + 0x12, (u16)(flags | 1));
 }
 
 /* ------------------------------------------------------------------
@@ -213,6 +245,7 @@ void host_scene_queue_inject_fake(void)
  * ------------------------------------------------------------------ */
 
 #include "arm_compat.h"
+#include "host_fnptr_resolver.h"
 
 #define DAT_0202A510_ADDR  0x0202A510u  /* slot holding anchor ptr */
 
@@ -269,17 +302,34 @@ void FUN_0202a33c_safe(void)
                     *(volatile u16 *)(uintptr_t)(node + 0x12) = flags;
 
                     /* Original ARM: (**(void (**)())(*node + 8))();
-                     * We can't execute ARM-domain vtable entries, so log
-                     * once and continue. */
-                    if (!s_skipped_vtable_warn) {
-                        s_skipped_vtable_warn = 1;
+                     * Translate the ARM-domain vtable[2] code pointer
+                     * to a host fn ptr and dispatch.  Pass (node, anchor)
+                     * as the two args because that's the convention
+                     * decompiled scene methods expect. */
+                    {
                         u32 vtable = *(volatile u32 *)(uintptr_t)node;
-                        fprintf(stderr,
-                                "[FUN_0202a33c_safe] skipping vtable[2] "
-                                "call (node=0x%08X vtable=0x%08X) — "
-                                "host port has no ARM-domain dispatcher\n",
-                                (unsigned)node, (unsigned)vtable);
-                        fflush(stderr);
+                        if (vtable && nds_addr_in_arm9(vtable)) {
+                            u32 fn_addr = *(volatile u32 *)(uintptr_t)(vtable + 8);
+                            nds_call_2arg(fn_addr,
+                                          (uintptr_t)node,
+                                          (uintptr_t)anchor);
+                        } else if (vtable >= HOST_FNPTR_SYNTHETIC_BASE) {
+                            /* Vtable lives in synthetic host range — read
+                             * vtable[2] from a host-side mirror.  Our
+                             * fake node embeds its vtable inside the
+                             * mapped ARM9 RAM, so this path is rare. */
+                            u32 fn_addr = vtable;
+                            nds_call_2arg(fn_addr,
+                                          (uintptr_t)node,
+                                          (uintptr_t)anchor);
+                        } else if (!s_skipped_vtable_warn) {
+                            s_skipped_vtable_warn = 1;
+                            fprintf(stderr,
+                                    "[FUN_0202a33c_safe] vtable out of range "
+                                    "(node=0x%08X vtable=0x%08X)\n",
+                                    (unsigned)node, (unsigned)vtable);
+                            fflush(stderr);
+                        }
                     }
 
                     int counter_sf = (s32)((u32)flags << 0x16) >> 0x1c;
@@ -297,14 +347,16 @@ void FUN_0202a33c_safe(void)
 
                     int counter_sf = (s32)((u32)flags << 0x16) >> 0x1c;
                     if (-s_field <= counter_sf) {
-                        if (!s_skipped_vtable_warn) {
-                            s_skipped_vtable_warn = 1;
-                            u32 vtable = *(volatile u32 *)(uintptr_t)node;
-                            fprintf(stderr,
-                                    "[FUN_0202a33c_safe] skipping vtable[2] "
-                                    "(sched, node=0x%08X vtable=0x%08X)\n",
-                                    (unsigned)node, (unsigned)vtable);
-                            fflush(stderr);
+                        u32 vtable = *(volatile u32 *)(uintptr_t)node;
+                        if (vtable && nds_addr_in_arm9(vtable)) {
+                            u32 fn_addr = *(volatile u32 *)(uintptr_t)(vtable + 8);
+                            nds_call_2arg(fn_addr,
+                                          (uintptr_t)node,
+                                          (uintptr_t)anchor);
+                        } else if (vtable >= HOST_FNPTR_SYNTHETIC_BASE) {
+                            nds_call_2arg(vtable,
+                                          (uintptr_t)node,
+                                          (uintptr_t)anchor);
                         }
                         flags &= 0xfc3f;
                         *(volatile u16 *)(uintptr_t)(node + 0x12) = flags;

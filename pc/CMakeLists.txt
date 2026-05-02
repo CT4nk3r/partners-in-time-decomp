@@ -31,7 +31,10 @@ set(PC_SOURCES
     src/asset_viewer.c
     src/nds_arm9_ram.c
     src/host_scene_queue.c
+    src/host_fnptr_resolver.c
+    src/host_test_node.c
     ${CMAKE_BINARY_DIR}/generated/nds_dat_init_generated.c
+    ${CMAKE_BINARY_DIR}/generated/fnptr_table_generated.c
 )
 
 # Decompiled ARM9 game code (compiled for host with HOST_PORT shim)
@@ -118,6 +121,25 @@ if(NOT _dat_rc EQUAL 0)
 endif()
 set_source_files_properties(${_dat_init_src}
     PROPERTIES OBJECT_DEPENDS "${_dat_table_h};${_dat_gen_script};${CMAKE_CURRENT_SOURCE_DIR}/src/host_undefined_stubs.c")
+
+# fnptr trampoline table: enumerates every FUN_<addr> defined in
+# arm9/src/*.c and registers the host symbol address under that NDS
+# code address, so the scene-queue processor can dispatch ARM-domain
+# vtable entries to their decompiled C bodies.
+set(_fnptr_gen_script "${CMAKE_CURRENT_SOURCE_DIR}/../tools/scripts/gen_fnptr_table.py")
+set(_fnptr_gen_src    "${CMAKE_BINARY_DIR}/generated/fnptr_table_generated.c")
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} ${_fnptr_gen_script}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../arm9/src
+            ${_fnptr_gen_src}
+    RESULT_VARIABLE _fnptr_rc
+)
+if(NOT _fnptr_rc EQUAL 0)
+    message(FATAL_ERROR "gen_fnptr_table.py failed (rc=${_fnptr_rc})")
+endif()
+set_source_files_properties(${_fnptr_gen_src}
+    PROPERTIES OBJECT_DEPENDS "${_fnptr_gen_script}"
+               COMPILE_OPTIONS "-include;${SDK_ALIAS_HEADER}")
 
 target_compile_definitions(mlpit_pc PRIVATE
     HOST_PORT=1

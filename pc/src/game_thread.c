@@ -113,6 +113,13 @@ int game_thread_main(void* user) {
      * NDS 0x02060A04.  See pc/src/host_scene_queue.c. */
     extern void host_scene_queue_log_state(const char *tag);
     extern void host_scene_queue_inject_fake(void);
+    extern void host_fnptr_init(void);
+    extern void host_test_node_register(void);
+    /* Initialise the NDS->host fnptr trampoline (auto-registers every
+     * decompiled FUN_<addr>) before injecting the fake node so its
+     * vtable[2]==HOST_FNPTR_SYNTHETIC_BASE+0 resolves. */
+    host_fnptr_init();
+    host_test_node_register();
     host_scene_queue_log_state("post_init");
     host_scene_queue_inject_fake();
     host_scene_queue_log_state("post_inject");

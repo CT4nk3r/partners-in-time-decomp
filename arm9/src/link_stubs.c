@@ -368,6 +368,7 @@ static void shadow_probe_tick(u32 frame) {
  * mismatched dereference faults. */
 extern void FUN_0202a33c_safe(void);
 extern void host_scene_queue_log_state(const char *tag);
+extern void host_scene_queue_rearm_fake(void);
 static int  g_queue_processor_enabled = -1;  /* tri-state: 0/1, -1=unread */
 
 void game_update_display(void) {
@@ -399,6 +400,10 @@ void game_update_display(void) {
         fflush(stderr);
     }
     if (g_queue_processor_enabled) {
+        /* Re-arm the synthetic test node's "needs update" bit so its
+         * vtable[2] (host_draw_test_node) fires every frame.  No-op if
+         * MLPIT_FAKE_QUEUE_NODE wasn't set. */
+        host_scene_queue_rearm_fake();
         /* Re-log anchor every 240 frames so we can SEE if anything changed. */
         if (g_game_frame_counter == 1u ||
             (g_game_frame_counter % 240u) == 0u) {

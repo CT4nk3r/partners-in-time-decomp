@@ -154,11 +154,34 @@ static uint16_t build_keyinput_ext_bits(void)
 
 /* Push input state into the NDS IO shadow.  Called once per frame from
  * platform_present() so game code reading *(vu16*)0x04000130 sees the
- * latest keyboard state on its next vblank. */
+ * latest keyboard state on its next vblank.
+ *
+ * MLPIT_AUTO_START_FRAME=N : simulate Start press at frame N (for headless
+ * testing so the title screen auto-advances). */
 static void pump_input_to_io(void)
 {
+    static int s_auto_start_frame = -2;
+    static int s_pump_frame = 0;
+    s_pump_frame++;
+
+    if (s_auto_start_frame == -2) {
+        const char *env = getenv("MLPIT_AUTO_START_FRAME");
+        s_auto_start_frame = env ? atoi(env) : -1;
+    }
+    /* Simulate Start press for 2 frames starting at the target frame */
+    if (s_auto_start_frame > 0 &&
+        s_pump_frame >= s_auto_start_frame &&
+        s_pump_frame < s_auto_start_frame + 3) {
+        g_input.start = 1;
+    }
+
     nds_reg_write16(0x04000130u, build_keyinput_bits());
     nds_reg_write16(0x04000136u, build_keyinput_ext_bits());
+
+    /* Clear auto-press after writing so it doesn't stick */
+    if (s_auto_start_frame > 0 && s_pump_frame >= s_auto_start_frame + 3) {
+        g_input.start = 0;
+    }
 }
 
 /*

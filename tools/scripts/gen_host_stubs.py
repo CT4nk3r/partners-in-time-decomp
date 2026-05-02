@@ -50,7 +50,7 @@ EXCLUDE_SYMBOLS = {
     "PAD_Read",
     "OBJ_Init", "OBJ_Create", "OBJ_Update",
     # From nds_rom.c (Task 3)
-    "rom_load", "rom_data", "rom_size", "rom_read_file",
+    "rom_load", "rom_data", "rom_size", "rom_read_file", "rom_read_overlay",
 }
 
 if not LOG.exists():

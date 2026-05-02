@@ -21,6 +21,7 @@ set(PC_SOURCES
     src/host_undefined_stubs.c
     src/game_thread.c
     src/nds_bg_render.c
+    src/nds_rom.c
 )
 
 # Decompiled ARM9 game code (compiled for host with HOST_PORT shim)

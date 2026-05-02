@@ -8,6 +8,7 @@
  * for the top and bottom screens.
  */
 #include "nds_platform.h"
+#include "nds_rom.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,6 +63,9 @@ int main(int argc, char** argv) {
     nds_log("Mario & Luigi: Partners in Time - PC port (scaffold)\n");
     nds_log("Decompilation: 1275/1275 ARM9 functions\n");
     nds_log("Press ESC or close window to quit.\n");
+
+    /* Try to load the NDS ROM (optional - game still runs without it) */
+    rom_load("roms/baserom.nds");
 
     /* Start the game thread. Currently runs a vblank heartbeat stub
      * (see pc/src/game_thread.c for why we cannot yet call game_start()). */

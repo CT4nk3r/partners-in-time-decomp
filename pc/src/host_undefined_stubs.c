@@ -1623,7 +1623,7 @@ int func_0x0209c9f8() { return 0; }
 int func_0x0209ca0c() { return 0; }
 int func_0x0209cd64() { return 0; }
 
-/* === Named SDK stubs (17 symbols) === */
+/* === Named SDK stubs (16 symbols) === */
 int enable_ipc_interrupt() { return 0; }
 int game_do_transition() { return 0; }
 int game_setup_overlay() { return 0; }
@@ -1640,6 +1640,5 @@ int gx_update_display_state() { return 0; }
 int gx_update_layer_animation() { return 0; }
 int gx_verify_region_crc() { return 0; }
 int ipc_reset_cmd() { return 0; }
-int rom_read_overlay() { return 0; }
 
 #pragma GCC diagnostic pop

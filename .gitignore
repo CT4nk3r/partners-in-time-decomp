@@ -12,6 +12,9 @@ build/
 # ROM files — NEVER commit these
 rom/baserom.nds
 rom/*.nds
+roms/*.nds
+roms/*.sav
+!roms/README.md
 
 # Extracted ROM data (generated from user's ROM)
 extracted/

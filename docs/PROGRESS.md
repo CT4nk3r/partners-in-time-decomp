@@ -94,7 +94,7 @@ half — top and bottom no longer mirror.
 | BG VRAM tile fetch              | ✅ Real tile data reaches VRAM (milestone 02) |
 | Per-engine compositing          | ✅ Sub backed by bank D, top ≠ bottom (milestone 03) |
 | GXFIFO → SDL 3D rasteriser      | 🔲 Not yet wired |
-| Real scene struct populated     | 🔲 Natural init path still SIGSEGVs deeper in `game_start` |
+| Real scene struct populated     | 🟡 Synth path runs `FUN_02065a10`; natural game_start now survives autosave-tick (Track B unblock) |
 | Audio (NDS APU shim)            | 🔲 Not started |
 | Android port                    | 🔲 Blocked on Linux/mmap port (replace VirtualAlloc) |
 

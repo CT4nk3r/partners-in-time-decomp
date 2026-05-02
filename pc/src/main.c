@@ -40,9 +40,33 @@ static void render_frame(void) {
         if (!s_real_render_logged) {
             s_real_render_logged = 1;
             fprintf(stderr, "[render] MLPIT_CALL_REAL_RENDER=1 — calling "
-                            "FUN_02065a10(NULL) per frame\n");
+                            "FUN_02065a10(scene) per frame\n");
         }
-        FUN_02065a10(NULL);
+        /* MLPIT_SYNTH_SCENE=1: hand-built minimal scene struct to
+         * exercise FUN_02065a10's entity loop end-to-end.  Layout
+         * mirrors the offsets the stub dereferences:
+         *   scene[+0x04]  = sub pointer
+         *   scene[+0x28]  = flags (bit 0 = repop GFX)
+         *   sub[+0x10]    = kind (must be 0..2 to enter render path)
+         *   sub[+0x3B0]   = fn-ptr table base (2 slots used)
+         *
+         * Buffers are static & zero-initialised so any later +offset
+         * read returns 0 rather than garbage. */
+        static uint8_t s_scene[0x100];
+        static uint8_t s_sub  [0x400];
+        static int     s_synth_initialised = 0;
+        if (getenv("MLPIT_SYNTH_SCENE") && !s_synth_initialised) {
+            s_synth_initialised = 1;
+            *(void **)(s_scene + 0x04) = s_sub;
+            *(uint32_t *)(s_scene + 0x28) = 0; /* don't enter GFX repop branch */
+            *(uint32_t *)(s_sub  + 0x10) = 0; /* kind = 0 */
+            /* Leave fn-ptr table at sub+0x3B0 NULL — FUN_02065a10 guards
+             * against NULL slots before calling FUN_0206e06c. */
+            fprintf(stderr, "[render-synth] scene=%p sub=%p (kind=0, flags=0)\n",
+                    (void*)s_scene, (void*)s_sub);
+        }
+        void *scene_arg = getenv("MLPIT_SYNTH_SCENE") ? (void*)s_scene : NULL;
+        FUN_02065a10(scene_arg);
     }
 
     /* Pull shadow OAM (NDS RAM 0x0205FFC0/0x0205FFAC) into g_oam_main /

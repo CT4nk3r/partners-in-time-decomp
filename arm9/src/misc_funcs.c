@@ -124,6 +124,16 @@ void FUN_02038e70(void)
 // FUN_020072d4 @ 0x020072D4 (232 bytes) — Periodic save check / autosave timer
 void FUN_020072d4(void)
 {
+#ifdef HOST_PORT
+    /* HOST_PORT: dereferences several DAT_02007xxx pointers that arm9.bin
+     * statically initialises to NDS RAM addresses pointing into a sound
+     * system / save manager struct. That struct is populated by sound init
+     * code we have not yet wired up on the host, so the pointer at
+     * *DAT_020073c0 leads to uninitialised bytes — `testb $0x40, 0x514(%eax)`
+     * faults at a non-canonical address. Skip the autosave tick entirely
+     * until the sound subsystem is online. */
+    return;
+#else
     char cVar1;
     u16 uVar2;
     char *pcVar3;
@@ -156,6 +166,7 @@ void FUN_020072d4(void)
     }
     FUN_0202e088();
     return;
+#endif /* HOST_PORT */
 }
 
 // FUN_020073d0 @ 0x020073D0 (168 bytes) — Play sound from table with volume param

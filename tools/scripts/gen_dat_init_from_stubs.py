@@ -40,7 +40,7 @@ ARM9_NDS_BASE  = 0x02000000     # the VirtualAlloc base on the host
 # Pull addresses from any C declaration that mentions DAT_<addr>.
 DECL_RE = re.compile(
     r"^\s*(?:extern\s+)?"
-    r"(?P<ty>uint8_t|uint16_t|uint32_t|uint64_t|"
+    r"(?P<ty>uint8_t|uint16_t|uint32_t|uint64_t|uintptr_t|"
     r"int8_t|int16_t|int32_t|int64_t|"
     r"u8|u16|u32|u64|s8|s16|s32|s64|"
     r"int|short|char|long|void\s*\*)\s+"

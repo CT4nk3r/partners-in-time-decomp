@@ -5,7 +5,7 @@ arm9/src/*.c into the PC port.
 
 Reads build_log.txt produced by the failed link step and emits
 pc/src/host_undefined_stubs.c with placeholder definitions:
-  - DAT_*  -> uint32_t DAT_xxx;
+  - DAT_*  -> uintptr_t DAT_xxx;
   - FUN_*  -> void FUN_xxx(void) {}    (variadic-compatible)
   - thunk_*-> aliased to their FUN_ target
   - SDK    -> void FS_LoadOverlay(void) {} etc.
@@ -79,7 +79,7 @@ for line in LOG.read_text(errors="replace").splitlines():
 if OUT.exists():
     existing = OUT.read_text(errors="replace")
     # uint32_t SYM;  or  int SYM() { ... }
-    for m in re.finditer(r"^(?:uint32_t|int)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\(;]", existing, re.MULTILINE):
+    for m in re.finditer(r"^(?:uintptr_t|uint32_t|int)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\(;]", existing, re.MULTILINE):
         sym = m.group(1)
         if sym not in EXCLUDE_SYMBOLS:
             undef.add(sym)
@@ -133,11 +133,14 @@ def stub_body(sym: str) -> str:
                 f"fprintf(stderr,\"[stub] {sym}\\n\");}} return 0; }}")
     return "{ return 0; }"
 
-# DAT_ globals - these are u32 storage. The original code accesses them
-# as &DAT_xxx (pointer) and *DAT_xxx (value). We just provide bytes.
+# DAT_ globals - host storage. The arm9 decomp declares many of these as
+# `extern u32 *DAT_xxx;` (pointer = 8 bytes on Win64). If we back them with
+# only 4 bytes, an 8-byte load reads garbage in the high half and produces
+# non-canonical pointers. Use uintptr_t so the slot is wide enough; dat-init
+# still copies just 4 bytes from arm9.bin (low half), high half stays zero.
 lines.append(f"/* === DAT_* storage ({len(groups['DAT'])} symbols) === */")
 for s in groups["DAT"]:
-    lines.append(f"uint32_t {s};")
+    lines.append(f"uintptr_t {s};")
 lines.append("")
 
 # FUN_* function stubs - variadic-compatible, return zero

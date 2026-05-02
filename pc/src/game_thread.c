@@ -116,6 +116,21 @@ static LONG CALLBACK mlpit_vex_handler(PEXCEPTION_POINTERS info) {
         g_fault_addr = g_fault_rip;
     }
 
+    /* Compute static-address (ImageBase + relative-offset) of the faulting
+     * instruction so it can be matched back to a function via `nm`/objdump
+     * even when ASLR has randomised the runtime image base. */
+    HMODULE selfmod = GetModuleHandleA(NULL);
+    uintptr_t runtime_base = (uintptr_t)selfmod;
+    /* Hard-coded: matches MinGW link-time ImageBase (see `objdump -p`).
+     * Reading nt->OptionalHeader.ImageBase from the in-memory PE returns
+     * the relocated value on this toolchain, not the original. */
+    uintptr_t static_base = 0x140000000ull;
+    uintptr_t rip_static  = static_base + (g_fault_rip  - runtime_base);
+    uintptr_t fault_static = (g_fault_addr >= runtime_base &&
+                              g_fault_addr <  runtime_base + 0x10000000ull)
+                            ? static_base + (g_fault_addr - runtime_base)
+                            : g_fault_addr;
+
     /* Build a small backtrace into g_fault_btext.  We use CaptureStackBackTrace
      * (no symbol resolution required) — symbols are resolved via dbghelp. */
     void *frames[24];
@@ -131,6 +146,14 @@ static LONG CALLBACK mlpit_vex_handler(PEXCEPTION_POINTERS info) {
     int off = 0;
     char tmp[8 + sizeof(SYMBOL_INFO) + 256];
     SYMBOL_INFO *sym = (SYMBOL_INFO *)tmp;
+    /* Header line: print de-ASLR'd static addresses for nm/objdump lookup. */
+    off += snprintf(g_fault_btext + off, sizeof(g_fault_btext) - off,
+                    "  static_rip=0x%016llx  static_fault=0x%016llx  "
+                    "(image_base runtime=0x%016llx static=0x%016llx)\n",
+                    (unsigned long long)rip_static,
+                    (unsigned long long)fault_static,
+                    (unsigned long long)runtime_base,
+                    (unsigned long long)static_base);
     for (USHORT i = 0; i < n && off < (int)sizeof(g_fault_btext) - 200; i++) {
         sym->SizeOfStruct = sizeof(SYMBOL_INFO);
         sym->MaxNameLen   = 255;
@@ -139,9 +162,15 @@ static LONG CALLBACK mlpit_vex_handler(PEXCEPTION_POINTERS info) {
         if (SymFromAddr(proc, (DWORD64)(uintptr_t)frames[i], &disp, sym)) {
             name = sym->Name;
         }
+        uintptr_t fr = (uintptr_t)frames[i];
+        uintptr_t fr_static = (fr >= runtime_base &&
+                               fr <  runtime_base + 0x10000000ull)
+                              ? static_base + (fr - runtime_base) : fr;
         off += snprintf(g_fault_btext + off, sizeof(g_fault_btext) - off,
-                        "  #%-2u %p  %s+0x%llx\n",
-                        (unsigned)i, frames[i], name, (unsigned long long)disp);
+                        "  #%-2u %p [static 0x%llx]  %s+0x%llx\n",
+                        (unsigned)i, frames[i],
+                        (unsigned long long)fr_static,
+                        name, (unsigned long long)disp);
     }
     g_fault_btext_len = off;
     return EXCEPTION_CONTINUE_SEARCH;

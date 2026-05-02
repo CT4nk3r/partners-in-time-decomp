@@ -38,6 +38,8 @@
 extern void host_fnptr_register(uint32_t nds_addr, void *host_fn);
 extern int  host_title_screen_load(void);
 extern int  nds_arm9_ram_is_mapped(void);
+extern void *nds_vram_bank(char bank);
+extern uint32_t nds_vram_bank_size(char bank);
 
 /* FUN_0202a74c_real inserts a node into the scene linked-list.
  * We use the same call host_game_setup_overlay.c uses. */
@@ -380,6 +382,51 @@ void FUN_020739ec(void *ptr, int type, int param)
         fprintf(stderr, "[FUN_020739ec] ARM9 RAM not mapped, skipping\n");
         return;
     }
+
+    /* Clear title screen graphics from VRAM so the screen doesn't
+     * show a frozen copy of the title after the fade. */
+    void *a = nds_vram_bank('A');
+    void *b = nds_vram_bank('B');
+    if (a) memset(a, 0, nds_vram_bank_size('A'));
+    if (b) memset(b, 0, nds_vram_bank_size('B'));
+
+    /* Paint a simple dark-blue BG so the screen isn't pure black.
+     * We'll write a single 8x8 tile filled with palette index 1,
+     * set palette entry 1 to dark blue (BGR555: 0x7C00 = blue 31),
+     * and fill the tilemap with that tile. */
+    if (a) {
+        uint8_t *tiles = (uint8_t *)a;
+        /* 4bpp tile: 32 bytes, each byte = 2 pixels.
+         * Fill with 0x11 = palette index 1 for both pixels. */
+        memset(tiles, 0x11, 32);
+
+        /* Tilemap at bank A offset 0x8000 (screen base 16).
+         * 32x32 entries, each 2 bytes: tile=0, pal_bank=0 */
+        uint16_t *map = (uint16_t *)(tiles + 0x8000);
+        for (int i = 0; i < 32 * 32; i++)
+            map[i] = 0x0000;  /* tile 0, palette bank 0 */
+    }
+
+    /* Set palette entry 1 to a dark blue-purple (M&L style) */
+    void *e = nds_vram_bank('E');
+    if (e) {
+        uint16_t *pal = (uint16_t *)e;
+        pal[0] = 0x0000;  /* transparent / backdrop = black */
+        pal[1] = 0x5000;  /* dark blue (R=0, G=0, B=10) */
+    }
+
+    /* Configure BG0 to show our placeholder:
+     * BG0CNT: char_base=0, screen_base=16, 4bpp, 32x32, priority 0 */
+    *(volatile uint16_t *)(uintptr_t)0x04000008u =
+        (0 << 2) | (16 << 8) | (0 << 7) | (0 << 14) | 0;
+    /* Reset scroll */
+    *(volatile uint16_t *)(uintptr_t)0x04000010u = 0;
+    *(volatile uint16_t *)(uintptr_t)0x04000012u = 0;
+    /* Disable BG1, BG2, BG3 — only BG0 active */
+    uint32_t dispcnt = *(volatile uint32_t *)(uintptr_t)0x04000000u;
+    dispcnt &= ~(0x0F00u);  /* clear BG0-3 enable bits */
+    dispcnt |= 0x0100u;     /* enable BG0 only */
+    *(volatile uint32_t *)(uintptr_t)0x04000000u = dispcnt;
 
     u32 obj_nds = nds_bump_alloc(0x30);
     fprintf(stderr,

@@ -431,15 +431,52 @@ static void write_text(uint16_t *tilemap, int tx, int ty,
 
 /* File select state */
 static int s_filesel_cursor = 3;  /* 0-2=files, 3=new game */
+static int s_filesel_state = 0;   /* 0=browsing, 1=fading out, 2=done */
+static u32 s_filesel_fade = 0;
 #define FILESEL_ITEMS 4
 
 static void host_next_scene_tick(uintptr_t node_addr, uintptr_t anchor_addr)
 {
     (void)anchor_addr;
-    (void)node_addr;
 
     static u32 next_frame = 0;
     next_frame++;
+
+    /* State 2: already transitioned, do nothing */
+    if (s_filesel_state == 2) return;
+
+    /* State 1: fading out after selection */
+    if (s_filesel_state == 1) {
+        s_filesel_fade++;
+        u32 factor = (s_filesel_fade * 16) / TITLE_FADE_DURATION;
+        if (factor > 16) factor = 16;
+        title_reg_write16(REG_MASTER_BRIGHT, (u16)(0x4000u | (factor & 0x1F)));
+
+        if (s_filesel_fade >= TITLE_FADE_DURATION) {
+            s_filesel_state = 2;
+            fprintf(stderr,
+                    "[file_select] fade complete, transitioning to gameplay\n");
+            fflush(stderr);
+
+            /* Trigger scene transition via the anchor.
+             * State 0 = main gameplay scene (needs overlay function).
+             * For now, mark done so the game doesn't crash. */
+            u32 scene_anchor = *(volatile u32 *)(uintptr_t)SCENE_PTR_NDS;
+            if (scene_anchor >= 0x02000000u && scene_anchor < 0x02400000u) {
+                /* Use FUN_02005d3c to advance the state machine.
+                 * State 0 would be the real gameplay, but it needs
+                 * overlay functions we haven't implemented yet.
+                 * For now we log it — the game stays at file select. */
+                fprintf(stderr,
+                        "[file_select] game would transition to gameplay here\n"
+                        "[file_select] (overlay-dependent scenes not yet implemented)\n");
+                fflush(stderr);
+            }
+        }
+        return;
+    }
+
+    /* State 0: browsing - fade in then handle input */
 
     /* Fade-in from black over 30 frames when entering this scene */
     if (next_frame <= TITLE_FADE_DURATION) {
@@ -475,7 +512,13 @@ static void host_next_scene_tick(uintptr_t node_addr, uintptr_t anchor_addr)
                 s_filesel_cursor,
                 s_filesel_cursor == 3 ? " (NEW GAME)" : " (empty file)");
         fflush(stderr);
-        /* TODO: transition to gameplay intro for New Game */
+
+        if (s_filesel_cursor == 3) {
+            /* New Game — begin fade out */
+            s_filesel_state = 1;
+            s_filesel_fade = 0;
+        }
+        /* Files 1-3: empty, no action (could show "No Data" message) */
     }
 
     /* Update the cursor position in the tilemap every frame */

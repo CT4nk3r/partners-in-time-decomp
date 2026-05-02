@@ -107,7 +107,64 @@ static void dump_screenshot_ppm(const char* path) {
     fclose(f);
 }
 
+/*
+ * Build the NDS REG_KEYINPUT bitmap (active-low: bit set = released).
+ * Bits: 0=A 1=B 2=Select 3=Start 4=Right 5=Left 6=Up 7=Down 8=R 9=L.
+ * Bits 10..15 are the X/Y/lid/touch flags on REG_KEYINPUT_EXT (0x04000136),
+ * but the lower 10 bits live at 0x04000130 and that's what game code reads.
+ */
+static uint16_t build_keyinput_bits(void)
+{
+    uint16_t pressed = 0;
+    if (g_input.a)     pressed |= (1u << 0);
+    if (g_input.b)     pressed |= (1u << 1);
+    if (g_input.select)pressed |= (1u << 2);
+    if (g_input.start) pressed |= (1u << 3);
+    if (g_input.right) pressed |= (1u << 4);
+    if (g_input.left)  pressed |= (1u << 5);
+    if (g_input.up)    pressed |= (1u << 6);
+    if (g_input.down)  pressed |= (1u << 7);
+    if (g_input.r)     pressed |= (1u << 8);
+    if (g_input.l)     pressed |= (1u << 9);
+    /* Active-low: invert and mask to 10 bits */
+    return (uint16_t)((~pressed) & 0x03FFu);
+}
+
+/*
+ * REG_KEYINPUT_EXT (0x04000136) – on real hardware reports X, Y, hinge,
+ * pen down/up.  Bit assignment from GBATEK:
+ *   bit 0 = X (active-low)
+ *   bit 1 = Y (active-low)
+ *   bit 6 = pen down  (0 = touched)
+ *   bit 7 = hinge open (0 = open) — PC port: always open
+ *   bits 2..5 reserved (read as 1 on hardware)
+ */
+static uint16_t build_keyinput_ext_bits(void)
+{
+    uint16_t pressed = 0;
+    if (g_input.x)            pressed |= (1u << 0);
+    if (g_input.y)            pressed |= (1u << 1);
+    if (g_input.touch_active) pressed |= (1u << 6);
+    /* hinge bit 7 stays "pressed" (=0 = open) so the game thinks the lid is open */
+    pressed |= (1u << 7);
+    /* Reserved bits 2..5 read as 1 on hardware */
+    uint16_t reserved = 0x003Cu;
+    return (uint16_t)(((~pressed) & ~reserved) | reserved);
+}
+
+/* Push input state into the NDS IO shadow.  Called once per frame from
+ * platform_present() so game code reading *(vu16*)0x04000130 sees the
+ * latest keyboard state on its next vblank. */
+static void pump_input_to_io(void)
+{
+    nds_reg_write16(0x04000130u, build_keyinput_bits());
+    nds_reg_write16(0x04000136u, build_keyinput_ext_bits());
+}
+
+
 void platform_present(void) {
+    pump_input_to_io();
+
     static int s_frame_counter = 0;
     static int s_dump_at = -2;
     if (s_dump_at == -2) {

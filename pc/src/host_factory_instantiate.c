@@ -63,6 +63,15 @@ extern void *FUN_0200c58c(void *self);
 #define AUX_MTX_NDS              0x02300C40u  /* +0x170: matrix/coeff ptr */
 #define AUX_MTX_SIZE             0x40u
 
+/* Big anim/scale-LUT buffer for fields +0x40/+0x44/+0x48.
+ * FUN_0200fcb4 PC 0x0200fdac reads:
+ *   r2 = *(self+0x48); r0 = scale_x << 3; r1 = *(u16*)(r2 + r0);
+ * With scale = 0x1000 the offset is 0x8000, so the buffer must be at
+ * least 0x8002 bytes.  We allocate a 64 KiB region and point all three
+ * anim/state slots (+0x40, +0x44, +0x48) at it. */
+#define AUX_ANIM_LUT_NDS         0x02320000u
+#define AUX_ANIM_LUT_SIZE        0x10000u
+
 /* Master scene queue anchor + per-node link offset. */
 #define SCENE_ANCHOR_NDS_ADDR    0x02060A04u
 
@@ -137,6 +146,7 @@ void host_factory_instantiate(void)
         memset((void *)(uintptr_t)AUX_TEXIMAGE_NDS,    0, AUX_TEXIMAGE_SIZE);
         memset((void *)(uintptr_t)AUX_LUT_NDS,         0, AUX_LUT_SIZE);
         memset((void *)(uintptr_t)AUX_MTX_NDS,         0, AUX_MTX_SIZE);
+        memset((void *)(uintptr_t)AUX_ANIM_LUT_NDS,    0, AUX_ANIM_LUT_SIZE);
 
         /* +0x38 sprite list head -> 16-bit u16 word at [head] read */
         e32[0x38/4] = AUX_SPRITE_LIST_NDS;
@@ -144,10 +154,18 @@ void host_factory_instantiate(void)
 
         /* +0x3c, +0x40 secondary sprite-list ptrs (just point at same buf) */
         e32[0x3c/4] = AUX_SPRITE_LIST_NDS;
-        e32[0x40/4] = AUX_SPRITE_LIST_NDS;
-
-        /* +0x44, +0x48, +0x4c animation/state ptrs (zero-fill is fine; they
-         * are only loaded — caller checks them before use). */
+        /* +0x40 / +0x44 / +0x48: anim / state / scale-LUT pointers.  All
+         * three are loaded then indexed by (scale << 3) or (frame_idx << 4)
+         * inside FUN_0200fcb4 PC 0x0200fdac..0x0200fdd0.  Point all three
+         * at the 64 KiB zero-init AUX_ANIM_LUT region so the reads hit
+         * mapped memory and return zero (loop falls through to the next
+         * iteration / early-out instead of SIGSEGV).
+         * The "active flag" sentinel is left zero — the high-level reads
+         * are u16 lookups; zero is a valid "no-op" entry. */
+        e32[0x40/4] = AUX_ANIM_LUT_NDS;
+        e32[0x44/4] = AUX_ANIM_LUT_NDS;
+        e32[0x48/4] = AUX_ANIM_LUT_NDS;
+        e32[0x4c/4] = AUX_ANIM_LUT_NDS;
 
         /* +0x54, +0x56 scale (1.0 in 4.12 fixed = 0x1000) */
         *(volatile int16_t *)(uintptr_t)(INSTANCE_NDS_ADDR + 0x54) = 0x1000;

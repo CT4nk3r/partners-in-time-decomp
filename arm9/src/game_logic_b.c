@@ -73,7 +73,17 @@ u32 *FUN_0200d6c8(u32 *param_1, u8 param_2, u32 param_3, int param_4)
 // FUN_0200e0d8 @ 0x0200E0D8 (20 bytes) — Get resource type from header
 u8 FUN_0200e0d8(u16 *param_1)
 {
+#ifdef HOST_PORT
+    /* HOST_PORT: DAT_0200e0ec is a `static u32*` zero-init host global —
+     * the dat_init mechanism only seeds extern globals so this lookup
+     * table is NULL.  Until we wire a real init, return 0 (the most
+     * common resource type, "no special handling needed") so callers
+     * downstream don't NPE.  Also avoids the (u32) Win64 truncation. */
+    if (DAT_0200e0ec == NULL || param_1 == NULL) return 0;
+    return *(u8 *)((uintptr_t)DAT_0200e0ec + (((u32)*param_1 << 0x13) >> 0x1d));
+#else
     return *(u8 *)((u32)DAT_0200e0ec + (((u32)*param_1 << 0x13) >> 0x1d));
+#endif
 }
 
 // FUN_0200e5b4 @ 0x0200E5B4 (20 bytes) — Get entity base offset

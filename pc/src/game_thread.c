@@ -296,7 +296,16 @@ int game_thread_main(void* user) {
             snprintf(tag, sizeof(tag), "frame_%d", frame);
             shadow_buffer_snapshot(tag);
         }
+        {
+            extern void nds_oam_monitor_tick(int);
+            nds_oam_monitor_tick(frame);
+        }
         frame++;
+    }
+
+    {
+        extern void nds_oam_monitor_summary(void);
+        nds_oam_monitor_summary();
     }
 
     nds_log("[game] thread exiting after %d heartbeat frames\n", frame);

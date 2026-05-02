@@ -38,8 +38,10 @@ extern void FUN_02036cfc(void);
 extern u32  global_array_read(u16 *out);
 extern void FUN_0203420c(u32 *param_1, int param_2, u32 param_3);
 
-/* Alias to the renamed sin/cos array poller. */
-static inline int FUN_02036dbc(int p) { return (int)global_array_read((u16*)(uintptr_t)p); }
+/* Alias to the renamed sin/cos array poller.  HOST_PORT: takes uintptr_t
+ * so the caller can pass full 64-bit host stack pointers without losing
+ * the high bits. */
+static inline int FUN_02036dbc(uintptr_t p) { return (int)global_array_read((u16*)p); }
 
 /* Literal pool words (read from arm9.bin at the function tail). */
 #define LITERAL_0x020104c0 0x04000440u  /* GXFIFO            */
@@ -82,9 +84,12 @@ static u32 call_indirect_2arg(u32 fn_addr, u32 a0, u32 a1)
 
 void FUN_0200fcb4(int param_1, int param_2)
 {
-    /* Register file mirror. sp_v = sp (we keep an 184-byte local stack
-     * frame and bias sp_v to its top). */
-    u32 R[16] = {0};
+    /* Register file mirror.  HOST_PORT: must be uintptr_t so any sp-relative
+     * host stack address (sp_v + N) stored into R[N] survives without the
+     * high 32 bits of the host pointer being truncated.  All arithmetic
+     * ops in the body explicitly cast to u32/s32, so widening the array
+     * is safe. */
+    uintptr_t R[16] = {0};
     /* Local "stack" buffer mimicking the ARM stack frame.
      * push {r4..fp,lr} = 9*4 = 36 bytes, sub sp,#148 = 184 total.
      * We give it some headroom for safety. */
@@ -655,7 +660,7 @@ L_0200fed4:
 L_0200fed8:
     FCB4_CP(0x200FED8);
     /* 0x0200fed8: bl 0x2036dbc */
-    R[0] = (u32)FUN_02036dbc((int)R[0]);
+    R[0] = (uintptr_t)FUN_02036dbc((uintptr_t)R[0]);
 L_0200fedc:
     FCB4_CP(0x200FEDC);
     /* 0x0200fedc: cmp r0, #0 */
@@ -707,7 +712,7 @@ L_0200ff08:
 L_0200ff0c:
     FCB4_CP(0x200FF0C);
     /* 0x0200ff0c: bl 0x2036dbc */
-    R[0] = (u32)FUN_02036dbc((int)R[0]);
+    R[0] = (uintptr_t)FUN_02036dbc((uintptr_t)R[0]);
 L_0200ff10:
     FCB4_CP(0x200FF10);
     /* 0x0200ff10: cmp r0, #0 */
@@ -1519,7 +1524,7 @@ L_02010234:
 L_02010238:
     FCB4_CP(0x2010238);
     /* 0x02010238: bl 0x2036dbc */
-    R[0] = (u32)FUN_02036dbc((int)R[0]);
+    R[0] = (uintptr_t)FUN_02036dbc((uintptr_t)R[0]);
 L_0201023c:
     FCB4_CP(0x201023C);
     /* 0x0201023c: cmp r0, #0 */
@@ -1559,7 +1564,7 @@ L_0201025c:
 L_02010260:
     FCB4_CP(0x2010260);
     /* 0x02010260: bl 0x2036dbc */
-    R[0] = (u32)FUN_02036dbc((int)R[0]);
+    R[0] = (uintptr_t)FUN_02036dbc((uintptr_t)R[0]);
 L_02010264:
     FCB4_CP(0x2010264);
     /* 0x02010264: cmp r0, #0 */

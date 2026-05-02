@@ -332,9 +332,106 @@ void FUN_02077784(void *ptr, int type, int param)
  * works end-to-end.  Actual rendering will come in later phases.
  */
 
-/* NDS addresses for the next scene (distinct from title screen) */
-#define OV8_NEXT_TICK_ADDR    0x020739A0u  /* synthetic tick for next scene */
-#define OV8_NEXT_DTOR_ADDR    0x020739A4u  /* synthetic dtor for next scene */
+/* ==================================================================
+ * File Select Screen — HOST_PORT implementation
+ * ==================================================================
+ *
+ * After the title screen, the game shows a file select menu.
+ * We implement this as a tile-based UI using the existing BG renderer:
+ * - A simple 1-bit pixel font for text (A-Z, 0-9, symbols)
+ * - Menu items: File 1, File 2, File 3 (empty), New Game
+ * - Arrow key navigation, Enter/Z to select
+ * - Selecting "New Game" transitions to the next scene (gameplay intro)
+ */
+
+/* ---- Minimal 8x8 pixel font (uppercase + digits) ---- */
+/* Each glyph is 8 rows of 8 pixels, stored as 8 bytes (1 bit per pixel).
+ * We convert these to 4bpp tiles when writing to VRAM. */
+static const uint8_t s_font_glyphs[][8] = {
+    /* ' ' (0) */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
+    /* A   (1) */ {0x18,0x3C,0x66,0x66,0x7E,0x66,0x66,0x00},
+    /* B   (2) */ {0x7C,0x66,0x66,0x7C,0x66,0x66,0x7C,0x00},
+    /* C   (3) */ {0x3C,0x66,0x60,0x60,0x60,0x66,0x3C,0x00},
+    /* D   (4) */ {0x7C,0x66,0x66,0x66,0x66,0x66,0x7C,0x00},
+    /* E   (5) */ {0x7E,0x60,0x60,0x78,0x60,0x60,0x7E,0x00},
+    /* F   (6) */ {0x7E,0x60,0x60,0x78,0x60,0x60,0x60,0x00},
+    /* G   (7) */ {0x3C,0x66,0x60,0x6E,0x66,0x66,0x3E,0x00},
+    /* H   (8) */ {0x66,0x66,0x66,0x7E,0x66,0x66,0x66,0x00},
+    /* I   (9) */ {0x3C,0x18,0x18,0x18,0x18,0x18,0x3C,0x00},
+    /* J  (10) */ {0x1E,0x0C,0x0C,0x0C,0x6C,0x6C,0x38,0x00},
+    /* K  (11) */ {0x66,0x6C,0x78,0x70,0x78,0x6C,0x66,0x00},
+    /* L  (12) */ {0x60,0x60,0x60,0x60,0x60,0x60,0x7E,0x00},
+    /* M  (13) */ {0x63,0x77,0x7F,0x6B,0x63,0x63,0x63,0x00},
+    /* N  (14) */ {0x66,0x76,0x7E,0x7E,0x6E,0x66,0x66,0x00},
+    /* O  (15) */ {0x3C,0x66,0x66,0x66,0x66,0x66,0x3C,0x00},
+    /* P  (16) */ {0x7C,0x66,0x66,0x7C,0x60,0x60,0x60,0x00},
+    /* Q  (17) */ {0x3C,0x66,0x66,0x66,0x6A,0x6C,0x36,0x00},
+    /* R  (18) */ {0x7C,0x66,0x66,0x7C,0x6C,0x66,0x66,0x00},
+    /* S  (19) */ {0x3C,0x66,0x60,0x3C,0x06,0x66,0x3C,0x00},
+    /* T  (20) */ {0x7E,0x18,0x18,0x18,0x18,0x18,0x18,0x00},
+    /* U  (21) */ {0x66,0x66,0x66,0x66,0x66,0x66,0x3C,0x00},
+    /* V  (22) */ {0x66,0x66,0x66,0x66,0x66,0x3C,0x18,0x00},
+    /* W  (23) */ {0x63,0x63,0x63,0x6B,0x7F,0x77,0x63,0x00},
+    /* X  (24) */ {0x66,0x66,0x3C,0x18,0x3C,0x66,0x66,0x00},
+    /* Y  (25) */ {0x66,0x66,0x66,0x3C,0x18,0x18,0x18,0x00},
+    /* Z  (26) */ {0x7E,0x06,0x0C,0x18,0x30,0x60,0x7E,0x00},
+    /* 0  (27) */ {0x3C,0x66,0x6E,0x7E,0x76,0x66,0x3C,0x00},
+    /* 1  (28) */ {0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00},
+    /* 2  (29) */ {0x3C,0x66,0x06,0x1C,0x30,0x60,0x7E,0x00},
+    /* 3  (30) */ {0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0x00},
+    /* :  (31) */ {0x00,0x18,0x18,0x00,0x18,0x18,0x00,0x00},
+    /* -  (32) */ {0x00,0x00,0x00,0x7E,0x00,0x00,0x00,0x00},
+    /* >  (33) */ {0x30,0x18,0x0C,0x06,0x0C,0x18,0x30,0x00},
+    /* (  (34) */ {0x0C,0x18,0x30,0x30,0x30,0x18,0x0C,0x00},
+    /* )  (35) */ {0x30,0x18,0x0C,0x0C,0x0C,0x18,0x30,0x00},
+};
+#define FONT_GLYPH_COUNT (sizeof(s_font_glyphs)/sizeof(s_font_glyphs[0]))
+
+/* Map ASCII char to glyph index */
+static int char_to_glyph(char c) {
+    if (c >= 'A' && c <= 'Z') return 1 + (c - 'A');
+    if (c >= 'a' && c <= 'z') return 1 + (c - 'a');
+    if (c >= '0' && c <= '9') return 27 + (c - '0');
+    if (c == ':') return 31;
+    if (c == '-') return 32;
+    if (c == '>') return 33;
+    if (c == '(') return 34;
+    if (c == ')') return 35;
+    return 0;  /* space */
+}
+
+/* Write all font glyphs as 4bpp tiles to VRAM */
+static void write_font_tiles(uint8_t *vram_tiles) {
+    for (u32 g = 0; g < FONT_GLYPH_COUNT; g++) {
+        uint8_t *tile = vram_tiles + g * 32;  /* 4bpp = 32 bytes per tile */
+        for (int row = 0; row < 8; row++) {
+            uint8_t bits = s_font_glyphs[g][row];
+            for (int col = 0; col < 8; col += 2) {
+                uint8_t lo = (bits >> (7 - col)) & 1 ? 2 : 0;
+                uint8_t hi = (bits >> (7 - col - 1)) & 1 ? 2 : 0;
+                tile[row * 4 + col / 2] = lo | (hi << 4);
+            }
+        }
+    }
+}
+
+/* Write a string to the tilemap at (tx, ty) in tile coordinates */
+static void write_text(uint16_t *tilemap, int tx, int ty,
+                       const char *text, uint16_t pal_bank)
+{
+    while (*text) {
+        if (tx < 32 && ty < 32) {
+            int g = char_to_glyph(*text);
+            tilemap[ty * 32 + tx] = (uint16_t)(g | (pal_bank << 12));
+        }
+        tx++;
+        text++;
+    }
+}
+
+/* File select state */
+static int s_filesel_cursor = 3;  /* 0-2=files, 3=new game */
+#define FILESEL_ITEMS 4
 
 static void host_next_scene_tick(uintptr_t node_addr, uintptr_t anchor_addr)
 {
@@ -350,17 +447,61 @@ static void host_next_scene_tick(uintptr_t node_addr, uintptr_t anchor_addr)
         if (factor > 16) factor = 16;
         title_reg_write16(REG_MASTER_BRIGHT, (u16)(0x4000u | (factor & 0x1F)));
     } else if (next_frame == TITLE_FADE_DURATION + 1) {
-        /* Fully visible — clear brightness override */
         title_reg_write16(REG_MASTER_BRIGHT, 0);
+    }
+
+    /* Read input (same mechanism as title screen) */
+    u16 keyinput = *(volatile u16 *)(uintptr_t)NDS_REG_KEYINPUT;
+    static u16 prev_keyinput = 0xFFFF;
+    u16 pressed = prev_keyinput & ~keyinput;  /* newly pressed (active-low) */
+    prev_keyinput = keyinput;
+
+    #define KEY_UP    (1u << 6)
+    #define KEY_DOWN  (1u << 7)
+
+    if (pressed & KEY_UP) {
+        s_filesel_cursor--;
+        if (s_filesel_cursor < 0) s_filesel_cursor = FILESEL_ITEMS - 1;
+    }
+    if (pressed & KEY_DOWN) {
+        s_filesel_cursor++;
+        if (s_filesel_cursor >= FILESEL_ITEMS) s_filesel_cursor = 0;
+    }
+
+    /* Confirm selection */
+    if ((pressed & KEY_START) || (pressed & KEY_A)) {
+        fprintf(stderr,
+                "[file_select] selected item %d%s\n",
+                s_filesel_cursor,
+                s_filesel_cursor == 3 ? " (NEW GAME)" : " (empty file)");
+        fflush(stderr);
+        /* TODO: transition to gameplay intro for New Game */
+    }
+
+    /* Update the cursor position in the tilemap every frame */
+    void *a = nds_vram_bank('A');
+    if (a) {
+        uint16_t *map = (uint16_t *)((uint8_t *)a + 0x8000);
+        /* menu rows: File 1 @ row 8, File 2 @ row 11, File 3 @ row 14, New Game @ row 17 */
+        int menu_rows[] = {8, 11, 14, 17};
+        for (int i = 0; i < FILESEL_ITEMS; i++) {
+            int row = menu_rows[i];
+            /* Column 4 is the cursor column */
+            if (i == s_filesel_cursor) {
+                /* Blink the cursor arrow */
+                int show = (next_frame / 15) & 1;
+                map[row * 32 + 4] = show ? (uint16_t)(char_to_glyph('>') | (1 << 12)) : 0;
+            } else {
+                map[row * 32 + 4] = 0;  /* blank */
+            }
+        }
     }
 
     static int logged = 0;
     if (!logged) {
         logged = 1;
         fprintf(stderr,
-                "[next_scene] first tick at node=0x%08X — "
-                "file select placeholder active\n",
-                (unsigned)(u32)node_addr);
+                "[file_select] active - use Up/Down arrows + Enter to select\n");
         fflush(stderr);
     }
 }
@@ -368,9 +509,13 @@ static void host_next_scene_tick(uintptr_t node_addr, uintptr_t anchor_addr)
 static void host_next_scene_dtor(uintptr_t node_addr, uintptr_t unused)
 {
     (void)unused;
-    fprintf(stderr, "[next_scene_dtor] node=0x%08X destroyed\n",
+    fprintf(stderr, "[file_select_dtor] node=0x%08X destroyed\n",
             (unsigned)(u32)node_addr);
 }
+
+/* NDS addresses for the file select scene (distinct from title screen) */
+#define OV8_NEXT_TICK_ADDR    0x020739A0u
+#define OV8_NEXT_DTOR_ADDR    0x020739A4u
 
 void FUN_020739ec(void *ptr, int type, int param)
 {
@@ -383,49 +528,68 @@ void FUN_020739ec(void *ptr, int type, int param)
         return;
     }
 
-    /* Clear title screen graphics from VRAM so the screen doesn't
-     * show a frozen copy of the title after the fade. */
+    /* Clear title screen graphics from VRAM */
     void *a = nds_vram_bank('A');
     void *b = nds_vram_bank('B');
     if (a) memset(a, 0, nds_vram_bank_size('A'));
     if (b) memset(b, 0, nds_vram_bank_size('B'));
 
-    /* Paint a simple dark-blue BG so the screen isn't pure black.
-     * We'll write a single 8x8 tile filled with palette index 1,
-     * set palette entry 1 to dark blue (BGR555: 0x7C00 = blue 31),
-     * and fill the tilemap with that tile. */
-    if (a) {
-        uint8_t *tiles = (uint8_t *)a;
-        /* 4bpp tile: 32 bytes, each byte = 2 pixels.
-         * Fill with 0x11 = palette index 1 for both pixels. */
-        memset(tiles, 0x11, 32);
-
-        /* Tilemap at bank A offset 0x8000 (screen base 16).
-         * 32x32 entries, each 2 bytes: tile=0, pal_bank=0 */
-        uint16_t *map = (uint16_t *)(tiles + 0x8000);
-        for (int i = 0; i < 32 * 32; i++)
-            map[i] = 0x0000;  /* tile 0, palette bank 0 */
-    }
-
-    /* Set palette entry 1 to a dark blue-purple (M&L style) */
+    /* Set up palette for the file select screen */
     void *e = nds_vram_bank('E');
     if (e) {
         uint16_t *pal = (uint16_t *)e;
-        pal[0] = 0x0000;  /* transparent / backdrop = black */
-        pal[1] = 0x5000;  /* dark blue (R=0, G=0, B=10) */
+        /* Palette bank 0: menu text */
+        pal[0] = 0x0000;   /* transparent / backdrop */
+        pal[1] = 0x4C08;   /* dark blue-purple background */
+        pal[2] = 0x7FFF;   /* white text */
+        /* Palette bank 1: highlighted/cursor (yellow) */
+        pal[16] = 0x0000;
+        pal[17] = 0x4C08;
+        pal[18] = 0x03FF;  /* yellow (R=31, G=31, B=0 in BGR555) */
     }
 
-    /* Configure BG0 to show our placeholder:
-     * BG0CNT: char_base=0, screen_base=16, 4bpp, 32x32, priority 0 */
+    if (a) {
+        uint8_t *tiles = (uint8_t *)a;
+
+        /* Write font glyph tiles starting at tile 0 */
+        write_font_tiles(tiles);
+
+        /* Also write a solid-fill tile for the background (after font glyphs).
+         * Tile index = FONT_GLYPH_COUNT, filled with palette index 1. */
+        uint8_t *bg_tile = tiles + (u32)FONT_GLYPH_COUNT * 32;
+        memset(bg_tile, 0x11, 32);
+
+        /* Write tilemap at bank A offset 0x8000 (screen base 16) */
+        uint16_t *map = (uint16_t *)(tiles + 0x8000);
+
+        /* Fill entire map with background tile */
+        for (int i = 0; i < 32 * 32; i++)
+            map[i] = (uint16_t)FONT_GLYPH_COUNT;
+
+        /* Draw the file select menu text */
+        write_text(map, 6, 2, "MARIO AND LUIGI", 0);
+        write_text(map, 5, 3, "PARTNERS IN TIME", 0);
+
+        write_text(map, 7, 5, "FILE  SELECT", 0);
+
+        write_text(map, 6, 8,  "FILE 1 - EMPTY", 0);
+        write_text(map, 6, 11, "FILE 2 - EMPTY", 0);
+        write_text(map, 6, 14, "FILE 3 - EMPTY", 0);
+        write_text(map, 6, 17, "NEW GAME", 1);  /* highlighted */
+
+        /* Draw initial cursor arrow */
+        map[17 * 32 + 4] = (uint16_t)(char_to_glyph('>') | (1 << 12));
+    }
+
+    /* Configure BG0: char_base=0, screen_base=16, 4bpp, 32x32, priority 0 */
     *(volatile uint16_t *)(uintptr_t)0x04000008u =
         (0 << 2) | (16 << 8) | (0 << 7) | (0 << 14) | 0;
-    /* Reset scroll */
     *(volatile uint16_t *)(uintptr_t)0x04000010u = 0;
     *(volatile uint16_t *)(uintptr_t)0x04000012u = 0;
-    /* Disable BG1, BG2, BG3 — only BG0 active */
+    /* BG0 only */
     uint32_t dispcnt = *(volatile uint32_t *)(uintptr_t)0x04000000u;
-    dispcnt &= ~(0x0F00u);  /* clear BG0-3 enable bits */
-    dispcnt |= 0x0100u;     /* enable BG0 only */
+    dispcnt &= ~(0x0F00u);
+    dispcnt |= 0x0100u;
     *(volatile uint32_t *)(uintptr_t)0x04000000u = dispcnt;
 
     u32 obj_nds = nds_bump_alloc(0x30);

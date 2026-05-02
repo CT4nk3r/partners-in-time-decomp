@@ -1,0 +1,20 @@
+Mario & Luigi: Partners in Time - PC port (scaffold)
+Decompilation: 1275/1275 ARM9 functions
+Press ESC or close window to quit.
+[pack] Loaded 104 entries from assets/mlpit.assets
+[boot] Asset pack loaded ΓÇö no ROM needed.
+[hw] IO shadow mapped at NDS address 0x04000000 (raw writes work)
+[boot_hook] Paired screen TOP: FAT[0x45] tiles=sub[181] map=sub[194] pal=sub[177] (512B, 4bpp)
+[boot_hook] Paired screen SUB: FAT[0x45] tiles=sub[181] map=sub[194] pal=sub[177] (512B, 4bpp)
+[vram-watch] IO   addr=04000008 len=2 count=1 origin=reg_w16
+[game] thread started
+[game] initializing host game state...
+[HOST-DATA] installed: slot=00007ff76dbd8398 alloc=1536 cfg_off=0x500 cfg=00007ff76dbd7fc0 flag=00007ff76dbd7fe0
+[game] host game state initialized
+[game] attempting game_start() (protected)...
+[STATE] host_engage: sGameState->current = 00007ff76dbd83c0 (substate=1536 bytes)
+[STATE] frame=64 sGameState->current = 00007ff76dbd83c0 (was 0000000000000001)
+[vram-watch] IO   addr=04000000 len=4 count=1001 origin=reg_w32
+[vram-watch] IO   addr=04000000 len=4 count=2001 origin=reg_w32
+[vram-watch] IO   addr=04000000 len=4 count=3001 origin=reg_w32
+[exit] reached frame 300 (MLPIT_EXIT_AT_FRAME)

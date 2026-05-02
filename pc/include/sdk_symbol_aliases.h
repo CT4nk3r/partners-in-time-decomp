@@ -59,4 +59,40 @@
  * full bodies in arm9/src/sdk_init_d.c.  Aliasing them caused a double
  * definition with link_stubs.c.  Aliases removed. */
 
+/* === OBJ engine symbolication (Task 5, staticinit-scenefactory) ============
+ * The SDK names OBJ_LoadChar4 / OBJ_LoadOam have 0 callsites — the game
+ * uses anonymous FUN_<addr> entry points instead.  Identification was by
+ * ripgrep for OBJ-VRAM destination addresses (0x06400000, 0x06600000) —
+ * the only writers are `param_2 + 0x6400000` (top OBJ char) /
+ * `param_2 + 0x6600000` (sub OBJ char).  These are the engine.  Keep
+ * the FUN_ names as the canonical decomp identifier; add comment-tagged
+ * gx_obj_* shorthand for human readability when the SDK label is
+ * confirmed.  No runtime behaviour changes from these aliases — the
+ * impls already live in arm9/src/hw_gx.c and arm9/src/game_engine_a.c.
+ * ========================================================================= */
+/* Top-engine OBJ char tile loader.  sig: (src, dst_off_in_obj, len). */
+#define gx_obj_load_char_top   FUN_020385b4
+/* Sub-engine OBJ char tile loader. sig: (src, dst_off_in_obj, len). */
+#define gx_obj_load_char_sub   FUN_02038554
+
+/* OBJ-side high-level blit/tile-submit helpers in game_engine_a.c.  All
+ * dereference state structs and ultimately call FUN_0203b854 (raw OBJ
+ * VRAM copy).  No straight SDK mapping — keep FUN_ names. */
+/* FUN_02020560 — 760-byte OBJ tile dispatcher (3+ inner loops)        */
+/* FUN_02020990 — 284-byte OBJ tile blit                               */
+/* FUN_02021298 — 736-byte OBJ frame-step                              */
+/* FUN_02021588 — 348-byte OBJ submit (writes to 0x6400000/0x6600000)  */
+/* FUN_02021f7c — wrapper: FUN_02021588 + FUN_02021298 (OBJ tile B)    */
+/* FUN_02021fd4 — wrapper: FUN_02021588 + FUN_02021298 (OBJ tile A)    */
+
+/* OAM (0x07000000-0x070003FF): NO direct writers found in any
+ * decompiled C (arm9/src or config/decompiled).  All OAM updates
+ * therefore route through one of:
+ *   (a) NNS DMA function whose target address is computed at runtime
+ *       (caught by the IO/VRAM watcher, not by static grep), or
+ *   (b) a function pointer dereferenced via a DAT_ slot whose writer
+ *       lives in an undecompiled overlay.
+ * Documenting this for the next session.  No alias added.
+ */
+
 #endif /* SDK_SYMBOL_ALIASES_H */

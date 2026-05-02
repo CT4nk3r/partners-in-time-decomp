@@ -8,9 +8,10 @@
  * the program links and runs.
  *
  * REGENERATE WITH: python tools/scripts/gen_host_stubs.py
- * TRACE MODE: OFF  (--trace adds first-call stderr logging)
+ * TRACE MODE: ON  (--trace adds first-call stderr logging)
  */
 #include <stdint.h>
+#include <stdio.h>
 
 /* Suppress warnings about unused/empty stubs */
 #pragma GCC diagnostic push
@@ -1286,339 +1287,339 @@ uint32_t _DAT_080000ac;
 uint32_t _DAT_080000be;
 
 /* === FUN_* stubs (318 symbols) === */
-int FUN_02004228() { return 0; }
-int FUN_0200445a() { return 0; }
-int FUN_02005380() { return 0; }
-int FUN_020064d0() { return 0; }
-int FUN_02007178() { return 0; }
-int FUN_02008534() { return 0; }
-int FUN_0200a2c4() { return 0; }
-int FUN_0200b278() { return 0; }
-int FUN_0200c334() { return 0; }
-int FUN_0200c3a0() { return 0; }
-int FUN_0200e640() { return 0; }
-int FUN_0200eb10() { return 0; }
-int FUN_02010bfc() { return 0; }
-int FUN_02017dd0() { return 0; }
-int FUN_02018194() { return 0; }
-int FUN_02018bbc() { return 0; }
-int FUN_020197e4() { return 0; }
-int FUN_0201a698() { return 0; }
-int FUN_0201dcd8() { return 0; }
-int FUN_020200f4() { return 0; }
-int FUN_02021c34() { return 0; }
-int FUN_02021c64() { return 0; }
-int FUN_02022048() { return 0; }
-int FUN_02022200() { return 0; }
-int FUN_020222d8() { return 0; }
-int FUN_020222f4() { return 0; }
-int FUN_020223e8() { return 0; }
-int FUN_02022564() { return 0; }
-int FUN_0202277c() { return 0; }
-int FUN_0202281c() { return 0; }
-int FUN_02022868() { return 0; }
-int FUN_02023a78() { return 0; }
-int FUN_02025810() { return 0; }
-int FUN_02025f20() { return 0; }
-int FUN_0202605c() { return 0; }
-int FUN_0202609c() { return 0; }
-int FUN_0202626c() { return 0; }
-int FUN_02026388() { return 0; }
-int FUN_02026868() { return 0; }
-int FUN_02027798() { return 0; }
-int FUN_02027bb8() { return 0; }
-int FUN_02027cf4() { return 0; }
-int FUN_02027e5c() { return 0; }
-int FUN_02028028() { return 0; }
-int FUN_0202807c() { return 0; }
-int FUN_02028128() { return 0; }
-int FUN_02028440() { return 0; }
-int FUN_02028710() { return 0; }
-int FUN_02028a30() { return 0; }
-int FUN_02028b50() { return 0; }
-int FUN_02028c20() { return 0; }
-int FUN_0202916c() { return 0; }
-int FUN_0202958c() { return 0; }
-int FUN_02029964() { return 0; }
-int FUN_02029ab8() { return 0; }
-int FUN_02029bf8() { return 0; }
-int FUN_02029c1c() { return 0; }
-int FUN_02029e20() { return 0; }
-int FUN_02029ffc() { return 0; }
-int FUN_0202a034() { return 0; }
-int FUN_0202a068() { return 0; }
-int FUN_0202a20c() { return 0; }
-int FUN_0202a5a8() { return 0; }
-int FUN_0202a74c() { return 0; }
-int FUN_0202acdc() { return 0; }
-int FUN_0202b428() { return 0; }
-int FUN_0202b944() { return 0; }
-int FUN_0202b9b8() { return 0; }
-int FUN_0202ba28() { return 0; }
-int FUN_0202bacc() { return 0; }
-int FUN_0202bb54() { return 0; }
-int FUN_0202bd98() { return 0; }
-int FUN_0202cba8() { return 0; }
-int FUN_0202cc10() { return 0; }
-int FUN_0202cc94() { return 0; }
-int FUN_0202cd68() { return 0; }
-int FUN_0202ce44() { return 0; }
-int FUN_0202cec0() { return 0; }
-int FUN_0202cf40() { return 0; }
-int FUN_0202cfbc() { return 0; }
-int FUN_0202d964() { return 0; }
-int FUN_0202d9d0() { return 0; }
-int FUN_0202da48() { return 0; }
-int FUN_0202dce4() { return 0; }
-int FUN_0202ebc8() { return 0; }
-int FUN_0202f73c() { return 0; }
-int FUN_020304bc() { return 0; }
-int FUN_0203056c() { return 0; }
-int FUN_02030730() { return 0; }
-int FUN_02030790() { return 0; }
-int FUN_02030870() { return 0; }
-int FUN_0203088c() { return 0; }
-int FUN_020308d4() { return 0; }
-int FUN_02030958() { return 0; }
-int FUN_02030b38() { return 0; }
-int FUN_02030b9c() { return 0; }
-int FUN_02030c64() { return 0; }
-int FUN_02031058() { return 0; }
-int FUN_02031064() { return 0; }
-int FUN_020311a8() { return 0; }
-int FUN_02031218() { return 0; }
-int FUN_020312d8() { return 0; }
-int FUN_020312f4() { return 0; }
-int FUN_02031f20() { return 0; }
-int FUN_02031f50() { return 0; }
-int FUN_02032188() { return 0; }
-int FUN_02032220() { return 0; }
-int FUN_02033708() { return 0; }
-int FUN_02033f8c() { return 0; }
-int FUN_02034084() { return 0; }
-int FUN_020340b8() { return 0; }
-int FUN_02034150() { return 0; }
-int FUN_02034168() { return 0; }
-int FUN_02034180() { return 0; }
-int FUN_020341bc() { return 0; }
-int FUN_020341ec() { return 0; }
-int FUN_02034224() { return 0; }
-int FUN_02034274() { return 0; }
-int FUN_02035110() { return 0; }
-int FUN_020369c4() { return 0; }
-int FUN_02036c60() { return 0; }
-int FUN_02036ca0() { return 0; }
-int FUN_02037acc() { return 0; }
-int FUN_02037b18() { return 0; }
-int FUN_02037b8c() { return 0; }
-int FUN_02037cec() { return 0; }
-int FUN_02037d50() { return 0; }
-int FUN_02037dd0() { return 0; }
-int FUN_02037ed4() { return 0; }
-int FUN_02037f3c() { return 0; }
-int FUN_02037fa4() { return 0; }
-int FUN_0203800c() { return 0; }
-int FUN_02038074() { return 0; }
-int FUN_020380dc() { return 0; }
-int FUN_02038144() { return 0; }
-int FUN_020381ac() { return 0; }
-int FUN_02038214() { return 0; }
-int FUN_0203827c() { return 0; }
-int FUN_020382e4() { return 0; }
-int FUN_0203834c() { return 0; }
-int FUN_020383b4() { return 0; }
-int FUN_0203841c() { return 0; }
-int FUN_02038484() { return 0; }
-int FUN_020384ec() { return 0; }
-int FUN_02038614() { return 0; }
-int FUN_0203867c() { return 0; }
-int FUN_02038c4c() { return 0; }
-int FUN_02038c80() { return 0; }
-int FUN_02038cc8() { return 0; }
-int FUN_02038d00() { return 0; }
-int FUN_02038d34() { return 0; }
-int FUN_02038d80() { return 0; }
-int FUN_02038e7c() { return 0; }
-int FUN_02038f14() { return 0; }
-int FUN_02038f4c() { return 0; }
-int FUN_02038f68() { return 0; }
-int FUN_02038fd4() { return 0; }
-int FUN_02038ff4() { return 0; }
-int FUN_020392a4() { return 0; }
-int FUN_020392d8() { return 0; }
-int FUN_02039474() { return 0; }
-int FUN_02039944() { return 0; }
-int FUN_020399d8() { return 0; }
-int FUN_02039a24() { return 0; }
-int FUN_02039be8() { return 0; }
-int FUN_02039bf0() { return 0; }
-int FUN_02039c9c() { return 0; }
-int FUN_02039d64() { return 0; }
-int FUN_02039d8c() { return 0; }
-int FUN_02039db0() { return 0; }
-int FUN_02039f94() { return 0; }
-int FUN_02039fe0() { return 0; }
-int FUN_0203a014() { return 0; }
-int FUN_0203a030() { return 0; }
-int FUN_0203a04c() { return 0; }
-int FUN_0203a070() { return 0; }
-int FUN_0203a088() { return 0; }
-int FUN_0203a0f0() { return 0; }
-int FUN_0203a104() { return 0; }
-int FUN_0203a4d8() { return 0; }
-int FUN_0203a4ec() { return 0; }
-int FUN_0203a4fc() { return 0; }
-int FUN_0203a50c() { return 0; }
-int FUN_0203a514() { return 0; }
-int FUN_0203a51c() { return 0; }
-int FUN_0203a738() { return 0; }
-int FUN_0203aa50() { return 0; }
-int FUN_0203aae8() { return 0; }
-int FUN_0203aca0() { return 0; }
-int FUN_0203acb0() { return 0; }
-int FUN_0203acc0() { return 0; }
-int FUN_0203ae24() { return 0; }
-int FUN_0203ae38() { return 0; }
-int FUN_0203ae4c() { return 0; }
-int FUN_0203ae64() { return 0; }
-int FUN_0203ae78() { return 0; }
-int FUN_0203ae90() { return 0; }
-int FUN_0203ae9c() { return 0; }
-int FUN_0203aea8() { return 0; }
-int FUN_0203aeb4() { return 0; }
-int FUN_0203aec8() { return 0; }
-int FUN_0203b0d0() { return 0; }
-int FUN_0203b160() { return 0; }
-int FUN_0203b5b4() { return 0; }
-int FUN_0203b7c0() { return 0; }
-int FUN_0203b7dc() { return 0; }
-int FUN_0203b7f0() { return 0; }
-int FUN_0203b808() { return 0; }
-int FUN_0203b854() { return 0; }
-int FUN_0203b8c4() { return 0; }
-int FUN_0203b914() { return 0; }
-int FUN_0203b9a8() { return 0; }
-int FUN_0203bad8() { return 0; }
-int FUN_0203bd84() { return 0; }
-int FUN_0203be94() { return 0; }
-int FUN_0203bec8() { return 0; }
-int FUN_0203bef4() { return 0; }
-int FUN_0203bf20() { return 0; }
-int FUN_0203bf4c() { return 0; }
-int FUN_0203bfa4() { return 0; }
-int FUN_0203bfd0() { return 0; }
-int FUN_0203c004() { return 0; }
-int FUN_0203c030() { return 0; }
-int FUN_0203c05c() { return 0; }
-int FUN_0203c0a0() { return 0; }
-int FUN_0203c0ec() { return 0; }
-int FUN_0203c15c() { return 0; }
-int FUN_0203c190() { return 0; }
-int FUN_0203c1c4() { return 0; }
-int FUN_0203c1ec() { return 0; }
-int FUN_0203c218() { return 0; }
-int FUN_0203c230() { return 0; }
-int FUN_0203c248() { return 0; }
-int FUN_0203c274() { return 0; }
-int FUN_0203c2a8() { return 0; }
-int FUN_0203c2fc() { return 0; }
-int FUN_0203c4b8() { return 0; }
-int FUN_0203c558() { return 0; }
-int FUN_0203c5ac() { return 0; }
-int FUN_0203c5ec() { return 0; }
-int FUN_0203c67c() { return 0; }
-int FUN_0203c920() { return 0; }
-int FUN_0203cd00() { return 0; }
-int FUN_0203cd34() { return 0; }
-int FUN_0203cda8() { return 0; }
-int FUN_0203cdf0() { return 0; }
-int FUN_0203ce28() { return 0; }
-int FUN_0203ce30() { return 0; }
-int FUN_0203d008() { return 0; }
-int FUN_0203d028() { return 0; }
-int FUN_0203d220() { return 0; }
-int FUN_0203d26c() { return 0; }
-int FUN_0203d30c() { return 0; }
-int FUN_0203e328() { return 0; }
-int FUN_0203ed60() { return 0; }
-int FUN_0203edcc() { return 0; }
-int FUN_0203ef08() { return 0; }
-int FUN_0203ef50() { return 0; }
-int FUN_0203efa0() { return 0; }
-int FUN_0203f2a0() { return 0; }
-int FUN_0203f2c8() { return 0; }
-int FUN_0203f378() { return 0; }
-int FUN_0203f398() { return 0; }
-int FUN_0203f740() { return 0; }
-int FUN_0203f75c() { return 0; }
-int FUN_0203f864() { return 0; }
-int FUN_0203faa8() { return 0; }
-int FUN_0203fb40() { return 0; }
-int FUN_0203fd64() { return 0; }
-int FUN_0203fd8c() { return 0; }
-int FUN_0203fdd0() { return 0; }
-int FUN_020400c4() { return 0; }
-int FUN_020403c4() { return 0; }
-int FUN_020404b0() { return 0; }
-int FUN_0204056c() { return 0; }
-int FUN_020412ac() { return 0; }
-int FUN_020412c4() { return 0; }
-int FUN_020412dc() { return 0; }
-int FUN_020412f4() { return 0; }
-int FUN_020413e4() { return 0; }
-int FUN_0204180c() { return 0; }
-int FUN_02041c60() { return 0; }
-int FUN_02041d80() { return 0; }
-int FUN_02041de8() { return 0; }
-int FUN_020425a0() { return 0; }
-int FUN_020425b0() { return 0; }
-int FUN_020425e0() { return 0; }
-int FUN_02042600() { return 0; }
-int FUN_020426ac() { return 0; }
-int FUN_020426e8() { return 0; }
-int FUN_0204280c() { return 0; }
-int FUN_020428b0() { return 0; }
-int FUN_02042d4c() { return 0; }
-int FUN_02042e1c() { return 0; }
-int FUN_02042eec() { return 0; }
-int FUN_020432a8() { return 0; }
-int FUN_0204333c() { return 0; }
-int FUN_02043bf4() { return 0; }
-int FUN_02043ed8() { return 0; }
-int FUN_02043f50() { return 0; }
-int FUN_02043f70() { return 0; }
-int FUN_020441e8() { return 0; }
-int FUN_02044644() { return 0; }
-int FUN_020462a8() { return 0; }
-int FUN_02046300() { return 0; }
-int FUN_020464b0() { return 0; }
-int FUN_020466bc() { return 0; }
-int FUN_02048880() { return 0; }
-int FUN_02048c6c() { return 0; }
-int FUN_02048ce0() { return 0; }
-int FUN_0206c6cc() { return 0; }
-int FUN_0206f080() { return 0; }
-int FUN_0206f600() { return 0; }
-int FUN_02070a94() { return 0; }
-int FUN_0207271c() { return 0; }
-int FUN_020739ec() { return 0; }
-int FUN_02077784() { return 0; }
-int FUN_020787b4() { return 0; }
+int FUN_02004228() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02004228\n");} return 0; }
+int FUN_0200445a() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0200445a\n");} return 0; }
+int FUN_02005380() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02005380\n");} return 0; }
+int FUN_020064d0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020064d0\n");} return 0; }
+int FUN_02007178() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02007178\n");} return 0; }
+int FUN_02008534() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02008534\n");} return 0; }
+int FUN_0200a2c4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0200a2c4\n");} return 0; }
+int FUN_0200b278() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0200b278\n");} return 0; }
+int FUN_0200c334() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0200c334\n");} return 0; }
+int FUN_0200c3a0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0200c3a0\n");} return 0; }
+int FUN_0200e640() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0200e640\n");} return 0; }
+int FUN_0200eb10() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0200eb10\n");} return 0; }
+int FUN_02010bfc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02010bfc\n");} return 0; }
+int FUN_02017dd0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02017dd0\n");} return 0; }
+int FUN_02018194() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02018194\n");} return 0; }
+int FUN_02018bbc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02018bbc\n");} return 0; }
+int FUN_020197e4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020197e4\n");} return 0; }
+int FUN_0201a698() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0201a698\n");} return 0; }
+int FUN_0201dcd8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0201dcd8\n");} return 0; }
+int FUN_020200f4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020200f4\n");} return 0; }
+int FUN_02021c34() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02021c34\n");} return 0; }
+int FUN_02021c64() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02021c64\n");} return 0; }
+int FUN_02022048() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02022048\n");} return 0; }
+int FUN_02022200() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02022200\n");} return 0; }
+int FUN_020222d8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020222d8\n");} return 0; }
+int FUN_020222f4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020222f4\n");} return 0; }
+int FUN_020223e8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020223e8\n");} return 0; }
+int FUN_02022564() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02022564\n");} return 0; }
+int FUN_0202277c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202277c\n");} return 0; }
+int FUN_0202281c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202281c\n");} return 0; }
+int FUN_02022868() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02022868\n");} return 0; }
+int FUN_02023a78() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02023a78\n");} return 0; }
+int FUN_02025810() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02025810\n");} return 0; }
+int FUN_02025f20() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02025f20\n");} return 0; }
+int FUN_0202605c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202605c\n");} return 0; }
+int FUN_0202609c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202609c\n");} return 0; }
+int FUN_0202626c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202626c\n");} return 0; }
+int FUN_02026388() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02026388\n");} return 0; }
+int FUN_02026868() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02026868\n");} return 0; }
+int FUN_02027798() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02027798\n");} return 0; }
+int FUN_02027bb8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02027bb8\n");} return 0; }
+int FUN_02027cf4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02027cf4\n");} return 0; }
+int FUN_02027e5c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02027e5c\n");} return 0; }
+int FUN_02028028() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02028028\n");} return 0; }
+int FUN_0202807c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202807c\n");} return 0; }
+int FUN_02028128() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02028128\n");} return 0; }
+int FUN_02028440() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02028440\n");} return 0; }
+int FUN_02028710() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02028710\n");} return 0; }
+int FUN_02028a30() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02028a30\n");} return 0; }
+int FUN_02028b50() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02028b50\n");} return 0; }
+int FUN_02028c20() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02028c20\n");} return 0; }
+int FUN_0202916c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202916c\n");} return 0; }
+int FUN_0202958c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202958c\n");} return 0; }
+int FUN_02029964() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029964\n");} return 0; }
+int FUN_02029ab8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029ab8\n");} return 0; }
+int FUN_02029bf8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029bf8\n");} return 0; }
+int FUN_02029c1c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029c1c\n");} return 0; }
+int FUN_02029e20() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029e20\n");} return 0; }
+int FUN_02029ffc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029ffc\n");} return 0; }
+int FUN_0202a034() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202a034\n");} return 0; }
+int FUN_0202a068() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202a068\n");} return 0; }
+int FUN_0202a20c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202a20c\n");} return 0; }
+int FUN_0202a5a8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202a5a8\n");} return 0; }
+int FUN_0202a74c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202a74c\n");} return 0; }
+int FUN_0202acdc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202acdc\n");} return 0; }
+int FUN_0202b428() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202b428\n");} return 0; }
+int FUN_0202b944() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202b944\n");} return 0; }
+int FUN_0202b9b8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202b9b8\n");} return 0; }
+int FUN_0202ba28() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202ba28\n");} return 0; }
+int FUN_0202bacc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202bacc\n");} return 0; }
+int FUN_0202bb54() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202bb54\n");} return 0; }
+int FUN_0202bd98() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202bd98\n");} return 0; }
+int FUN_0202cba8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202cba8\n");} return 0; }
+int FUN_0202cc10() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202cc10\n");} return 0; }
+int FUN_0202cc94() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202cc94\n");} return 0; }
+int FUN_0202cd68() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202cd68\n");} return 0; }
+int FUN_0202ce44() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202ce44\n");} return 0; }
+int FUN_0202cec0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202cec0\n");} return 0; }
+int FUN_0202cf40() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202cf40\n");} return 0; }
+int FUN_0202cfbc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202cfbc\n");} return 0; }
+int FUN_0202d964() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202d964\n");} return 0; }
+int FUN_0202d9d0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202d9d0\n");} return 0; }
+int FUN_0202da48() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202da48\n");} return 0; }
+int FUN_0202dce4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202dce4\n");} return 0; }
+int FUN_0202ebc8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202ebc8\n");} return 0; }
+int FUN_0202f73c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202f73c\n");} return 0; }
+int FUN_020304bc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020304bc\n");} return 0; }
+int FUN_0203056c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203056c\n");} return 0; }
+int FUN_02030730() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02030730\n");} return 0; }
+int FUN_02030790() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02030790\n");} return 0; }
+int FUN_02030870() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02030870\n");} return 0; }
+int FUN_0203088c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203088c\n");} return 0; }
+int FUN_020308d4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020308d4\n");} return 0; }
+int FUN_02030958() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02030958\n");} return 0; }
+int FUN_02030b38() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02030b38\n");} return 0; }
+int FUN_02030b9c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02030b9c\n");} return 0; }
+int FUN_02030c64() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02030c64\n");} return 0; }
+int FUN_02031058() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02031058\n");} return 0; }
+int FUN_02031064() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02031064\n");} return 0; }
+int FUN_020311a8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020311a8\n");} return 0; }
+int FUN_02031218() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02031218\n");} return 0; }
+int FUN_020312d8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020312d8\n");} return 0; }
+int FUN_020312f4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020312f4\n");} return 0; }
+int FUN_02031f20() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02031f20\n");} return 0; }
+int FUN_02031f50() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02031f50\n");} return 0; }
+int FUN_02032188() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02032188\n");} return 0; }
+int FUN_02032220() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02032220\n");} return 0; }
+int FUN_02033708() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02033708\n");} return 0; }
+int FUN_02033f8c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02033f8c\n");} return 0; }
+int FUN_02034084() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02034084\n");} return 0; }
+int FUN_020340b8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020340b8\n");} return 0; }
+int FUN_02034150() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02034150\n");} return 0; }
+int FUN_02034168() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02034168\n");} return 0; }
+int FUN_02034180() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02034180\n");} return 0; }
+int FUN_020341bc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020341bc\n");} return 0; }
+int FUN_020341ec() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020341ec\n");} return 0; }
+int FUN_02034224() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02034224\n");} return 0; }
+int FUN_02034274() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02034274\n");} return 0; }
+int FUN_02035110() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02035110\n");} return 0; }
+int FUN_020369c4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020369c4\n");} return 0; }
+int FUN_02036c60() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02036c60\n");} return 0; }
+int FUN_02036ca0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02036ca0\n");} return 0; }
+int FUN_02037acc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02037acc\n");} return 0; }
+int FUN_02037b18() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02037b18\n");} return 0; }
+int FUN_02037b8c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02037b8c\n");} return 0; }
+int FUN_02037cec() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02037cec\n");} return 0; }
+int FUN_02037d50() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02037d50\n");} return 0; }
+int FUN_02037dd0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02037dd0\n");} return 0; }
+int FUN_02037ed4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02037ed4\n");} return 0; }
+int FUN_02037f3c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02037f3c\n");} return 0; }
+int FUN_02037fa4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02037fa4\n");} return 0; }
+int FUN_0203800c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203800c\n");} return 0; }
+int FUN_02038074() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038074\n");} return 0; }
+int FUN_020380dc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020380dc\n");} return 0; }
+int FUN_02038144() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038144\n");} return 0; }
+int FUN_020381ac() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020381ac\n");} return 0; }
+int FUN_02038214() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038214\n");} return 0; }
+int FUN_0203827c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203827c\n");} return 0; }
+int FUN_020382e4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020382e4\n");} return 0; }
+int FUN_0203834c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203834c\n");} return 0; }
+int FUN_020383b4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020383b4\n");} return 0; }
+int FUN_0203841c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203841c\n");} return 0; }
+int FUN_02038484() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038484\n");} return 0; }
+int FUN_020384ec() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020384ec\n");} return 0; }
+int FUN_02038614() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038614\n");} return 0; }
+int FUN_0203867c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203867c\n");} return 0; }
+int FUN_02038c4c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038c4c\n");} return 0; }
+int FUN_02038c80() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038c80\n");} return 0; }
+int FUN_02038cc8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038cc8\n");} return 0; }
+int FUN_02038d00() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038d00\n");} return 0; }
+int FUN_02038d34() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038d34\n");} return 0; }
+int FUN_02038d80() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038d80\n");} return 0; }
+int FUN_02038e7c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038e7c\n");} return 0; }
+int FUN_02038f14() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038f14\n");} return 0; }
+int FUN_02038f4c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038f4c\n");} return 0; }
+int FUN_02038f68() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038f68\n");} return 0; }
+int FUN_02038fd4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038fd4\n");} return 0; }
+int FUN_02038ff4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02038ff4\n");} return 0; }
+int FUN_020392a4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020392a4\n");} return 0; }
+int FUN_020392d8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020392d8\n");} return 0; }
+int FUN_02039474() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02039474\n");} return 0; }
+int FUN_02039944() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02039944\n");} return 0; }
+int FUN_020399d8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020399d8\n");} return 0; }
+int FUN_02039a24() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02039a24\n");} return 0; }
+int FUN_02039be8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02039be8\n");} return 0; }
+int FUN_02039bf0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02039bf0\n");} return 0; }
+int FUN_02039c9c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02039c9c\n");} return 0; }
+int FUN_02039d64() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02039d64\n");} return 0; }
+int FUN_02039d8c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02039d8c\n");} return 0; }
+int FUN_02039db0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02039db0\n");} return 0; }
+int FUN_02039f94() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02039f94\n");} return 0; }
+int FUN_02039fe0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02039fe0\n");} return 0; }
+int FUN_0203a014() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a014\n");} return 0; }
+int FUN_0203a030() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a030\n");} return 0; }
+int FUN_0203a04c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a04c\n");} return 0; }
+int FUN_0203a070() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a070\n");} return 0; }
+int FUN_0203a088() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a088\n");} return 0; }
+int FUN_0203a0f0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a0f0\n");} return 0; }
+int FUN_0203a104() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a104\n");} return 0; }
+int FUN_0203a4d8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a4d8\n");} return 0; }
+int FUN_0203a4ec() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a4ec\n");} return 0; }
+int FUN_0203a4fc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a4fc\n");} return 0; }
+int FUN_0203a50c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a50c\n");} return 0; }
+int FUN_0203a514() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a514\n");} return 0; }
+int FUN_0203a51c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a51c\n");} return 0; }
+int FUN_0203a738() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203a738\n");} return 0; }
+int FUN_0203aa50() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203aa50\n");} return 0; }
+int FUN_0203aae8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203aae8\n");} return 0; }
+int FUN_0203aca0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203aca0\n");} return 0; }
+int FUN_0203acb0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203acb0\n");} return 0; }
+int FUN_0203acc0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203acc0\n");} return 0; }
+int FUN_0203ae24() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ae24\n");} return 0; }
+int FUN_0203ae38() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ae38\n");} return 0; }
+int FUN_0203ae4c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ae4c\n");} return 0; }
+int FUN_0203ae64() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ae64\n");} return 0; }
+int FUN_0203ae78() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ae78\n");} return 0; }
+int FUN_0203ae90() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ae90\n");} return 0; }
+int FUN_0203ae9c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ae9c\n");} return 0; }
+int FUN_0203aea8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203aea8\n");} return 0; }
+int FUN_0203aeb4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203aeb4\n");} return 0; }
+int FUN_0203aec8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203aec8\n");} return 0; }
+int FUN_0203b0d0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b0d0\n");} return 0; }
+int FUN_0203b160() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b160\n");} return 0; }
+int FUN_0203b5b4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b5b4\n");} return 0; }
+int FUN_0203b7c0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b7c0\n");} return 0; }
+int FUN_0203b7dc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b7dc\n");} return 0; }
+int FUN_0203b7f0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b7f0\n");} return 0; }
+int FUN_0203b808() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b808\n");} return 0; }
+int FUN_0203b854() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b854\n");} return 0; }
+int FUN_0203b8c4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b8c4\n");} return 0; }
+int FUN_0203b914() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b914\n");} return 0; }
+int FUN_0203b9a8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203b9a8\n");} return 0; }
+int FUN_0203bad8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203bad8\n");} return 0; }
+int FUN_0203bd84() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203bd84\n");} return 0; }
+int FUN_0203be94() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203be94\n");} return 0; }
+int FUN_0203bec8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203bec8\n");} return 0; }
+int FUN_0203bef4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203bef4\n");} return 0; }
+int FUN_0203bf20() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203bf20\n");} return 0; }
+int FUN_0203bf4c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203bf4c\n");} return 0; }
+int FUN_0203bfa4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203bfa4\n");} return 0; }
+int FUN_0203bfd0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203bfd0\n");} return 0; }
+int FUN_0203c004() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c004\n");} return 0; }
+int FUN_0203c030() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c030\n");} return 0; }
+int FUN_0203c05c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c05c\n");} return 0; }
+int FUN_0203c0a0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c0a0\n");} return 0; }
+int FUN_0203c0ec() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c0ec\n");} return 0; }
+int FUN_0203c15c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c15c\n");} return 0; }
+int FUN_0203c190() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c190\n");} return 0; }
+int FUN_0203c1c4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c1c4\n");} return 0; }
+int FUN_0203c1ec() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c1ec\n");} return 0; }
+int FUN_0203c218() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c218\n");} return 0; }
+int FUN_0203c230() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c230\n");} return 0; }
+int FUN_0203c248() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c248\n");} return 0; }
+int FUN_0203c274() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c274\n");} return 0; }
+int FUN_0203c2a8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c2a8\n");} return 0; }
+int FUN_0203c2fc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c2fc\n");} return 0; }
+int FUN_0203c4b8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c4b8\n");} return 0; }
+int FUN_0203c558() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c558\n");} return 0; }
+int FUN_0203c5ac() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c5ac\n");} return 0; }
+int FUN_0203c5ec() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c5ec\n");} return 0; }
+int FUN_0203c67c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c67c\n");} return 0; }
+int FUN_0203c920() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203c920\n");} return 0; }
+int FUN_0203cd00() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203cd00\n");} return 0; }
+int FUN_0203cd34() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203cd34\n");} return 0; }
+int FUN_0203cda8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203cda8\n");} return 0; }
+int FUN_0203cdf0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203cdf0\n");} return 0; }
+int FUN_0203ce28() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ce28\n");} return 0; }
+int FUN_0203ce30() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ce30\n");} return 0; }
+int FUN_0203d008() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203d008\n");} return 0; }
+int FUN_0203d028() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203d028\n");} return 0; }
+int FUN_0203d220() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203d220\n");} return 0; }
+int FUN_0203d26c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203d26c\n");} return 0; }
+int FUN_0203d30c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203d30c\n");} return 0; }
+int FUN_0203e328() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203e328\n");} return 0; }
+int FUN_0203ed60() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ed60\n");} return 0; }
+int FUN_0203edcc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203edcc\n");} return 0; }
+int FUN_0203ef08() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ef08\n");} return 0; }
+int FUN_0203ef50() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ef50\n");} return 0; }
+int FUN_0203efa0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203efa0\n");} return 0; }
+int FUN_0203f2a0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f2a0\n");} return 0; }
+int FUN_0203f2c8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f2c8\n");} return 0; }
+int FUN_0203f378() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f378\n");} return 0; }
+int FUN_0203f398() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f398\n");} return 0; }
+int FUN_0203f740() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f740\n");} return 0; }
+int FUN_0203f75c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f75c\n");} return 0; }
+int FUN_0203f864() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f864\n");} return 0; }
+int FUN_0203faa8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203faa8\n");} return 0; }
+int FUN_0203fb40() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203fb40\n");} return 0; }
+int FUN_0203fd64() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203fd64\n");} return 0; }
+int FUN_0203fd8c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203fd8c\n");} return 0; }
+int FUN_0203fdd0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203fdd0\n");} return 0; }
+int FUN_020400c4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020400c4\n");} return 0; }
+int FUN_020403c4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020403c4\n");} return 0; }
+int FUN_020404b0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020404b0\n");} return 0; }
+int FUN_0204056c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0204056c\n");} return 0; }
+int FUN_020412ac() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020412ac\n");} return 0; }
+int FUN_020412c4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020412c4\n");} return 0; }
+int FUN_020412dc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020412dc\n");} return 0; }
+int FUN_020412f4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020412f4\n");} return 0; }
+int FUN_020413e4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020413e4\n");} return 0; }
+int FUN_0204180c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0204180c\n");} return 0; }
+int FUN_02041c60() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02041c60\n");} return 0; }
+int FUN_02041d80() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02041d80\n");} return 0; }
+int FUN_02041de8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02041de8\n");} return 0; }
+int FUN_020425a0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020425a0\n");} return 0; }
+int FUN_020425b0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020425b0\n");} return 0; }
+int FUN_020425e0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020425e0\n");} return 0; }
+int FUN_02042600() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02042600\n");} return 0; }
+int FUN_020426ac() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020426ac\n");} return 0; }
+int FUN_020426e8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020426e8\n");} return 0; }
+int FUN_0204280c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0204280c\n");} return 0; }
+int FUN_020428b0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020428b0\n");} return 0; }
+int FUN_02042d4c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02042d4c\n");} return 0; }
+int FUN_02042e1c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02042e1c\n");} return 0; }
+int FUN_02042eec() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02042eec\n");} return 0; }
+int FUN_020432a8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020432a8\n");} return 0; }
+int FUN_0204333c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0204333c\n");} return 0; }
+int FUN_02043bf4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02043bf4\n");} return 0; }
+int FUN_02043ed8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02043ed8\n");} return 0; }
+int FUN_02043f50() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02043f50\n");} return 0; }
+int FUN_02043f70() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02043f70\n");} return 0; }
+int FUN_020441e8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020441e8\n");} return 0; }
+int FUN_02044644() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02044644\n");} return 0; }
+int FUN_020462a8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020462a8\n");} return 0; }
+int FUN_02046300() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02046300\n");} return 0; }
+int FUN_020464b0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020464b0\n");} return 0; }
+int FUN_020466bc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020466bc\n");} return 0; }
+int FUN_02048880() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02048880\n");} return 0; }
+int FUN_02048c6c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02048c6c\n");} return 0; }
+int FUN_02048ce0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02048ce0\n");} return 0; }
+int FUN_0206c6cc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0206c6cc\n");} return 0; }
+int FUN_0206f080() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0206f080\n");} return 0; }
+int FUN_0206f600() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0206f600\n");} return 0; }
+int FUN_02070a94() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02070a94\n");} return 0; }
+int FUN_0207271c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0207271c\n");} return 0; }
+int FUN_020739ec() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020739ec\n");} return 0; }
+int FUN_02077784() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02077784\n");} return 0; }
+int FUN_020787b4() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_020787b4\n");} return 0; }
 
 /* === thunk_FUN_* stubs (3 symbols) === */
-int thunk_FUN_02029ab8() { return 0; }
-int thunk_FUN_0202ed98() { return 0; }
-int thunk_FUN_0203d660() { return 0; }
+int thunk_FUN_02029ab8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] thunk_FUN_02029ab8\n");} return 0; }
+int thunk_FUN_0202ed98() { static int s; if(!s){s=1; fprintf(stderr,"[stub] thunk_FUN_0202ed98\n");} return 0; }
+int thunk_FUN_0203d660() { static int s; if(!s){s=1; fprintf(stderr,"[stub] thunk_FUN_0203d660\n");} return 0; }
 
 /* === func_0x* stubs (8 symbols) === */
-int func_0x01ff861c() { return 0; }
-int func_0x0209bb68() { return 0; }
-int func_0x0209bb74() { return 0; }
-int func_0x0209bc30() { return 0; }
-int func_0x0209bc3c() { return 0; }
-int func_0x0209c9f8() { return 0; }
-int func_0x0209ca0c() { return 0; }
-int func_0x0209cd64() { return 0; }
+int func_0x01ff861c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] func_0x01ff861c\n");} return 0; }
+int func_0x0209bb68() { static int s; if(!s){s=1; fprintf(stderr,"[stub] func_0x0209bb68\n");} return 0; }
+int func_0x0209bb74() { static int s; if(!s){s=1; fprintf(stderr,"[stub] func_0x0209bb74\n");} return 0; }
+int func_0x0209bc30() { static int s; if(!s){s=1; fprintf(stderr,"[stub] func_0x0209bc30\n");} return 0; }
+int func_0x0209bc3c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] func_0x0209bc3c\n");} return 0; }
+int func_0x0209c9f8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] func_0x0209c9f8\n");} return 0; }
+int func_0x0209ca0c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] func_0x0209ca0c\n");} return 0; }
+int func_0x0209cd64() { static int s; if(!s){s=1; fprintf(stderr,"[stub] func_0x0209cd64\n");} return 0; }
 
 /* === Named SDK stubs (14 symbols) === */
 int enable_ipc_interrupt() { return 0; }

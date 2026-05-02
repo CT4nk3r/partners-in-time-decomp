@@ -1560,7 +1560,7 @@ int FUN_0203ef50() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203ef
 int FUN_0203efa0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203efa0\n");} return 0; }
 int FUN_0203f2a0() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f2a0\n");} return 0; }
 int FUN_0203f2c8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f2c8\n");} return 0; }
-int FUN_0203f378() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f378\n");} return 0; }
+/* FUN_0203f378 resolved via sdk_symbol_aliases.h -> os_timer_dispatch */
 int FUN_0203f398() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f398\n");} return 0; }
 int FUN_0203f740() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f740\n");} return 0; }
 int FUN_0203f75c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0203f75c\n");} return 0; }

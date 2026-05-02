@@ -235,6 +235,27 @@ int game_thread_main(void* user) {
      * lives in build/generated/dat_init_table.h. */
     nds_apply_dat_inits();
 
+    /* HOST_PORT: patch DAT globals that are function pointers.
+     * nds_apply_dat_inits() fills them with NDS addresses (e.g. 0x0203F6E4)
+     * which aren't executable on host.  This overwrites each with the
+     * corresponding host symbol or a safe no-op stub. */
+    {
+        extern void host_dat_fnptr_patch(void);
+        host_dat_fnptr_patch();
+    }
+
+    /* HOST_PORT: initialise the NDS heap arenas.FUN_02029C40 writes to
+     * 0x020607EC (the heap control block at DAT_02029840/DAT_02029DF0) which
+     * lives past arm9.bin's end in zero-filled BSS.  Without this call,
+     * any code that allocates from the heap (e.g. FUN_02029788 during the
+     * state-9 asset-load triple) will SIGSEGV on a null dereference. */
+    {
+        extern void FUN_02029c40(void);
+        nds_log("[game] calling FUN_02029c40 (heap arena init)...\n");
+        FUN_02029c40();
+        nds_log("[game] heap arenas initialized\n");
+    }
+
     /* Task 1: snapshot the post-loop u16 staging arrays
      * DAT_0201977c..02019790 at startup.  We re-check after the game
      * has run a while; if the bytes change, code is staging there. */

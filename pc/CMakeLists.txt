@@ -32,6 +32,7 @@ set(PC_SOURCES
     src/nds_arm9_ram.c
     src/host_scene_queue.c
     src/host_fnptr_resolver.c
+    src/host_dat_fnptr_patch.c
     src/host_test_node.c
     src/host_factory_instantiate.c
     src/host_gxfifo_observer.c

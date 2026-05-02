@@ -105,6 +105,29 @@ u32 sHeapReady = 0;
 u32 sHeapTable = 0;
 u32 sHeapTableBack = 0;
 
+#ifdef HOST_PORT
+/* ── HOST_PORT backing for map_control.c FUN_02018ed0 statics ──
+ * On real NDS DAT_02018f08 / DAT_02018f0c are .data words pointing
+ * at a 14-entry channel-id array and the clGameMain slot ptr. The
+ * auto-generated host_undefined_stubs.c declares them as 4-byte
+ * uint32_t which truncates host pointers; map_control.c is rewired
+ * via #define DAT_02018f08 → g_mc_DAT_02018f08 to use the 64-bit-
+ * safe definitions here. They are seeded from
+ * host_link_stubs_init_map_control_data() called at boot. */
+intptr_t g_mc_DAT_02018f08 = 0;
+int    *g_mc_DAT_02018f0c  = 0;
+static u32 s_mc_channel_ids[14];
+extern u32 *game_state_host_get_current_slot(void);
+void host_link_stubs_init_map_control_data(void)
+{
+    /* All-zero channel IDs are safe — FUN_02016920(0) is a no-op
+     * lookup that returns 0 in the stub path. */
+    memset(s_mc_channel_ids, 0, sizeof(s_mc_channel_ids));
+    g_mc_DAT_02018f08 = (intptr_t)(uintptr_t)s_mc_channel_ids;
+    g_mc_DAT_02018f0c = (int *)game_state_host_get_current_slot();
+}
+#endif
+
 /* ======== SDK name wrappers (Task 1) ======== */
 
 void GX_VBlankWait(void) { arm_swi_05_vblank_intr_wait(); }

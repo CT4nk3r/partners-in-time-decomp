@@ -131,6 +131,10 @@ int game_thread_main(void* user) {
      * call into FUN_02005b70 / game_state_host_engage_real. */
     host_data_init_install();
     host_display_data_init_install();
+    {
+        extern void host_link_stubs_init_map_control_data(void);
+        host_link_stubs_init_map_control_data();
+    }
 
     /* HOST_PORT: install a fake sub-state so the outer-loop NULL guard
      * (`*DAT_020055B4 != 0`) becomes true and the frame_count branch fires.

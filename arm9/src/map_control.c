@@ -88,8 +88,18 @@ extern u32 DAT_02018d0c;
 extern u32 DAT_02018d10;
 extern u32 DAT_02018e98;
 extern u32 DAT_02018e9c;
+#ifdef HOST_PORT
+/* Aliased to 64-bit-safe shadow defined in link_stubs.c. The auto-
+ * generated host_undefined_stubs.c declares these as 4-byte uint32_t
+ * which truncates host pointers; FUN_02018ed0 dereferences them. */
+extern intptr_t g_mc_DAT_02018f08;
+extern int     *g_mc_DAT_02018f0c;
+#define DAT_02018f08 g_mc_DAT_02018f08
+#define DAT_02018f0c g_mc_DAT_02018f0c
+#else
 extern int DAT_02018f08;
 extern int * DAT_02018f0c;
+#endif
 
 /* Static data references */
 static u32 param_addr;
@@ -1873,7 +1883,11 @@ void FUN_02018ed0(void)
 
 {
   int iVar1;
+#ifdef HOST_PORT
+  intptr_t iVar2;
+#else
   int iVar2;
+#endif
   int *piVar3;
   u32 uVar4;
   int iVar5;

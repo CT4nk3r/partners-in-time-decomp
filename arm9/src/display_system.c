@@ -418,26 +418,22 @@ void FUN_020192f8(int param_1)
   short *psVar4;
   short *psVar5;
   u32 uVar6;
+#ifdef HOST_PORT
+  intptr_t iVar7;
+  intptr_t unaff_r7;
+  intptr_t iVar8;
+  intptr_t iVar9;
+#else
   int iVar7;
-  short *unaff_r6;
   int unaff_r7;
   int iVar8;
   int iVar9;
+#endif
+  short *unaff_r6;
 
-#ifdef HOST_PORT
-  fflush(stderr); fprintf(stderr,
-    "[FUN_020192f8] enter p=%d *DAT_02019730=0x%x DAT_02019744=0x%x DAT_02019768=0x%x\n",
-    param_1, (unsigned)*DAT_02019730, (unsigned)DAT_02019744, (unsigned)DAT_02019768); fflush(stderr);
-#endif
   FUN_0202cc10(*DAT_02019730 + 0x3f8,0,0x100);
-#ifdef HOST_PORT
-  fflush(stderr); fprintf(stderr, "[FUN_020192f8] after first MI_CpuFill32Fast\n"); fflush(stderr);
-#endif
   iVar8 = 0;
   do {
-#ifdef HOST_PORT
-    fflush(stderr); fprintf(stderr, "[FUN_020192f8] loop iVar8=%d\n", iVar8); fflush(stderr);
-#endif
     psVar5 = DAT_0201976c;
     psVar4 = DAT_02019758;
     psVar3 = DAT_02019748;

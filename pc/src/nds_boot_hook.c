@@ -81,6 +81,176 @@ static void write_palette(void)
 }
 
 /*
+ * Validate a 32-byte buffer as a 16-colour BGR555 palette.
+ *   - bit 15 of every entry must be 0 (NDS hardware ignores it but real
+ *     palettes set it to 0 universally; non-zero hits indicate misclassified
+ *     binary code or graphics data).
+ *   - At least 6 of 16 entries must be non-zero (rules out empty/stub slots).
+ *   - At least 4 distinct values among the non-zero entries (rules out runs
+ *     of 0xFFFF, debug fill bytes, etc.).
+ */
+static int looks_like_palette16(const uint8_t *b)
+{
+    int nz = 0, distinct = 0;
+    uint16_t seen[16];
+    for (int i = 0; i < 16; i++) {
+        uint16_t v = (uint16_t)(b[i * 2] | (b[i * 2 + 1] << 8));
+        if (v & 0x8000) return 0;
+        if (v) {
+            nz++;
+            int dup = 0;
+            for (int j = 0; j < distinct; j++) if (seen[j] == v) { dup = 1; break; }
+            if (!dup) seen[distinct++] = v;
+        }
+    }
+    return nz >= 6 && distinct >= 4;
+}
+
+/*
+ * Try to parse a Nitro NCLR ("RLCN") palette container.  Layout:
+ *   off   sz   field
+ *    0    4   "RLCN"            (file magic, little-endian = "NCLR")
+ *    4    2   byte-order mark   (0xFFFE)
+ *    6    2   version
+ *    8    4   total file size
+ *   12    2   header size       (typically 0x10)
+ *   14    2   section count     (1)
+ *   16    4   "TTLP"            (PLTT section magic, "PLTT")
+ *   20    4   section size
+ *   24    4   palette bit-depth (3 = 4bpp/16-col, 4 = 8bpp/256-col)
+ *   28    4   padding
+ *   32    4   palette data size
+ *   36    4   colours per palette (often 0)
+ *   40    N   BGR555 colour data
+ *
+ * On success copies up to *out_max bytes of BGR555 data to out and updates
+ * *out_max to the number of bytes written.  Returns 1 on success.
+ */
+static int parse_nclr(const uint8_t *src, size_t src_size,
+                      uint8_t *out, uint32_t *out_max)
+{
+    if (src_size < 40 + 32) return 0;
+    if (src[0] != 'R' || src[1] != 'L' || src[2] != 'C' || src[3] != 'N') return 0;
+    if (src[16] != 'T' || src[17] != 'T' || src[18] != 'L' || src[19] != 'P') return 0;
+
+    uint32_t pal_data_size = (uint32_t)src[32] | ((uint32_t)src[33] << 8) |
+                             ((uint32_t)src[34] << 16) | ((uint32_t)src[35] << 24);
+    if (pal_data_size == 0 || pal_data_size > src_size - 40) return 0;
+
+    uint32_t copy = pal_data_size < *out_max ? pal_data_size : *out_max;
+    memcpy(out, src + 40, copy);
+    *out_max = copy;
+    return 1;
+}
+
+/*
+ * Search all asset-pack entries for the first plausible 16-colour BGR555
+ * palette and copy it into out (32 bytes).  Looks at:
+ *   1. Direct overlay-palette entries (0x1001..0x1024).
+ *   2. NCLR-formatted blobs (any entry starting with "RLCN").
+ *   3. 32-byte sub-blocks within offset-table archives (RAW FAT entries).
+ *
+ * Returns the asset id that supplied the palette (or 0 on failure).
+ * out_count is set to the number of 16-colour palettes copied (1..16).
+ */
+static uint32_t find_game_palette(uint8_t *out, int max_palettes, int *out_count)
+{
+    *out_count = 0;
+    if (!pack_is_loaded()) return 0;
+
+    /* Pass 1: overlay-style palette IDs (most likely to be real). */
+    for (uint32_t oid = 1; oid <= 0x24; oid++) {
+        void *data = NULL; size_t sz = 0;
+        if (!pack_get_overlay(oid, &data, &sz) || !data || sz < 32) continue;
+        if (looks_like_palette16((const uint8_t *)data)) {
+            int n = (int)(sz / 32);
+            if (n > max_palettes) n = max_palettes;
+            memcpy(out, data, (size_t)n * 32);
+            *out_count = n;
+            return 0x1000u | oid;
+        }
+    }
+
+    /* Pass 2: scan FAT files for NCLR or palette-shaped sub-blocks. */
+    for (uint32_t fid = 0; fid < 0x80; fid++) {
+        void *data = NULL; size_t sz = 0;
+        if (!pack_get_file(fid, &data, &sz) || !data || sz < 32) continue;
+        const uint8_t *bytes = (const uint8_t *)data;
+
+        /* NCLR container? */
+        uint32_t cap = (uint32_t)max_palettes * 32u;
+        if (parse_nclr(bytes, sz, out, &cap)) {
+            *out_count = (int)(cap / 32);
+            if (*out_count > 0) return 0x2000u | fid;
+        }
+
+        /* Offset-table archive sub-blocks. */
+        if (sz < 8) continue;
+        uint32_t first_off = (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) |
+                             ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24);
+        if (first_off < 4 || first_off > sz || (first_off % 4) != 0) continue;
+        uint32_t n_ent = first_off / 4;
+        if (n_ent < 1 || n_ent > 4096) continue;
+
+        for (uint32_t j = 0; j < n_ent; j++) {
+            uint32_t base = j * 4;
+            if (base + 8 > sz) break;
+            uint32_t a = (uint32_t)bytes[base]   | ((uint32_t)bytes[base+1] << 8) |
+                         ((uint32_t)bytes[base+2] << 16) | ((uint32_t)bytes[base+3] << 24);
+            uint32_t b = (j + 1 < n_ent)
+                ? ((uint32_t)bytes[base+4] | ((uint32_t)bytes[base+5] << 8) |
+                   ((uint32_t)bytes[base+6] << 16) | ((uint32_t)bytes[base+7] << 24))
+                : (uint32_t)sz;
+            if (b <= a || b > sz) continue;
+            uint32_t sub_sz = b - a;
+            if (sub_sz != 32) continue;
+            if (looks_like_palette16(bytes + a)) {
+                memcpy(out, bytes + a, 32);
+                *out_count = 1;
+                return 0x2000u | fid;
+            }
+        }
+    }
+
+    return 0;
+}
+
+/*
+ * Write up to 16 16-colour palette banks (256 entries × 2B = 512 B) into
+ * VRAM bank E starting at offset 0.  Replicates the first palette across
+ * all 16 banks so tiles using palette-bank > 0 still have valid colours.
+ */
+static int write_real_palette(void)
+{
+    uint8_t *bank_e = (uint8_t *)nds_vram_bank('E');
+    if (!bank_e) return 0;
+
+    uint8_t pal[16 * 32];
+    int     n_pal  = 0;
+    uint32_t src_id = find_game_palette(pal, 16, &n_pal);
+    if (n_pal <= 0) return 0;
+
+    /* Lay each found palette in its own 32-byte slot, then replicate
+     * the first palette across the remaining 16 banks so any tile that
+     * references palette-bank N (N >= n_pal) still resolves to colours. */
+    memset(bank_e, 0, 16 * 32);
+    memcpy(bank_e, pal, (size_t)n_pal * 32);
+    for (int i = n_pal; i < 16; i++) {
+        memcpy(bank_e + i * 32, pal, 32);
+    }
+
+    /* Force colour 0 of palette bank 0 to a visible dark colour so the
+     * background isn't pure black if the rasterizer ever draws idx 0
+     * (it currently treats 0 as transparent, so this is purely cosmetic
+     * for any future code paths that read palette[0] directly). */
+    /* (left as-is — bank E[0..1] stays whatever the asset said) */
+
+    nds_log("[boot_hook] Real palette loaded from asset 0x%04X "
+            "(%d × 16 colours)\n", src_id, n_pal);
+    return 1;
+}
+
+/*
  * Build a 32×32 tilemap (MAP_ENTRIES × 2 bytes) into the screen-block
  * area of VRAM bank A.
  *
@@ -214,40 +384,12 @@ int boot_hook_real_tiles(void)
     memset(bank_a, 0, SCREEN_BASE_OFFSET + MAP_ENTRIES * 2);
     memcpy(bank_a, tile_data, copy_bytes);
 
-    /* Try overlay-0 palette (asset 0x1001). If it's all zeros fall back to
-     * the rainbow palette so we at least see coloured shapes. */
-    uint8_t *bank_e = (uint8_t *)nds_vram_bank('E');
-    int pal_loaded = 0;
-    if (bank_e) {
-        void  *pal_data = NULL;
-        size_t pal_size = 0;
-        if (pack_get_overlay(1, &pal_data, &pal_size) && pal_data && pal_size >= 32) {
-            const uint8_t *p = (const uint8_t *)pal_data;
-            /* Check if palette is non-zero */
-            int has_data = 0;
-            for (size_t i = 0; i < 32 && !has_data; i++)
-                if (p[i] != 0) has_data = 1;
-            if (has_data) {
-                memcpy(bank_e, pal_data, pal_size < 32 ? pal_size : 32);
-                pal_loaded = 1;
-                nds_log("[boot_hook] Loaded overlay-1 palette (%zu bytes)\n",
-                        pal_size < 32 ? pal_size : (size_t)32);
-            }
-        }
-        if (!pal_loaded) {
-            /* Greyscale ramp: 16 shades */
-            for (int i = 0; i < 16; i++) {
-                uint16_t v = (uint16_t)(i * 2);          /* R component */
-                v |= (uint16_t)(v << 5) | (uint16_t)(v << 10); /* G=B=R */
-                bank_e[i * 2]     = (uint8_t)(v & 0xFF);
-                bank_e[i * 2 + 1] = (uint8_t)(v >> 8);
-            }
-            /* Also write the rainbow palette as fallback for more visibility */
-            for (int i = 0; i < 16; i++) {
-                bank_e[i * 2]     = (uint8_t)(k_rainbow_pal[i] & 0xFF);
-                bank_e[i * 2 + 1] = (uint8_t)(k_rainbow_pal[i] >> 8);
-            }
-        }
+    /* Search the asset pack for a real BGR555 palette.  If none is found
+     * fall back to the rainbow palette so we still see coloured shapes. */
+    int pal_loaded = write_real_palette();
+    if (!pal_loaded) {
+        write_palette();   /* rainbow fallback */
+        nds_log("[boot_hook] No real palette found in pack — rainbow fallback\n");
     }
 
     write_tilemap(bank_a, num_tiles);
@@ -256,7 +398,7 @@ int boot_hook_real_tiles(void)
     nds_log("[boot_hook] Real tiles loaded: FAT[0x62] %u tiles (%u bytes), "
             "palette=%s\n",
             (unsigned)num_tiles, (unsigned)copy_bytes,
-            pal_loaded ? "overlay-1" : "rainbow-fallback");
+            pal_loaded ? "asset-pack" : "rainbow-fallback");
     return 1;
 }
 

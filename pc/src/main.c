@@ -25,6 +25,11 @@ extern int game_thread_main(void* user);
 static void render_frame(void) {
     uint16_t* top = platform_top_framebuffer();
     uint16_t* bot = platform_bottom_framebuffer();
+    /* Pull shadow OAM (NDS RAM 0x0205FFC0/0x0205FFAC) into g_oam_main /
+     * g_oam_sub before obj_render() reads them.  See host_oam_upload.c. */
+    extern void host_oam_upload_tick(int);
+    static int s_main_frame = 0;
+    host_oam_upload_tick(s_main_frame++);
     bg_render_sync_vram();
     bg_render_top(top);
     bg_render_bottom(bot);

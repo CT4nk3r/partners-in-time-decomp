@@ -298,6 +298,8 @@ int game_thread_main(void* user) {
         }
         {
             extern void nds_oam_monitor_tick(int);
+            extern void host_oam_upload_tick(int);
+            host_oam_upload_tick(frame);
             nds_oam_monitor_tick(frame);
         }
         frame++;
@@ -305,6 +307,8 @@ int game_thread_main(void* user) {
 
     {
         extern void nds_oam_monitor_summary(void);
+        extern void host_oam_upload_summary(void);
+        host_oam_upload_summary();
         nds_oam_monitor_summary();
     }
 

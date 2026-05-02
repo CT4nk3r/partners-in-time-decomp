@@ -36,6 +36,7 @@ set(PC_SOURCES
     src/host_factory_instantiate.c
     src/host_gxfifo_observer.c
     src/nds_hw_io.c
+    src/host_oam_upload.c
     ${CMAKE_BINARY_DIR}/generated/nds_dat_init_generated.c
     ${CMAKE_BINARY_DIR}/generated/fnptr_table_generated.c
 )

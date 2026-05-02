@@ -79,6 +79,30 @@ the original three into the main shadow at `0x0205FFC0`:
 The screenshot confirms each set is rasterised on its respective
 half — top and bottom no longer mirror.
 
+### 06 — Software GX rasteriser draws a textured quad
+
+![Software rasteriser self-test](progress/06_software_rasteriser.png)
+
+`pc/src/host_gxfifo_raster.c` is a minimal NDS GX command interpreter:
+queue → barycentric scanline rasteriser → BGR555 framebuffer →
+composite over the NDS top screen.  It decodes the subset of GX
+commands (`BEGIN_VTXS` / `END_VTXS` / `COLOR` / `TEXCOORD` /
+`VTX_16` / `VTX_XY` / `TEXIMAGE_PARAM` / `PLTT_BASE`) that
+`FUN_0200FCB4` emits for 2D-overlay sprite quads, and supports 4bpp
+paletted textures (NDS format 3) with per-quad palette base.
+
+Run with `MLPIT_GXRASTER_TEST=1`: the self-test installs an 8×8
+checkerboard texture (palette idx 1 = white, idx 2 = red, idx 0 =
+transparent) and draws it as a quad at (16,16)-(80,80).  Pixel
+audit of the 64×64 region: 2048 red + 2048 white + 0 other —
+texture-coord interpolation, palette lookup, and triangulation all
+correct.
+
+The rasteriser is independent of whether the natural game pipeline
+is currently emitting GX commands; it is now ready to consume real
+vertex streams the moment `FUN_0200FCB4`'s mid-function bail at
+`L_02010028` is unblocked (per-frame entity buffer populated).
+
 ## Component Status
 
 | Component                       | Status |

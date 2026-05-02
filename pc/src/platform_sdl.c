@@ -222,6 +222,27 @@ void platform_present(void) {
     pump_input_to_io();
     keep_boot_screen_visible();
 
+    /* GX rasteriser self-test (Track C): when MLPIT_GXRASTER_TEST=1 we
+     * build a hand-crafted command stream once, run it through the
+     * rasteriser, and composite the result over the NDS top framebuffer.
+     * Lets us prove the rasteriser draws even when the natural FUN_0200FCB4
+     * vertex stream is still gated. */
+    {
+        extern void host_gxfifo_raster_self_test(void);
+        extern void host_gxfifo_raster_composite_to_top(uint16_t *top_fb);
+        extern int  host_gxfifo_raster_dirty(void);
+        static int s_raster_test_done = -1;
+        if (s_raster_test_done < 0)
+            s_raster_test_done = getenv("MLPIT_GXRASTER_TEST") ? 0 : -2;
+        if (s_raster_test_done == 0) {
+            host_gxfifo_raster_self_test();
+            s_raster_test_done = 1;
+        }
+        if (s_raster_test_done >= 1 && host_gxfifo_raster_dirty()) {
+            host_gxfifo_raster_composite_to_top(g_top_fb);
+        }
+    }
+
     static int s_frame_counter = 0;
     static int s_dump_at = -2;
     /* MLPIT_SCREENSHOT_FRAMES=60,180,300,...   per-frame snapshots.

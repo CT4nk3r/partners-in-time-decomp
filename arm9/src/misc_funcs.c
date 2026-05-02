@@ -304,9 +304,30 @@ void FUN_020075ac(void)
 }
 
 // FUN_0200762c @ 0x0200762C (20 bytes) — Clear sound state via indirect call
+//
+// Original ARM (5 instructions, decompiled from arm9.bin @ 0x0200762C):
+//   ldr  ip, [pc, #12]   ; ip = *(0x02007640) = 0x0202CC10 (MI_CpuFill32Fast)
+//   ldr  r0, [pc, #12]   ; r0 = *(0x02007644) = 0x02059C9C (dest in .bss)
+//   mov  r1, #0          ; fill word = 0
+//   mov  r2, #0x38       ; size = 56 bytes (14 words)
+//   bx   ip              ; tail-call MI_CpuFill32Fast(0x02059c9c, 0, 56)
+//
+// On host, calling DAT_02007640 as a function pointer jumps to raw arm9.bin
+// .text bytes (0x0202CC10 is the NDS code address; on host that's data in
+// the wholesale arm9 RAM map, not callable code).  We bypass the indirect
+// call and do the fill directly — observable result is identical.
 void FUN_0200762c(void)
 {
+#ifdef HOST_PORT
+    /* Wholesale arm9 RAM is VirtualAlloc'd at 0x02000000+ on host, so
+     * NDS address 0x02059C9C is a directly addressable host pointer. */
+    void *dest = (void *)(uintptr_t)0x02059C9Cu;
+    /* MI_CpuFill32Fast semantics: 32-bit aligned fill of `size` bytes. */
+    extern void MI_CpuFill32Fast(u32 *dest, u32 fill, int size);
+    MI_CpuFill32Fast((u32 *)dest, 0u, 0x38);
+#else
     DAT_02007640(DAT_02007644, 0, 0x38);
+#endif
     return;
 }
 

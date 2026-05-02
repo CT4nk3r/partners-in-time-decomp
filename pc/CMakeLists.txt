@@ -35,6 +35,7 @@ set(PC_SOURCES
     src/host_test_node.c
     src/host_factory_instantiate.c
     src/host_gxfifo_observer.c
+    src/host_gxfifo_raster.c
     src/nds_hw_io.c
     src/host_oam_upload.c
     src/nds_overlay_loader.c

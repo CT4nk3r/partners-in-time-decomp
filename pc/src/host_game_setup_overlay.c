@@ -111,13 +111,12 @@ void game_setup_overlay(u32 overlay_id, u32 flags)
         /* Step 2: clear boot flag.  Safe. */
         *(volatile u8 *)(uintptr_t)BOOT_FLAG_NDS = 0;
 
-        /* Step 3 (FUN_0200762c) is SKIPPED on host: the body indirects
-         * through DAT_02007640 (a function pointer in NDS .data that
-         * holds the original ARM address 0x0202CC10 = MI_CpuFill32Fast).
-         * On host the literal value never gets remapped so calling it
-         * jumps into raw arm9.bin bytes and SIGSEGVs.  The side effect
-         * (zeroing 0x38 bytes of sound state) isn't required for the
-         * scene-jmp dispatch we're trying to exercise. */
+        /* Step 3: FUN_0200762c — zeros 0x38 bytes of sound state at
+         * 0x02059C9C.  Now safe to invoke because misc_funcs.c uses a
+         * HOST_PORT short-circuit that calls MI_CpuFill32Fast directly
+         * instead of indirecting through DAT_02007640 (which would jump
+         * into raw arm9.bin bytes on host). */
+        FUN_0200762c();
 
         /* Step 4: alloc 44-byte scene-anchor object (now actually
          * returns a real pointer because FUN_02029c1c forwards to

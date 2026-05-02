@@ -68,3 +68,6 @@ shot.png
 *.ppm
 
 trace_run*.log
+
+pc/workspace/
+

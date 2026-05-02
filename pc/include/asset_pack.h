@@ -45,4 +45,16 @@ void pack_unload(void);
 /* Returns true if a pack is currently loaded and ready. */
 bool pack_is_loaded(void);
 
+/* === Iteration (used by the asset viewer) ====================== */
+typedef struct {
+    uint32_t id;
+    uint32_t offset;
+    uint32_t size;
+    uint32_t type;
+} PackEntryView;
+
+uint32_t pack_entry_count(void);
+int      pack_entry_at(uint32_t i, PackEntryView *out);
+const void *pack_data_base(size_t *total_size);
+
 #endif /* ASSET_PACK_H */

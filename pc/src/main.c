@@ -14,6 +14,7 @@
 #include "asset_pack.h"
 #include "asset_extractor.h"
 #include "nds_boot_hook.h"
+#include "asset_viewer.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -122,6 +123,18 @@ int main(int argc, char** argv) {
             nds_log("[boot]   2. Re-run — assets auto-extract to assets/mlpit.assets\n");
             nds_log("[boot]   3. Delete rom/baserom.nds after extraction (optional)\n");
         }
+    }
+
+    /* === MLPIT_VIEWER mode ============================================
+     * When MLPIT_VIEWER=1, we skip the SIGSEGV-prone game thread entirely
+     * and run an interactive asset explorer over the loaded pack.  No
+     * boot-hook seeding (the viewer paints both screens itself).
+     * ================================================================ */
+    if (viewer_is_enabled()) {
+        nds_log("[boot] MLPIT_VIEWER=1 - skipping game thread, entering viewer\n");
+        int rc = viewer_run();
+        platform_shutdown();
+        return rc;
     }
 
     /* ── VRAM boot hook ─────────────────────────────────────────────

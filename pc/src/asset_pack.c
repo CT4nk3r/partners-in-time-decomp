@@ -225,3 +225,19 @@ void pack_unload(void) {
 }
 
 bool pack_is_loaded(void) { return g_loaded != 0; }
+
+uint32_t pack_entry_count(void) { return g_loaded ? g_ec : 0; }
+
+int pack_entry_at(uint32_t i, PackEntryView *out) {
+    if (!g_loaded || i >= g_ec || !out) return 0;
+    out->id     = g_entries[i].id;
+    out->offset = g_entries[i].offset;
+    out->size   = g_entries[i].size;
+    out->type   = g_entries[i].type;
+    return 1;
+}
+
+const void *pack_data_base(size_t *total_size) {
+    if (total_size) *total_size = g_data_sz;
+    return g_data;
+}

@@ -105,10 +105,8 @@ void game_setup_overlay(u32 overlay_id, u32 flags)
         return;
     }
 
-    if (getenv("MLPIT_REAL_SETUP_OVERLAY")) {
+    {
         /* Faithful FUN_02004EF8 port (partial — see notes below). */
-        fprintf(stderr,
-                "[setup_overlay] MLPIT_REAL_SETUP_OVERLAY=1 — running real path\n");
 
         /* Step 1: FUN_02004e38(overlay_id, flags, r2_unused, &cfg).
          * Pure bit-twiddling on the 0x02059C6C halfword array — safe. */
@@ -186,20 +184,5 @@ void game_setup_overlay(u32 overlay_id, u32 flags)
                 "[setup_overlay] real path complete; *(u32*)0x%08X = 0x%08X\n",
                 (unsigned)SCENE_PTR_NDS,
                 (unsigned)(uintptr_t)obj);
-        return;
     }
-
-    /* Smoke fallback: just exercise the scene_jmp trampoline. */
-    void *fake_scene = (void *)(uintptr_t)HOST_FAKE_SCENE_NDS_ADDR;
-    memset(fake_scene, 0, HOST_FAKE_SCENE_SIZE);
-
-    fprintf(stderr,
-            "[setup_overlay] (fake) invoking FUN_02005d54(0x%08X, 0)\n",
-            (unsigned)HOST_FAKE_SCENE_NDS_ADDR);
-    fflush(stderr);
-
-    FUN_02005d54((int)HOST_FAKE_SCENE_NDS_ADDR, 0);
-
-    fprintf(stderr, "[setup_overlay] (fake) returned cleanly\n");
-    fflush(stderr);
 }

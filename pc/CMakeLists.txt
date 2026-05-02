@@ -30,6 +30,7 @@ set(PC_SOURCES
     src/host_game_setup_overlay.c
     src/asset_viewer.c
     src/nds_arm9_ram.c
+    src/host_scene_queue.c
     ${CMAKE_BINARY_DIR}/generated/nds_dat_init_generated.c
 )
 

@@ -360,19 +360,54 @@ static void shadow_probe_tick(u32 frame) {
     }
 }
 
+/* External: 64-bit-safe wrapper around FUN_0202a33c (the linked-list
+ * scene-queue processor) lives in pc/src/host_scene_queue.c.  We DO NOT
+ * call FUN_0202a33c directly because the decompiled gx_util.c declares
+ * DAT_0202a510 as `int *` (8 bytes on x86_64) while
+ * pc/src/host_undefined_stubs.c defines it as a 4-byte uint32_t — the
+ * mismatched dereference faults. */
+extern void FUN_0202a33c_safe(void);
+extern void host_scene_queue_log_state(const char *tag);
+static int  g_queue_processor_enabled = -1;  /* tri-state: 0/1, -1=unread */
+
 void game_update_display(void) {
     g_game_frame_counter++;
     shadow_probe_tick(g_game_frame_counter);
     /* Keep the inner-loop exit condition satisfied: bit 15 of DISPCNT must be
      * set for `(*sDispCnt & 0x8000) >> 15 != 1` to be false.  The IO shadow's
      * MMIO at 0x04000000 already mirrors hardware, so RMW it here per frame —
-     * this is the closest "real" effect to what the SDK's display flush would
+     * this is the closest "real" effect to what the SDL display flush would
      * do (it always re-arms the visible-plane bit). */
     uint32_t dispcnt = nds_reg_read32(0x04000000u);
     nds_reg_write32(0x04000000u, dispcnt | 0x8000u);
     /* And ensure sub engine shows something too. */
     uint32_t dispcnt_sub = nds_reg_read32(0x04001000u);
     nds_reg_write32(0x04001000u, dispcnt_sub | 0x8000u);
+
+    /* Per-session-task: drive the linked-list scene-queue processor each
+     * frame.  On real hardware FUN_02005444 (game_start) BLs FUN_0202a33c
+     * once per inner-loop iteration; that call is missing from the
+     * existing decomp of game_start in arm9/src/game_main.c, so wire it
+     * in here.  Default ON; toggle off via MLPIT_NO_QUEUE_TICK=1.  When
+     * the anchor head is NULL (current state) FUN_0202a33c just returns
+     * immediately, so this is safe. */
+    if (g_queue_processor_enabled < 0) {
+        g_queue_processor_enabled = (getenv("MLPIT_NO_QUEUE_TICK") == 0);
+        fprintf(stderr,
+                "[queue-tick] FUN_0202a33c per-frame call %s\n",
+                g_queue_processor_enabled ? "ENABLED" : "DISABLED");
+        fflush(stderr);
+    }
+    if (g_queue_processor_enabled) {
+        /* Re-log anchor every 240 frames so we can SEE if anything changed. */
+        if (g_game_frame_counter == 1u ||
+            (g_game_frame_counter % 240u) == 0u) {
+            char tag[32];
+            snprintf(tag, sizeof(tag), "frame_%u", (unsigned)g_game_frame_counter);
+            host_scene_queue_log_state(tag);
+        }
+        FUN_0202a33c_safe();
+    }
 }
 
 void game_do_transition(u32 duration, u32 target_state, u32 flags) {

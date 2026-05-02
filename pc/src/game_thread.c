@@ -109,6 +109,14 @@ int game_thread_main(void* user) {
      * has run a while; if the bytes change, code is staging there. */
     shadow_buffer_snapshot("after_dat_init");
 
+    /* Probe + optional fake-populate the linked-list scene queue at
+     * NDS 0x02060A04.  See pc/src/host_scene_queue.c. */
+    extern void host_scene_queue_log_state(const char *tag);
+    extern void host_scene_queue_inject_fake(void);
+    host_scene_queue_log_state("post_init");
+    host_scene_queue_inject_fake();
+    host_scene_queue_log_state("post_inject");
+
     /* HOST_PORT: install the .data literals FUN_02005b70 needs (slot ptr,
      * alloc size, default config, display flag).  Must run before any
      * call into FUN_02005b70 / game_state_host_engage_real. */

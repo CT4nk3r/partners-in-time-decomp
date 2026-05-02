@@ -1,0 +1,346 @@
+/*
+ * host_scene_queue.c — HOST_PORT scene-queue probe + optional fake populator.
+ *
+ * The decompiled game has a doubly-linked-list "scene/object queue" anchor
+ * struct at NDS 0x02060A04 (per gap_0301.s data dump) shared by:
+ *   - DAT_0202a510 (master list head ptr, used by FUN_0202a33c — the
+ *                   per-frame list processor that dispatches per-node
+ *                   update via vtable[2])
+ *   - DAT_0202a568 (gx list head ptr, used by FUN_0202a51c — marks
+ *                   the "needs update" bit at +0x12 of every node)
+ *
+ * Anchor struct layout (recovered from FUN_0202a56c.c hand-decomp):
+ *   +00 head ptr
+ *   +04 tail ptr
+ *   +08 count (u16)
+ *   +0a link_offset (u16)   — offset within each node where prev/next live
+ *
+ * Per-node fields used by FUN_0202a33c / FUN_0202a51c:
+ *   +00 vtable ptr (its slot +8 is invoked when active)
+ *   +0c next (when link_offset==0xc; conventional default)
+ *   +12 (u16) flag bits — bit0 = "needs update", bit1 = scheduled
+ *   +11 (s8)  active flag (FUN_0202a51c only updates when != 0 && != -1)
+ *
+ * Currently observed on this host build:
+ *   - The wholesale arm9.bin → ARM9 RAM init places the static .data words
+ *     at NDS 0x0202a510..0x0202a51c so they hold the proper anchor
+ *     pointer 0x02060A04 — verified.
+ *   - The anchor at 0x02060A04 is zeroed (no populator has run yet);
+ *     its head/tail/count are all 0.
+ *   - On x86_64 the C `extern int *DAT_0202a510;` declarations clash
+ *     with the 4-byte `uint32_t DAT_0202a510;` definitions in
+ *     host_undefined_stubs.c, so reading via the symbol is unsafe.
+ *     This file only ever reads/writes through direct NDS pointer
+ *     literals into the VirtualAlloc'd 4 MiB ARM9 RAM, sidestepping
+ *     the type-mismatch entirely.
+ *
+ * Behaviour:
+ *   - host_scene_queue_log_state(tag): one-shot log of the anchor's
+ *     head/tail/count/link_offset and the first 4 nodes' (vtable, next,
+ *     flags) tuples.  Throttled by tag-uniqueness (we only log once
+ *     per distinct tag).
+ *   - host_scene_queue_inject_fake(): if MLPIT_FAKE_QUEUE_NODE=1 is set
+ *     in the environment, install a single zero-flag fake node at
+ *     0x02300100 and point the anchor at it.  The flag bits are zero so
+ *     FUN_0202a33c will skip the indirect vtable[2] call (the test
+ *     `((u8)flags << 0x1f) < 0` requires bit 0 set).  Goal: confirm the
+ *     processor actually walks the chain (visible because the count
+ *     stays 1 and the flag-mark in FUN_0202a51c won't fire either).
+ */
+
+#include "types.h"
+
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+extern int  nds_arm9_ram_is_mapped(void);
+
+/* The anchor struct address is hard-coded from gap_0301.s.  We do NOT
+ * read DAT_0202a510 because of the host 32-vs-64-bit pointer storage
+ * mismatch described above. */
+#define SCENE_ANCHOR_NDS_ADDR  0x02060A04u
+
+/* Fake node we own: well past arm9.bin's 0x0205C000 high water mark and
+ * outside any other host-allocated region in the 4 MiB ARM9 mapping. */
+#define FAKE_NODE_NDS_ADDR     0x02300100u
+#define FAKE_NODE_SIZE         0x40u
+
+static int g_logged_post_init   = 0;
+static int g_logged_post_dispatch = 0;
+static int g_fake_injected      = 0;
+
+static u32 nds_r32(u32 nds_addr)
+{
+    return *(volatile u32 *)(uintptr_t)nds_addr;
+}
+
+static u16 nds_r16(u32 nds_addr)
+{
+    return *(volatile u16 *)(uintptr_t)nds_addr;
+}
+
+static void nds_w32(u32 nds_addr, u32 v)
+{
+    *(volatile u32 *)(uintptr_t)nds_addr = v;
+}
+
+static void nds_w16(u32 nds_addr, u16 v)
+{
+    *(volatile u16 *)(uintptr_t)nds_addr = v;
+}
+
+void host_scene_queue_log_state(const char *tag)
+{
+    if (!nds_arm9_ram_is_mapped()) return;
+
+    /* Tag-uniqueness gate: single log per unique tag.  We compare against
+     * the two known tags only — any new tag passed in is logged once. */
+    if (tag && strcmp(tag, "post_init") == 0) {
+        if (g_logged_post_init) return;
+        g_logged_post_init = 1;
+    } else if (tag && strcmp(tag, "post_dispatch") == 0) {
+        if (g_logged_post_dispatch) return;
+        g_logged_post_dispatch = 1;
+    }
+
+    u32 head     = nds_r32(SCENE_ANCHOR_NDS_ADDR + 0x00);
+    u32 tail     = nds_r32(SCENE_ANCHOR_NDS_ADDR + 0x04);
+    u16 count    = nds_r16(SCENE_ANCHOR_NDS_ADDR + 0x08);
+    u16 link_off = nds_r16(SCENE_ANCHOR_NDS_ADDR + 0x0a);
+
+    fprintf(stderr,
+            "[scene-queue] %s anchor=0x%08X head=0x%08X tail=0x%08X "
+            "count=%u link_off=0x%x\n",
+            tag ? tag : "(no-tag)",
+            (unsigned)SCENE_ANCHOR_NDS_ADDR,
+            (unsigned)head, (unsigned)tail,
+            (unsigned)count, (unsigned)link_off);
+
+    /* Walk up to 4 nodes for visibility. */
+    u32 node = head;
+    int hop = 0;
+    while (node && hop < 4) {
+        /* Sanity: NDS addresses must be in [0x02000000, 0x02400000). */
+        if (node < 0x02000000u || node >= 0x02400000u) {
+            fprintf(stderr,
+                    "[scene-queue] %s   node[%d]=0x%08X (OUT OF MAPPED RAM)\n",
+                    tag ? tag : "(no-tag)", hop, (unsigned)node);
+            break;
+        }
+        u32 vtable = nds_r32(node + 0x00);
+        u32 next   = nds_r32(node + (link_off ? link_off : 0x0c));
+        u16 flags  = nds_r16(node + 0x12);
+        fprintf(stderr,
+                "[scene-queue] %s   node[%d]=0x%08X  vtable=0x%08X  "
+                "next=0x%08X  flags=0x%04X\n",
+                tag ? tag : "(no-tag)", hop,
+                (unsigned)node, (unsigned)vtable,
+                (unsigned)next, (unsigned)flags);
+        node = next;
+        hop++;
+    }
+    fflush(stderr);
+}
+
+void host_scene_queue_inject_fake(void)
+{
+    if (g_fake_injected) return;
+    if (!getenv("MLPIT_FAKE_QUEUE_NODE")) return;
+    if (!nds_arm9_ram_is_mapped()) return;
+
+    g_fake_injected = 1;
+
+    /* Build a zeroed fake node. */
+    void *node = (void *)(uintptr_t)FAKE_NODE_NDS_ADDR;
+    memset(node, 0, FAKE_NODE_SIZE);
+
+    /* flags=0 => FUN_0202a33c's `((u8)flags << 0x1f) < 0` test fails =>
+     * the indirect vtable[2] call is skipped, so the unset vtable ptr
+     * (=0) does not matter.  active flag at +0x11 = 0 => FUN_0202a51c
+     * also skips this node's update-bit toggle. */
+    nds_w32(FAKE_NODE_NDS_ADDR + 0x0c, 0);   /* next = NULL */
+
+    /* Install into the anchor. */
+    nds_w32(SCENE_ANCHOR_NDS_ADDR + 0x00, FAKE_NODE_NDS_ADDR);  /* head */
+    nds_w32(SCENE_ANCHOR_NDS_ADDR + 0x04, FAKE_NODE_NDS_ADDR);  /* tail */
+    nds_w16(SCENE_ANCHOR_NDS_ADDR + 0x08, 1);                   /* count */
+
+    /* link_offset already 0 in zeroed memory; FUN_0202a33c walks +0xc
+     * unconditionally so it doesn't need a non-zero link_off, but the
+     * push helpers (FUN_0202a56c) read link_off from anchor+0xa.  Set
+     * the conventional 0xc so any future append is consistent. */
+    nds_w16(SCENE_ANCHOR_NDS_ADDR + 0x0a, 0x0c);
+
+    fprintf(stderr,
+            "[scene-queue] INJECTED fake node at 0x%08X into anchor "
+            "0x%08X (count=1, flags=0)\n",
+            (unsigned)FAKE_NODE_NDS_ADDR,
+            (unsigned)SCENE_ANCHOR_NDS_ADDR);
+    fflush(stderr);
+}
+
+/* ------------------------------------------------------------------
+ * 64-bit-safe replacement for FUN_0202a33c (gx_util.c).
+ *
+ * The decompiled FUN_0202a33c reads the master-anchor pointer through
+ *   extern int *DAT_0202a510;
+ *   if (*DAT_0202a510 != 0) ...
+ * but pc/src/host_undefined_stubs.c defines DAT_0202a510 as a 4-byte
+ * `uint32_t` slot, while the decomp accesses it as an 8-byte pointer.
+ * On x86_64 that reads 8 bytes spanning DAT_0202a510 + DAT_0202a514,
+ * which forms a bogus 64-bit pointer and segfaults on dereference.
+ *
+ * We sidestep the problem entirely: read the anchor address straight
+ * from the wholesale-initialised arm9.bin slot at NDS 0x0202A510 (which
+ * holds 0x02060A04 by construction) and walk through direct NDS
+ * pointers into the VirtualAlloc'd 4 MiB ARM9 RAM.
+ *
+ * Behaviour vs. the original ARM:
+ *   - Walks every node via +0xc until null.
+ *   - When flags bit 0 is set AND bit 1 is clear AND bit 3 of the
+ *     "schedule countdown" sub-field is clear, the original invoked
+ *     `(*(u32*)node)[+8]` (vtable[2]).  We CANNOT execute an arbitrary
+ *     ARM-domain function pointer here (the vtable lives at an NDS
+ *     address but a host call needs a 64-bit host fn ptr), so we log
+ *     the request and skip — the bookkeeping bits below still run.
+ *   - The flag-mask updates and the second pass (clear-bit-1 / clear
+ *     low-6-bits-when-bit-3-clear) are exact ports.
+ *
+ * No-op when head=NULL (queue empty), so calling this every frame is
+ * cheap.
+ * ------------------------------------------------------------------ */
+
+#include "arm_compat.h"
+
+#define DAT_0202A510_ADDR  0x0202A510u  /* slot holding anchor ptr */
+
+static u32 nds_anchor_addr(void)
+{
+    if (!nds_arm9_ram_is_mapped()) return 0;
+    /* Read the 32-bit slot value from the wholesale-init'd ARM9 RAM. */
+    u32 v = *(volatile u32 *)(uintptr_t)DAT_0202A510_ADDR;
+    /* Defensive: anchor must point into our 4 MiB mapping. */
+    if (v < 0x02000000u || v >= 0x02400000u) return 0;
+    return v;
+}
+
+static int nds_addr_in_arm9(u32 a)
+{
+    return a >= 0x02000000u && a < 0x02400000u;
+}
+
+void FUN_0202a33c_safe(void)
+{
+    static int s_skipped_vtable_warn = 0;
+
+    u32 anchor = nds_anchor_addr();
+    if (!anchor) return;
+    u32 head = *(volatile u32 *)(uintptr_t)(anchor + 0x00);
+    if (!nds_addr_in_arm9(head) || head == 0) {
+        /* Anchor empty or corrupt — nothing to do. */
+        return;
+    }
+
+    /* First pass — same outer-do/while bVar2 loop the original used.
+     * We bail out after a fixed number of iterations to be safe. */
+    int outer_guard = 64;
+    int run_again;
+    do {
+        run_again = 0;
+        u32 node = head;
+        int hop = 0;
+        while (node && hop < 256) {
+            if (!nds_addr_in_arm9(node)) break;
+            u16 flags = *(volatile u16 *)(uintptr_t)(node + 0x12);
+
+            /* `(u8(flags) << 0x1f) < 0` => bit 0 of flags == 1
+             * `-1 < (int)(uVar6 << 0x1e)` => bit 1 of flags == 0  */
+            int active   = (flags & 1) != 0;
+            int sched    = (flags & 2) != 0;
+            if (active && !sched) {
+                /* (flags << 0x1a) >> 0x1c == bits[5..2] (signed)  */
+                int s_field = (s32)((u32)flags << 0x1a) >> 0x1c;
+                if ((s_field & 8) == 0) {
+                    /* Counter increment in the +6..+9 nibble.        */
+                    u16 counter_nib = (u16)((((u32)flags << 0x16) >> 0x1c) + 1) & 0xf;
+                    flags = (u16)((flags & 0xfc3f) | (counter_nib << 6));
+                    *(volatile u16 *)(uintptr_t)(node + 0x12) = flags;
+
+                    /* Original ARM: (**(void (**)())(*node + 8))();
+                     * We can't execute ARM-domain vtable entries, so log
+                     * once and continue. */
+                    if (!s_skipped_vtable_warn) {
+                        s_skipped_vtable_warn = 1;
+                        u32 vtable = *(volatile u32 *)(uintptr_t)node;
+                        fprintf(stderr,
+                                "[FUN_0202a33c_safe] skipping vtable[2] "
+                                "call (node=0x%08X vtable=0x%08X) — "
+                                "host port has no ARM-domain dispatcher\n",
+                                (unsigned)node, (unsigned)vtable);
+                        fflush(stderr);
+                    }
+
+                    int counter_sf = (s32)((u32)flags << 0x16) >> 0x1c;
+                    if (counter_sf < s_field) {
+                        run_again = 1;
+                    } else {
+                        flags |= 2;
+                        *(volatile u16 *)(uintptr_t)(node + 0x12) = flags;
+                    }
+                } else {
+                    /* sched-counter path (s_field bit 3 set) */
+                    u16 counter_nib = (u16)((((u32)flags << 0x16) >> 0x1c) + 1) & 0xf;
+                    flags = (u16)((flags & 0xfc3f) | (counter_nib << 6));
+                    *(volatile u16 *)(uintptr_t)(node + 0x12) = flags;
+
+                    int counter_sf = (s32)((u32)flags << 0x16) >> 0x1c;
+                    if (-s_field <= counter_sf) {
+                        if (!s_skipped_vtable_warn) {
+                            s_skipped_vtable_warn = 1;
+                            u32 vtable = *(volatile u32 *)(uintptr_t)node;
+                            fprintf(stderr,
+                                    "[FUN_0202a33c_safe] skipping vtable[2] "
+                                    "(sched, node=0x%08X vtable=0x%08X)\n",
+                                    (unsigned)node, (unsigned)vtable);
+                            fflush(stderr);
+                        }
+                        flags &= 0xfc3f;
+                        *(volatile u16 *)(uintptr_t)(node + 0x12) = flags;
+                    }
+                    flags |= 2;
+                    *(volatile u16 *)(uintptr_t)(node + 0x12) = flags;
+                }
+            }
+
+            /* Walk to next node via +0xc. */
+            u32 next = *(volatile u32 *)(uintptr_t)(node + 0x0c);
+            if (next == node) break;  /* self-loop guard */
+            node = next;
+            hop++;
+        }
+    } while (run_again && --outer_guard > 0);
+
+    /* Second pass: clear bit 1 of flags on every node, plus low-6 bits
+     * when s_field bit 3 is clear. */
+    {
+        u32 node = head;
+        int hop = 0;
+        while (node && hop < 256) {
+            if (!nds_addr_in_arm9(node)) break;
+            u16 flags = *(volatile u16 *)(uintptr_t)(node + 0x12);
+            flags &= 0xfffd;  /* clear bit 1 */
+            int s_field = (s32)((u32)flags << 0x1a) >> 0x1c;
+            if ((s_field & 8) == 0) {
+                flags &= 0xfc3f;
+            }
+            *(volatile u16 *)(uintptr_t)(node + 0x12) = flags;
+            u32 next = *(volatile u32 *)(uintptr_t)(node + 0x0c);
+            if (next == node) break;
+            node = next;
+            hop++;
+        }
+    }
+}
+

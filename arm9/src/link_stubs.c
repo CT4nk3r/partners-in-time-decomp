@@ -18,7 +18,12 @@
 
 void crt0_init_cp15(void) {}
 void crt0_init_hardware(void) {}
+/* crt0_copy_sections is now provided by FUN_02004914 in game_init.c via the
+ * sdk_symbol_aliases.h #define mapping (real LZ-decompress + cache flush).
+ * Keeping a no-op here would multiply-define the symbol on HOST_PORT. */
+#ifndef HOST_PORT
 void crt0_copy_sections(void *table) { (void)table; }
+#endif
 
 /* ======== SDK init functions ======== */
 
@@ -497,4 +502,15 @@ void MI_DmaFill32(u32 c, void *d, u32 v, u32 sz) { (void)c; (void)d; (void)v; (v
 void MI_DmaCopy16(u32 c, const void *s2, void *d, u32 sz) {
     (void)c; (void)s2; (void)d; (void)sz;
 }
+
+/* === BIOS LZ77 wrappers ============================================
+ * Three FUN_<addr> entries (0x02046ffc, 0x02047010, 0x02047024) all
+ * forward to BIOS SWI 0x11 (LZ77UnCompVram).  They differ only in the
+ * exact callee tail (Vram/Wram/aligned variants); on the host all of
+ * them route through arm_swi_11_lz77_decomp().
+ */
+void LZ77_UncompVram_1(const void *src, void *dst) { arm_swi_11_lz77_decomp(src, dst); }
+void LZ77_UncompVram_2(const void *src, void *dst) { arm_swi_11_lz77_decomp(src, dst); }
+void LZ77_UncompVram_3(const void *src, void *dst) { arm_swi_11_lz77_decomp(src, dst); }
+
 #endif /* HOST_PORT */

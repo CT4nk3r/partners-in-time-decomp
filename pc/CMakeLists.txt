@@ -32,6 +32,17 @@ file(GLOB ARM9_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../arm9/src/*.c")
 
 add_executable(mlpit_pc ${PC_SOURCES} ${ARM9_SOURCES})
 
+# Force-include the FUN_<addr> -> SDK/game-name alias header into every
+# decompiled ARM9 translation unit (HOST_PORT only).  This rewires
+# anonymous Ghidra calls (FUN_02005444, FUN_02046ffc, ...) onto the
+# hand-named implementations in arm9/src/*.c so the no-op shadow stubs
+# in pc/src/host_undefined_stubs.c become dead code.
+set(SDK_ALIAS_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/sdk_symbol_aliases.h")
+foreach(_arm9_src IN LISTS ARM9_SOURCES)
+    set_source_files_properties(${_arm9_src} PROPERTIES
+        COMPILE_OPTIONS "-include;${SDK_ALIAS_HEADER}")
+endforeach()
+
 # Copy runtime DLLs next to the exe so users can double-click without PATH setup.
 # (MinGW + SDL2 produce dynamically linked binaries; missing DLLs = silent exit.)
 if (WIN32)

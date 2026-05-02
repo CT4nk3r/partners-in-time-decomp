@@ -16,17 +16,27 @@ The goal of this project is to produce a fully matching decompilation of the gam
 
 ## Project Status
 
-🚧 **Early Stage** — Project scaffolding and tooling setup. No functions decompiled yet.
+🚧 **In active development** — PC port boots, loads NDS overlays into the
+emulated address space, and runs the natural init path far enough that
+real tile/VRAM data reaches the rendering pipeline. No recognisable game
+output yet — see [docs/PROGRESS.md](docs/PROGRESS.md) for current
+milestones and screenshots.
 
-| Component | Status |
-|-----------|--------|
-| ROM Extraction | ✅ Scripts ready |
-| ARM9 Disassembly | 🔲 Not started |
-| ARM7 Disassembly | 🔲 Not started |
-| Function Decompilation | 0% |
-| Matching Build | 🔲 Not started |
-| PC Port | 🔲 Not started |
-| Android Port | 🔲 Not started |
+| Component                              | Status |
+|----------------------------------------|--------|
+| ROM extraction & asset pack            | ✅ Working |
+| ARM9 disassembly                       | ✅ Full |
+| Decompiled C functions                 | 270+ in `arm9/src/` |
+| HOST_PORT compile path (PC)            | ✅ Builds clean |
+| NDS RAM mmap + overlay loader          | ✅ ov0, ov6 loaded |
+| NDS→host function-pointer trampoline   | ✅ ~1 050 entries |
+| 2D OAM shadow → hardware → SDL         | ✅ Verified end-to-end |
+| BG VRAM tile fetch                     | ✅ Real tile data reaches VRAM |
+| Per-engine compositing (top vs bottom) | 🔲 Sub engine duplicates main |
+| GXFIFO → SDL 3D rasteriser             | 🔲 Not yet wired |
+| Live scene struct (natural init)       | 🔲 Deeper `game_start` SIGSEGV |
+| Audio (NDS APU shim)                   | 🔲 Not started |
+| Android port                           | 🔲 Blocked on Linux mmap port |
 
 ## Prerequisites
 
@@ -107,6 +117,12 @@ python tools/extract_assets.py roms/baserom.nds assets/mlpit.assets
 ├── SETUP.md            # Tool installation guide
 └── README.md           # This file
 ```
+
+## Documentation
+
+- [docs/PROGRESS.md](docs/PROGRESS.md) — visible milestones with screenshots
+- [docs/ASSET_FORMAT.md](docs/ASSET_FORMAT.md) — asset pack layout
+- [SETUP.md](SETUP.md) — toolchain installation
 
 ## Contributing
 

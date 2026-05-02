@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
      * than black — even if game_start() crashes immediately.
      *
      * --show-asset N: use FAT file N's raw bytes as 4bpp tile data.
-     * Normal boot:    use synthetic procedural tiles.
+     * Normal boot:    try real game tiles first (FAT[0x62]), then synthetic.
      * ──────────────────────────────────────────────────────────── */
     if (show_asset_idx >= 0) {
         nds_log("[boot] --show-asset %d: loading asset as 4bpp tiles\n",
@@ -141,7 +141,10 @@ int main(int argc, char** argv) {
             boot_hook_vram();
         }
     } else {
-        boot_hook_vram();
+        /* Try to show real game tiles (FAT[0x62]); fall back to synthetic */
+        if (!boot_hook_real_tiles()) {
+            boot_hook_vram();
+        }
     }
 
     /* In --show-asset mode, skip the game thread so only our tile

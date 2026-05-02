@@ -1,13 +1,20 @@
 /*
  * nds_boot_hook.c - Pre-game VRAM population and diagnostic asset viewer
  *
- * Two modes:
+ * Three modes:
  *  1. boot_hook_vram()           – synthetic test pattern (no assets needed)
- *  2. show_asset_in_vram(index)  – raw FAT file bytes treated as 4bpp tiles
+ *  2. boot_hook_real_tiles()     – load first recognisable tiles from the game
+ *                                  data (requires asset pack)
+ *  3. show_asset_in_vram(index)  – raw FAT file bytes treated as 4bpp tiles
  *
- * Both write tile data + palette into VRAM banks A/E and configure IO
- * shadow registers so bg_render_top() draws something even before
- * game_start() has run.
+ * boot_hook_real_tiles() strategy:
+ *   - Asset 0x62 (PACK_ID_FILE(0x62) = 0x2062) is a large raw 4bpp tile sheet.
+ *     The first 32 KB covers char block 0 (up to 1024 tiles).
+ *   - A game palette is constructed from asset 0x01 (overlay 1 palette at
+ *     PACK_ID_OVERLAY(1) = 0x1001) when present and non-zero, otherwise a
+ *     synthetic greyscale palette is used.
+ *   - Both write to VRAM banks A/E and configure IO shadow registers so
+ *     bg_render_top() draws them on the first frame.
  *
  * VRAM layout (bank A, 128 KB):
  *   offset 0x00000 – 0x1FFFF  char block 0  (tiles, up to 4096 × 32 B)
@@ -19,6 +26,7 @@
 #include "nds_boot_hook.h"
 #include "nds_platform.h"
 #include "asset_pack.h"
+#include "mlpit_pack.h"
 
 #include <string.h>
 #include <stdint.h>
@@ -168,7 +176,88 @@ void boot_hook_vram(void)
     configure_bg_regs();
 
     nds_log("[boot_hook] Synthetic VRAM loaded: 256 tiles, rainbow palette, "
-            "32x32 tilemap — BG0 enabled\n");
+            "32x32 tilemap -- BG0 enabled\n");
+}
+
+/*
+ * boot_hook_real_tiles() — load the first 1024 tiles from the game's raw
+ * tile sheet (FAT index 0x62 = asset 0x2062, 4bpp, ~206 K tiles) together
+ * with the palette from overlay 1 (asset 0x1001, 16 colours).
+ *
+ * Returns 1 on success, 0 when the asset pack isn't loaded or files are absent.
+ */
+int boot_hook_real_tiles(void)
+{
+    if (!pack_is_loaded()) return 0;
+
+    void  *tile_data  = NULL;
+    size_t tile_size  = 0;
+
+    /* FAT index 0x62 = asset ID 0x2062 (raw 4bpp tile sheet) */
+    if (!pack_get_file(0x62, &tile_data, &tile_size) || !tile_data || tile_size == 0) {
+        nds_log("[boot_hook] Real tiles: FAT[0x62] not found\n");
+        return 0;
+    }
+
+    uint8_t *bank_a = (uint8_t *)nds_vram_bank('A');
+    if (!bank_a) return 0;
+
+    /* Load up to char-block 0 capacity (32 KB = 1024 tiles) */
+    uint32_t max_bytes  = SCREEN_BASE_OFFSET;          /* 0x8000 = 32 KB */
+    uint32_t copy_bytes = (uint32_t)tile_size < max_bytes
+                        ? (uint32_t)tile_size : max_bytes;
+    copy_bytes -= copy_bytes % TILES_4BPP_BYTES;       /* whole tiles only */
+
+    int num_tiles = (int)(copy_bytes / TILES_4BPP_BYTES);
+    if (num_tiles < 1) return 0;
+
+    memset(bank_a, 0, SCREEN_BASE_OFFSET + MAP_ENTRIES * 2);
+    memcpy(bank_a, tile_data, copy_bytes);
+
+    /* Try overlay-0 palette (asset 0x1001). If it's all zeros fall back to
+     * the rainbow palette so we at least see coloured shapes. */
+    uint8_t *bank_e = (uint8_t *)nds_vram_bank('E');
+    int pal_loaded = 0;
+    if (bank_e) {
+        void  *pal_data = NULL;
+        size_t pal_size = 0;
+        if (pack_get_overlay(1, &pal_data, &pal_size) && pal_data && pal_size >= 32) {
+            const uint8_t *p = (const uint8_t *)pal_data;
+            /* Check if palette is non-zero */
+            int has_data = 0;
+            for (size_t i = 0; i < 32 && !has_data; i++)
+                if (p[i] != 0) has_data = 1;
+            if (has_data) {
+                memcpy(bank_e, pal_data, pal_size < 32 ? pal_size : 32);
+                pal_loaded = 1;
+                nds_log("[boot_hook] Loaded overlay-1 palette (%zu bytes)\n",
+                        pal_size < 32 ? pal_size : (size_t)32);
+            }
+        }
+        if (!pal_loaded) {
+            /* Greyscale ramp: 16 shades */
+            for (int i = 0; i < 16; i++) {
+                uint16_t v = (uint16_t)(i * 2);          /* R component */
+                v |= (uint16_t)(v << 5) | (uint16_t)(v << 10); /* G=B=R */
+                bank_e[i * 2]     = (uint8_t)(v & 0xFF);
+                bank_e[i * 2 + 1] = (uint8_t)(v >> 8);
+            }
+            /* Also write the rainbow palette as fallback for more visibility */
+            for (int i = 0; i < 16; i++) {
+                bank_e[i * 2]     = (uint8_t)(k_rainbow_pal[i] & 0xFF);
+                bank_e[i * 2 + 1] = (uint8_t)(k_rainbow_pal[i] >> 8);
+            }
+        }
+    }
+
+    write_tilemap(bank_a, num_tiles);
+    configure_bg_regs();
+
+    nds_log("[boot_hook] Real tiles loaded: FAT[0x62] %u tiles (%u bytes), "
+            "palette=%s\n",
+            (unsigned)num_tiles, (unsigned)copy_bytes,
+            pal_loaded ? "overlay-1" : "rainbow-fallback");
+    return 1;
 }
 
 int show_asset_in_vram(int fat_index)

@@ -25,6 +25,16 @@ extern "C" {
 void boot_hook_vram(void);
 
 /*
+ * boot_hook_real_tiles() — load the first 1024 tiles from the game's raw
+ * tile sheet (FAT[0x62] = asset 0x2062) for a first glimpse of real game
+ * graphics.  Falls back to boot_hook_vram() if the asset pack is not loaded
+ * or the file is absent.
+ *
+ * Returns 1 on success (real tiles loaded), 0 on failure.
+ */
+int boot_hook_real_tiles(void);
+
+/*
  * show_asset_in_vram(fat_index) — treat raw asset bytes as 4bpp tile data.
  *
  * Copies file fat_index raw bytes into VRAM bank A, builds a sequential

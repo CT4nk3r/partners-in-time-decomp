@@ -176,7 +176,17 @@ void host_scene_queue_inject_fake(void)
     nds_w32(FAKE_NODE_NDS_ADDR + 0x00, FAKE_VTABLE_NDS_ADDR);  /* node->vtable */
     nds_w32(FAKE_VTABLE_NDS_ADDR + 0x00, 0);
     nds_w32(FAKE_VTABLE_NDS_ADDR + 0x04, 0);
-    nds_w32(FAKE_VTABLE_NDS_ADDR + 0x08, HOST_TEST_NODE_FNPTR); /* vtable[2] */
+    /* Default vtable[2] = host test trampoline. May be overridden via
+     * MLPIT_FAKE_NODE_FN=0xNNNNNNNN (e.g. 0x0200FCB4 to exercise the
+     * decompiled state-machine processor). */
+    u32 vtbl2_fn = HOST_TEST_NODE_FNPTR;
+    {
+        const char *override = getenv("MLPIT_FAKE_NODE_FN");
+        if (override) {
+            vtbl2_fn = (u32)strtoul(override, NULL, 0);
+        }
+    }
+    nds_w32(FAKE_VTABLE_NDS_ADDR + 0x08, vtbl2_fn); /* vtable[2] */
     nds_w32(FAKE_VTABLE_NDS_ADDR + 0x0c, 0);
     nds_w32(FAKE_NODE_NDS_ADDR + 0x0c, 0);   /* next = NULL */
 
@@ -197,7 +207,7 @@ void host_scene_queue_inject_fake(void)
             "vtable[2]=0x%08X) into anchor 0x%08X (count=1, flags=1)\n",
             (unsigned)FAKE_NODE_NDS_ADDR,
             (unsigned)FAKE_VTABLE_NDS_ADDR,
-            (unsigned)HOST_TEST_NODE_FNPTR,
+            (unsigned)vtbl2_fn,
             (unsigned)SCENE_ANCHOR_NDS_ADDR);
     fflush(stderr);
 }

@@ -63,6 +63,7 @@ int game_thread_main(void* user) {
         if (!boot_hook_paired_screen()) {
             (void)boot_hook_real_tiles();
         }
+        (void)boot_hook_paired_screen_sub();
         nds_log("[game] re-armed boot screen after game_start fault\n");
     }
 

@@ -488,55 +488,82 @@ static int archive_get_subblock(uint32_t fat_id, uint32_t sub_index,
     return 1;
 }
 
-int boot_hook_paired_screen(void)
+/* Parameterised loader used by top, sub, and MLPIT_BOOT_TRIPLE override.
+ * engine: 0 = top (bank A, palette E[0..]), 1 = sub (bank C, palette E[0x400..])
+ * Returns 1 on success. */
+static int paired_screen_load(int engine, uint32_t fat_id,
+                              uint32_t sub_tiles, uint32_t sub_map,
+                              uint32_t sub_pal)
 {
     if (!pack_is_loaded()) return 0;
 
     const uint8_t *tiles = NULL, *map = NULL, *pal = NULL;
     uint32_t       tiles_sz = 0, map_sz = 0, pal_sz = 0;
 
-    /* FAT id 0x45 (asset 0x2045) — verified screen archive. */
-    if (!archive_get_subblock(0x45, 181, &tiles, &tiles_sz) || tiles_sz < 32 * 1024) return 0;
-    if (!archive_get_subblock(0x45, 178, &map,   &map_sz)   || map_sz   != 4096)     return 0;
-    if (!archive_get_subblock(0x45, 185, &pal,   &pal_sz)   || pal_sz   < 32)        return 0;
+    if (!archive_get_subblock(fat_id, sub_tiles, &tiles, &tiles_sz) || tiles_sz < 32 * 1024) return 0;
+    if (!archive_get_subblock(fat_id, sub_map,   &map,   &map_sz)   || map_sz   != 4096)     return 0;
+    if (!archive_get_subblock(fat_id, sub_pal,   &pal,   &pal_sz)   || pal_sz   < 32)        return 0;
 
-    uint8_t *bank_a = (uint8_t *)nds_vram_bank('A');
+    char vram_bank = (engine == 0) ? 'A' : 'C';
+    uint32_t pal_off = (engine == 0) ? 0u : 0x400u;
+    uint32_t dispcnt_reg = (engine == 0) ? 0x04000000u : 0x04001000u;
+    uint32_t bg0cnt_reg  = (engine == 0) ? REG_BG0CNT  : 0x04001008u;
+    uint32_t bg1cnt_reg  = (engine == 0) ? REG_BG1CNT  : 0x0400100Au;
+    uint32_t bg2cnt_reg  = (engine == 0) ? REG_BG2CNT  : 0x0400100Cu;
+    uint32_t bg3cnt_reg  = (engine == 0) ? REG_BG3CNT  : 0x0400100Eu;
+
+    uint8_t *bank   = (uint8_t *)nds_vram_bank(vram_bank);
     uint8_t *bank_e = (uint8_t *)nds_vram_bank('E');
-    if (!bank_a || !bank_e) return 0;
+    if (!bank || !bank_e) return 0;
 
-    /* 8bpp tiles: 64 B per tile. char block 0 holds 512 tiles in 32 KB. */
-    memset(bank_a, 0, SCREEN_BASE_OFFSET + 4096);
-    memcpy(bank_a + CHAR_BASE_OFFSET, tiles, 32 * 1024);
+    memset(bank, 0, SCREEN_BASE_OFFSET + 4096);
+    memcpy(bank + CHAR_BASE_OFFSET, tiles, 32 * 1024);
+    memcpy(bank + SCREEN_BASE_OFFSET, map, 4096);
 
-    /* Tilemap: 64×32 entries (4 KB).  Goes into the screen-base block.
-     * For screen_size=1 (64×32) the renderer indexes two adjacent 2 KB
-     * blocks: block_x=0 → screen_base, block_x=1 → screen_base+0x800.
-     * Our 4 KB map already has them packed in that order. */
-    memcpy(bank_a + SCREEN_BASE_OFFSET, map, 4096);
-
-    /* 256-colour palette: 512 B → palette_main slot 0. */
     uint32_t pal_copy = pal_sz < 512 ? pal_sz : 512;
-    memcpy(bank_e, pal, pal_copy);
-    if (pal_copy < 512) memset(bank_e + pal_copy, 0, 512 - pal_copy);
+    memcpy(bank_e + pal_off, pal, pal_copy);
+    if (pal_copy < 512) memset(bank_e + pal_off + pal_copy, 0, 512 - pal_copy);
 
-    /*
-     * BG0CNT for 8bpp 64×32 text BG:
-     *   bits[1:0]   = 0   priority 0
-     *   bits[5:2]   = 0   char_base = 0  (tiles at VRAM+0x0000)
-     *   bit 7       = 1   8bpp colour mode
-     *   bits[12:8]  = 16  screen_base = 16 → map at VRAM+0x8000
-     *   bits[15:14] = 1   screen_size 1 → 64×32 tilemap
-     */
-    nds_reg_write16(REG_BG0CNT, (uint16_t)(0x1080u | (1u << 14)));
-    nds_reg_write16(REG_BG1CNT, 0);
-    nds_reg_write16(REG_BG2CNT, 0);
-    nds_reg_write16(REG_BG3CNT, 0);
+    nds_reg_write16(bg0cnt_reg, (uint16_t)(0x1080u | (1u << 14)));
+    nds_reg_write16(bg1cnt_reg, 0);
+    nds_reg_write16(bg2cnt_reg, 0);
+    nds_reg_write16(bg3cnt_reg, 0);
+    nds_reg_write32(dispcnt_reg, 0x0100u);
 
-    /* DISPCNT: BG mode 0 + BG0 visible. */
-    nds_reg_write32(REG_DISPCNT, 0x0100u);
-
-    nds_log("[boot_hook] Paired screen loaded: tiles=FAT[0x45].sub[181] (32K), "
-            "map=sub[178] (4K, 64x32), palette=sub[185] (%uB, 8bpp)\n",
+    nds_log("[boot_hook] Paired screen %s: FAT[0x%X] tiles=sub[%u] map=sub[%u] pal=sub[%u] (%uB)\n",
+            engine == 0 ? "TOP" : "SUB", fat_id, sub_tiles, sub_map, sub_pal,
             (unsigned)pal_copy);
     return 1;
+}
+
+int boot_hook_paired_screen(void)
+{
+    /* Allow runtime override via MLPIT_BOOT_TRIPLE=fat_hex:tile_sub:map_sub:pal_sub
+     * (decimal sub-indices). Example: "45:181:178:185". */
+    const char *env = getenv("MLPIT_BOOT_TRIPLE");
+    if (env && *env) {
+        unsigned fat_id, st, sm, sp;
+        if (sscanf(env, "%x:%u:%u:%u", &fat_id, &st, &sm, &sp) == 4) {
+            if (paired_screen_load(0, fat_id, st, sm, sp)) {
+                return 1;
+            }
+            nds_log("[boot_hook] MLPIT_BOOT_TRIPLE=%s failed; using default 0x45:181:178:185\n", env);
+        } else {
+            nds_log("[boot_hook] MLPIT_BOOT_TRIPLE=%s malformed (want fatHex:tile:map:pal)\n", env);
+        }
+    }
+    return paired_screen_load(0, 0x45, 181, 178, 185);
+}
+
+int boot_hook_paired_screen_sub(void)
+{
+    const char *env = getenv("MLPIT_BOOT_TRIPLE_SUB");
+    if (env && *env) {
+        unsigned fat_id, st, sm, sp;
+        if (sscanf(env, "%x:%u:%u:%u", &fat_id, &st, &sm, &sp) == 4) {
+            if (paired_screen_load(1, fat_id, st, sm, sp)) return 1;
+        }
+    }
+    /* Default: mirror the top screen contents on sub engine. */
+    return paired_screen_load(1, 0x45, 181, 178, 185);
 }

@@ -174,6 +174,9 @@ static void keep_boot_screen_visible(void)
     /* Mode 0 + BG0 enable (bit 8). Preserve other bits. */
     dispcnt = (dispcnt & ~0x7u) | 0x100u;
     nds_reg_write32(0x04000000u, dispcnt);
+    uint32_t dispcnt_sub = nds_reg_read32(0x04001000u);
+    dispcnt_sub = (dispcnt_sub & ~0x7u) | 0x100u;
+    nds_reg_write32(0x04001000u, dispcnt_sub);
 }
 
 

@@ -45,6 +45,7 @@ int boot_hook_real_tiles(void);
  */
 int show_asset_in_vram(int fat_index);
 int boot_hook_paired_screen(void);
+int boot_hook_paired_screen_sub(void);
 
 #ifdef __cplusplus
 }

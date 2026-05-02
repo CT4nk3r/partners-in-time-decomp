@@ -146,6 +146,7 @@ int main(int argc, char** argv) {
         if (!boot_hook_paired_screen() && !boot_hook_real_tiles()) {
             boot_hook_vram();
         }
+        (void)boot_hook_paired_screen_sub();
     }
 
     /* In --show-asset mode, skip the game thread so only our tile

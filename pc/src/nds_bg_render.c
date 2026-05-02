@@ -47,8 +47,14 @@ void bg_render_sync_vram(void) {
 
     void *bank_e = nds_vram_bank('E');
     if (bank_e) {
-        memcpy(g_palette_main, bank_e,         512);
-        memcpy(g_palette_sub,  (uint8_t*)bank_e + 512, 512);
+        /* Real NDS palette RAM layout (bank E mapped to 0x05000000):
+         *   0x000..0x1FF  main BG palette
+         *   0x200..0x3FF  main OBJ palette
+         *   0x400..0x5FF  sub BG palette
+         *   0x600..0x7FF  sub OBJ palette
+         */
+        memcpy(g_palette_main, bank_e,                    512);
+        memcpy(g_palette_sub,  (uint8_t*)bank_e + 0x400,  512);
     }
 }
 

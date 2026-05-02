@@ -69,7 +69,7 @@ extern void FUN_0202a74c_real(u32 node_addr, u8 priority, u32 r2_unused, u32 r3_
  * Must be past arm9.bin's mapped region and any existing allocations. */
 static u32 s_title_arena = 0x02302000u;
 
-static u32 nds_bump_alloc(u32 size) {
+u32 nds_bump_alloc(u32 size) {
     u32 addr = s_title_arena;
     size = (size + 0xF) & ~0xFu;  /* align to 16 */
     s_title_arena += size;

@@ -34,6 +34,14 @@ extern void FUN_020290a0(void);
 extern void FUN_020290e4(void);
 extern void FUN_02029128(void);
 
+/* State 0 (gameplay) — inline alloc+construct pattern.
+ * Original ARM code at 0x02005F88..0x02005FA4:
+ *   BL OS_Alloc(0x30)  →  BL FUN_0206DE6C(ptr, 8, 0)
+ * The wrapper is inlined in FUN_02005d6c, unlike states 2/9 which use
+ * separate alloc_construct_obj_g/h wrappers. */
+extern void *OS_Alloc(u32 size);
+extern void FUN_0206DE6C(void *obj, int type, int param);
+
 static int s_dispatch_count = 0;
 
 void FUN_02005d6c(int obj_addr)
@@ -55,6 +63,12 @@ void FUN_02005d6c(int obj_addr)
     if (phase == 0) {
         /* Phase-0 state switch — load assets based on state byte */
         switch (state) {
+        case 0:
+            /* Gameplay: same base resource triple as other states */
+            FUN_02029788(0x02097200u);
+            FUN_0202b92c(5u, 0u);
+            FUN_0202b8a0(6u, 3u, 0u);
+            break;
         case 9:
             fprintf(stderr,
                     "[FUN_02005d6c] state=9 → asset triple "
@@ -102,10 +116,16 @@ void FUN_02005d6c(int obj_addr)
 
         /* State switch for phase 1 init functions */
         switch (state) {
-        /* state 0: complex — needs overlay function FUN_0206DE6C */
+        case 0: {
+            /* Gameplay: inline alloc + construct (from ARM @ 0x02005F88-FA4) */
+            void *ptr = OS_Alloc(0x30);
+            if (ptr != NULL) {
+                FUN_0206DE6C(ptr, 8, 0);
+            }
+            break;
+        }
         /* state 1: needs overlay function FUN_0207781C */
         /* state 3: needs overlay function FUN_02072F60 */
-        case 0:
         case 1:
         case 3:
             fprintf(stderr,
@@ -142,6 +162,12 @@ void FUN_02005d6c(int obj_addr)
          * Structurally identical to phase 0 (state-switched asset loading)
          * but for the destination scene. After completion → phase 3. */
         switch (state) {
+        case 0:
+            /* State 0 (gameplay): same base resources */
+            FUN_02029788(0x02097200u);
+            FUN_0202b92c(5u, 0u);
+            FUN_0202b8a0(6u, 3u, 0u);
+            break;
         case 2:
             /* State 2 (file select / post-title): same base resource files.
              * From literal pool: FUN_02029788(0x02097200), FUN_0202b92c(5,0),
@@ -189,6 +215,14 @@ void FUN_02005d6c(int obj_addr)
         FUN_0202a58c(obj_addr);
 
         switch (state) {
+        case 0: {
+            /* Gameplay: inline alloc + construct (from ARM @ 0x020061F8-6214) */
+            void *ptr = OS_Alloc(0x30);
+            if (ptr != NULL) {
+                FUN_0206DE6C(ptr, 8, 0);
+            }
+            break;
+        }
         case 2:  FUN_02029128(); break;  /* alloc_construct_obj_h → next scene */
         case 4:  FUN_020290a0(); break;
         case 5:  FUN_0202905c(); break;

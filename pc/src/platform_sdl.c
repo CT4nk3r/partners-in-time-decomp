@@ -174,17 +174,10 @@ static void pump_input_to_io(void)
         s_pump_frame < s_auto_start_frame + 3) {
         g_input.start = 1;
     }
-    /* Second auto-press: file select needs another Start at +150 frames.
-     * Also move cursor to "NEW GAME" (item 3) by pressing Down 3 times. */
+    /* Second auto-press: file select cursor defaults to NEW GAME (item 3).
+     * Just send Start at +150 frames to confirm selection. */
     int second_press = s_auto_start_frame > 0 ? s_auto_start_frame + 150 : -1;
     if (second_press > 0) {
-        /* Down presses at second_press-6, -4, -2 to move cursor to NEW GAME */
-        for (int i = 0; i < 3; i++) {
-            int down_frame = second_press - 6 + i * 2;
-            if (s_pump_frame == down_frame) g_input.down = 1;
-            if (s_pump_frame == down_frame + 1) g_input.down = 0;
-        }
-        /* Start/A press at second_press */
         if (s_pump_frame >= second_press && s_pump_frame < second_press + 3) {
             g_input.start = 1;
         }

@@ -45,6 +45,7 @@ src/host_synth_sprite.c
     src/ad_decompress.c
     src/host_title_screen.c
     src/host_title_scene.c
+    src/host_gameplay_scene.c
     ${CMAKE_BINARY_DIR}/generated/nds_dat_init_generated.c
     ${CMAKE_BINARY_DIR}/generated/fnptr_table_generated.c
 )

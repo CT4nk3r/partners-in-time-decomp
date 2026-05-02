@@ -13,11 +13,18 @@ pc/src/host_undefined_stubs.c with placeholder definitions:
 The stubs return zero / do nothing so the program links and runs but
 the underlying SDK behaviours are no-ops. This is the starting point
 for incremental porting.
+
+CLI flags:
+  --trace   Instrument every FUN_/thunk_/func_0x stub with first-call
+            logging to stderr.  Used by tools/scripts/trace_stubs.py to
+            discover the actual hot callees during a real game run.
 """
 import re
 import sys
 from pathlib import Path
 from collections import defaultdict
+
+TRACE = "--trace" in sys.argv[1:]
 
 ROOT = Path(__file__).resolve().parents[2]
 LOG = ROOT / "build_log.txt"
@@ -102,8 +109,13 @@ lines = [
     " * the program links and runs.",
     " *",
     " * REGENERATE WITH: python tools/scripts/gen_host_stubs.py",
+    f" * TRACE MODE: {'ON' if TRACE else 'OFF'}  (--trace adds first-call stderr logging)",
     " */",
     "#include <stdint.h>",
+]
+if TRACE:
+    lines.append("#include <stdio.h>")
+lines += [
     "",
     "/* Suppress warnings about unused/empty stubs */",
     "#pragma GCC diagnostic push",
@@ -111,6 +123,12 @@ lines = [
     "#pragma GCC diagnostic ignored \"-Wmain\"",
     "",
 ]
+
+def stub_body(sym: str) -> str:
+    if TRACE:
+        return ("{ static int s; if(!s){s=1; "
+                f"fprintf(stderr,\"[stub] {sym}\\n\");}} return 0; }}")
+    return "{ return 0; }"
 
 # DAT_ globals - these are u32 storage. The original code accesses them
 # as &DAT_xxx (pointer) and *DAT_xxx (value). We just provide bytes.
@@ -122,19 +140,19 @@ lines.append("")
 # FUN_* function stubs - variadic-compatible, return zero
 lines.append(f"/* === FUN_* stubs ({len(groups['FUN'])} symbols) === */")
 for s in groups["FUN"]:
-    lines.append(f"int {s}() {{ return 0; }}")
+    lines.append(f"int {s}() {stub_body(s)}")
 lines.append("")
 
 # thunk_FUN_* - same treatment
 lines.append(f"/* === thunk_FUN_* stubs ({len(groups['THUNK'])} symbols) === */")
 for s in groups["THUNK"]:
-    lines.append(f"int {s}() {{ return 0; }}")
+    lines.append(f"int {s}() {stub_body(s)}")
 lines.append("")
 
 # func_0xHEX - boot ROM functions called via address
 lines.append(f"/* === func_0x* stubs ({len(groups['FUNC_HEX'])} symbols) === */")
 for s in groups["FUNC_HEX"]:
-    lines.append(f"int {s}() {{ return 0; }}")
+    lines.append(f"int {s}() {stub_body(s)}")
 lines.append("")
 
 # Other named SDK / IRQ / engine symbols

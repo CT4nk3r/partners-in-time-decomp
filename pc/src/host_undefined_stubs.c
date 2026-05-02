@@ -8,6 +8,7 @@
  * the program links and runs.
  *
  * REGENERATE WITH: python tools/scripts/gen_host_stubs.py
+ * TRACE MODE: OFF  (--trace adds first-call stderr logging)
  */
 #include <stdint.h>
 
@@ -1609,8 +1610,7 @@ int thunk_FUN_02029ab8() { return 0; }
 int thunk_FUN_0202ed98() { return 0; }
 int thunk_FUN_0203d660() { return 0; }
 
-/* === func_0x* stubs (12 symbols) === */
-/* func_0x01ff84c0 / 8520 / 8558 / 85cc: DMA IPC — defined in link_stubs.c */
+/* === func_0x* stubs (8 symbols) === */
 int func_0x01ff861c() { return 0; }
 int func_0x0209bb68() { return 0; }
 int func_0x0209bb74() { return 0; }
@@ -1620,7 +1620,7 @@ int func_0x0209c9f8() { return 0; }
 int func_0x0209ca0c() { return 0; }
 int func_0x0209cd64() { return 0; }
 
-/* === Named SDK stubs (16 symbols) === */
+/* === Named SDK stubs (14 symbols) === */
 int enable_ipc_interrupt() { return 0; }
 int game_setup_overlay() { return 0; }
 int gx_alloc_render_memory() { return 0; }

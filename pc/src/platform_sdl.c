@@ -229,6 +229,12 @@ void platform_present(void) {
         s_dump_at = env ? atoi(env) : -1;
     }
     s_frame_counter++;
+
+    /* state-init watcher: log when sGameState->current changes (Task 2). */
+    extern void game_state_watch_tick(int frame);
+    if ((s_frame_counter & 0x3F) == 0) {
+        game_state_watch_tick(s_frame_counter);
+    }
     if (s_dump_at > 0 && s_frame_counter == s_dump_at) {
         const char* path = getenv("MLPIT_SCREENSHOT_PATH");
         if (!path) path = "screenshot.ppm";

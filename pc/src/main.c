@@ -140,6 +140,11 @@ int main(int argc, char** argv) {
                     show_asset_idx);
             boot_hook_vram();
         }
+    } else if (getenv("MLPIT_DISABLE_BOOT_HOOK")) {
+        /* Skip every boot-hook seed so any organic VRAM/PAL/OAM writes
+         * coming from the running game are visible without our paint-by-
+         * numbers fallback overlapping them. */
+        nds_log("[boot] MLPIT_DISABLE_BOOT_HOOK=1 — leaving VRAM blank\n");
     } else {
         /* Try paired tile/map/palette screen first; on failure fall back to
          * the raw FAT[0x62] tile sheet, then to the synthetic test pattern. */

@@ -256,9 +256,28 @@ u32 game_check_display_ready(void)
  * Must be called once before game_init() / game_start() on the PC port.
  *
  * NOT part of the original game — exists only to satisfy host linkage.
+ *
+ * --- stateinit-organic session findings ---
+ * sGameState->current (== *DAT_020055B4 in the original code) is populated
+ * by FUN_02005b70 ("clGameMain init", arm9/src/game_init.c:256), which
+ * stores an OS_Alloc'd buffer into *DAT_02005d28 (the same RAM slot at
+ * 0x020055B4).  FUN_02005b70 is only reached via FUN_02006304 ("scene
+ * object ctor"), and FUN_02006304 has no callers in the present code —
+ * the original call edge lives in a C++ vtable / scene factory we have
+ * not yet wired up.  Calling FUN_02005b70 directly would NPE because its
+ * file-static globals (DAT_02005d28..d38: alloc-size, default config blob,
+ * display-mode flag) are zero-initialised here instead of pointing at
+ * .data literals like on real hardware.
+ *
+ * Until the scene-factory edge is decompiled, we provide a small host
+ * trampoline (game_state_host_engage) that allocates a sub-state buffer
+ * directly and stores it as sGameState->current — enough for the
+ * outer-loop frame_count branch in game_start to take, and (more
+ * importantly) for any code that gates on `*DAT_020055B4 != NULL` to wake.
  */
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 static GameState  s_host_game_state;
 static u8         s_host_display_enabled = 1;
@@ -272,6 +291,11 @@ static u16        s_host_disp_cnt        = 0x8000;
 static u16        s_host_disp_status[2]  = { 0x30C, 0x30C };
 static u8         s_host_cur_brightness  = 0;
 
+/* Backing buffer for the "sub-state" pointer.  The original FUN_02005b70
+ * allocates ~0x600 bytes (sizeof clGameMain, DAT_02005d2c) and writes the
+ * pointer to DAT_02005d28 / 0x020055B4.  We reproduce just the storage. */
+static unsigned char s_host_substate[0x600];
+
 void game_state_host_init(void)
 {
     memset(&s_host_game_state, 0, sizeof(s_host_game_state));
@@ -283,5 +307,46 @@ void game_state_host_init(void)
     sPauseFlag        = &s_host_pause_flag;
     sResetFlag        = &s_host_reset_flag;
     sDispCnt          = &s_host_disp_cnt;
+}
+
+/* Watcher: called from the main loop once per N frames; logs sGameState->current
+ * the first time it changes from NULL (or whenever it moves). */
+void game_state_watch_tick(int frame)
+{
+    static GameState *s_last = (GameState *)(uintptr_t)1; /* sentinel != NULL/anything */
+    if (s_host_game_state.current != s_last) {
+        fprintf(stderr,
+                "[STATE] frame=%d sGameState->current = %p (was %p)\n",
+                frame,
+                (void *)s_host_game_state.current,
+                (void *)s_last);
+        s_last = s_host_game_state.current;
+    }
+}
+
+/* Engage: install a fake sub-state so the outer loop's NULL-guarded branch
+ * (and any subsystem gated on `*DAT_020055B4 != NULL`) actually fires.
+ * Sets the high bit of byte+0x514 (== bit 6 of `flags`) which the original
+ * FUN_02005444 tests as `((u8)b << 0x1a) < 0` → bit 0x40 — so frame_count
+ * begins to advance.
+ *
+ * Idempotent.  Returns the substate pointer. */
+void *game_state_host_engage(void)
+{
+    if (s_host_game_state.current != NULL) {
+        return s_host_game_state.current;
+    }
+    GameState *gs = (GameState *)s_host_substate;
+    /* The original struct layout tracks +0x514 / +0x518 (flags / frame_count)
+     * inside the alloc'd block, NOT inside the host GameState wrapper.  We
+     * reach those fields through the GameState typedef's `flags`/`frame_count`
+     * members which the C-port author already aligned to the same offsets. */
+    gs->flags       = 0x40;     /* enable frame_count increment branch */
+    gs->frame_count = 0;
+    s_host_game_state.current = gs;
+    fprintf(stderr,
+            "[STATE] host_engage: sGameState->current = %p (substate=%zu bytes)\n",
+            (void *)gs, sizeof(s_host_substate));
+    return gs;
 }
 #endif /* HOST_PORT */

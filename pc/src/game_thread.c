@@ -17,6 +17,7 @@
 extern void game_init(void);
 extern void game_start(void);
 extern void game_state_host_init(void);
+extern void *game_state_host_engage(void); /* HOST_PORT trampoline */
 
 static jmp_buf g_crash_jmp;
 static volatile sig_atomic_t g_in_protected = 0;
@@ -41,6 +42,13 @@ int game_thread_main(void* user) {
 
     nds_log("[game] initializing host game state...\n");
     game_state_host_init();
+
+    /* HOST_PORT: install a fake sub-state so the outer-loop NULL guard
+     * (`*DAT_020055B4 != 0`) becomes true and the frame_count branch fires.
+     * Skip via MLPIT_NO_STATE_ENGAGE=1 to compare baseline behaviour. */
+    if (!getenv("MLPIT_NO_STATE_ENGAGE")) {
+        (void)game_state_host_engage();
+    }
     nds_log("[game] host game state initialized\n");
 
     nds_log("[game] attempting game_start() (protected)...\n");
@@ -60,11 +68,15 @@ int game_thread_main(void* user) {
         /* game_start() clobbered DISPCNT/visible-plane bits before crashing
          * (it called GX_SetVisiblePlane(0xFFFFFFFF, 0) early during init).
          * Re-run the boot hook so the user still sees something on screen. */
-        if (!boot_hook_paired_screen()) {
-            (void)boot_hook_real_tiles();
+        if (!getenv("MLPIT_DISABLE_BOOT_HOOK")) {
+            if (!boot_hook_paired_screen()) {
+                (void)boot_hook_real_tiles();
+            }
+            (void)boot_hook_paired_screen_sub();
+            nds_log("[game] re-armed boot screen after game_start fault\n");
+        } else {
+            nds_log("[game] MLPIT_DISABLE_BOOT_HOOK=1 — leaving VRAM as-is\n");
         }
-        (void)boot_hook_paired_screen_sub();
-        nds_log("[game] re-armed boot screen after game_start fault\n");
     }
 
     nds_log("[game] entering vblank heartbeat fallback\n");

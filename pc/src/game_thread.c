@@ -17,7 +17,9 @@
 extern void game_init(void);
 extern void game_start(void);
 extern void game_state_host_init(void);
-extern void *game_state_host_engage(void); /* HOST_PORT trampoline */
+extern void *game_state_host_engage(void); /* HOST_PORT trampoline (fake) */
+extern void *game_state_host_engage_real(void); /* calls FUN_02005b70(NULL) */
+extern void host_data_init_install(void); /* installs DAT_02005d28..d38 */
 
 static jmp_buf g_crash_jmp;
 static volatile sig_atomic_t g_in_protected = 0;
@@ -43,11 +45,36 @@ int game_thread_main(void* user) {
     nds_log("[game] initializing host game state...\n");
     game_state_host_init();
 
+    /* HOST_PORT: install the .data literals FUN_02005b70 needs (slot ptr,
+     * alloc size, default config, display flag).  Must run before any
+     * call into FUN_02005b70 / game_state_host_engage_real. */
+    host_data_init_install();
+
     /* HOST_PORT: install a fake sub-state so the outer-loop NULL guard
      * (`*DAT_020055B4 != 0`) becomes true and the frame_count branch fires.
-     * Skip via MLPIT_NO_STATE_ENGAGE=1 to compare baseline behaviour. */
+     * Skip via MLPIT_NO_STATE_ENGAGE=1 to compare baseline behaviour.
+     * Set MLPIT_STATE_ENGAGE_REAL=1 to instead call the legitimate
+     * FUN_02005b70(NULL) initializer (allocates via OS_Alloc, sets flag
+     * bits from default config, calls FUN_020192f8 / FUN_02018ed0). */
     if (!getenv("MLPIT_NO_STATE_ENGAGE")) {
-        (void)game_state_host_engage();
+        if (getenv("MLPIT_STATE_ENGAGE_REAL")) {
+            /* engage_real may NPE deep inside FUN_020192f8 (whose own
+             * statics are also zero today) — protect the call. */
+            g_in_protected = 1;
+            int esig = setjmp(g_crash_jmp);
+            if (esig == 0) {
+                (void)game_state_host_engage_real();
+                nds_log("[game] engage_real returned cleanly\n");
+            } else {
+                nds_log("[game] engage_real FAULTED (signal %d) - "
+                        "FUN_02005b70 deep-call statics still zero; "
+                        "falling back to fake engage\n", esig);
+                (void)game_state_host_engage();
+            }
+            g_in_protected = 0;
+        } else {
+            (void)game_state_host_engage();
+        }
     }
     nds_log("[game] host game state initialized\n");
 

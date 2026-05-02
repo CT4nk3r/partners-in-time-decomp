@@ -349,4 +349,28 @@ void *game_state_host_engage(void)
             (void *)gs, sizeof(s_host_substate));
     return gs;
 }
+
+/* Expose the address of `s_host_game_state.current` so pc/src/host_data_init.c
+ * can install it as DAT_02005d28 (the slot FUN_02005b70 writes into). */
+u32 *game_state_host_get_current_slot(void)
+{
+    return (u32 *)&s_host_game_state.current;
+}
+
+/* Try the legitimate path: call FUN_02005b70(NULL).  Requires
+ * host_data_init_install() to have run first (otherwise DAT_02005d28
+ * is NULL and the very first `*DAT_02005d28 == 0` check would crash).
+ *
+ * Returns the substate pointer that was written to the slot, or NULL
+ * if the call did not produce one. */
+extern void FUN_02005b70(u16 *param_1);
+void *game_state_host_engage_real(void)
+{
+    fprintf(stderr, "[STATE] host_engage_real: calling FUN_02005b70(NULL)\n");
+    FUN_02005b70((u16 *)0);
+    fprintf(stderr,
+            "[STATE] host_engage_real: sGameState->current = %p\n",
+            (void *)s_host_game_state.current);
+    return s_host_game_state.current;
+}
 #endif /* HOST_PORT */

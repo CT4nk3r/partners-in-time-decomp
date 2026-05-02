@@ -69,6 +69,36 @@ static u32 *DAT_02006364;   /* scene data pointer */
 static u32 *DAT_02006368;   /* scene state pointer */
 static void (*DAT_02005d68)(void); /* scene jump target */
 
+#ifdef HOST_PORT
+/* HOST_PORT shim: on real hardware DAT_02005d28..d38 (and DAT_02005d68) are
+ * .data literals filled in by C++ static constructors and by overlay scene-
+ * factory code we have not yet decompiled.  Until that path is reachable,
+ * the host runtime calls this setter once during startup so that
+ * FUN_02005b70("clGameMain init") can be invoked safely.  Each argument
+ * corresponds to one Ghidra-named .data literal:
+ *   slot      -> DAT_02005d28  (pointer to where the substate ptr is stored)
+ *   alloc_sz  -> DAT_02005d2c  (byte size of the clGameMain object)
+ *   cfg_off   -> DAT_02005d30  (intra-struct offset for the config copy)
+ *   cfg_blob  -> DAT_02005d34  (default config (>=16 bytes, halfword-array))
+ *   disp_flag -> DAT_02005d38  (single-byte display-mode flag)
+ *   scene_jmp -> DAT_02005d68  (scene-jump target, called from FUN_02005d54)
+ */
+void host_game_init_install_globals(u32 *slot,
+                                    u32  alloc_sz,
+                                    u32  cfg_off,
+                                    u16 *cfg_blob,
+                                    u8  *disp_flag,
+                                    void (*scene_jmp)(void))
+{
+    DAT_02005d28 = slot;
+    DAT_02005d2c = alloc_sz;
+    DAT_02005d30 = cfg_off;
+    DAT_02005d34 = cfg_blob;
+    DAT_02005d38 = disp_flag;
+    DAT_02005d68 = scene_jmp;
+}
+#endif
+
 /* Forward declaration for functions defined later in this file */
 static void FUN_02004e38(u32 param_1, u16 param_2, u16 param_3, u16 *param_4);
 

@@ -52,3 +52,8 @@ desktop.ini
 # devkitPro build artifacts
 *.d
 *.map
+
+# Smoke-test runtime logs (created by Start-Job runs)
+game_log.txt
+game_err.txt
+build_log.txt

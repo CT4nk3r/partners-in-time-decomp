@@ -1,0 +1,37 @@
+/*
+ * FUN_0202bfc8.c — auto-generated stub by tools/scripts/auto_decomp_leaf.py
+ *
+ * Source: arm9.bin @ 0x0202bfc8 (load base 0x02000000).
+ * Raw ARM instruction words (little-endian):
+ *
+ *   0202bfc8  e3a03000
+ *   0202bfcc  e3510000
+ *   0202bfd0  a3a00001
+ *   0202bfd4  a1a02110
+ *   0202bfd8  e5940024
+ *   0202bfdc  e5941028
+ *   0202bfe0  b3a02000
+ *   0202bfe4  eb00305c
+ *   0202bfe8  e28dd008
+ *   0202bfec  e8bd4010
+ *   0202bff0  e12fff1e
+ *
+ * This translation unit exists so the fnptr-table generator picks up
+ * a host-side symbol named "FUN_0202bfc8".  When the underlying function
+ * becomes hot enough to matter, replace this body with a hand-written
+ * decompilation; until then it returns the AAPCS-compatible default.
+ */
+
+#include "types.h"
+#include <stdint.h>
+
+void FUN_0202bfc8(int param_1, int param_2)
+{
+    /* leaf body too complex for auto-decomp; no-op stub.
+     * The fnptr-table will still register this address so
+     * indirect calls through vtables resolve to a defined
+     * symbol instead of falling through to host_fnptr_lookup
+     * NULL.  Replace with a hand decompilation when it
+     * becomes hot. */
+    (void)param_1; (void)param_2;
+}

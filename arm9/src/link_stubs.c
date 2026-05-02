@@ -329,10 +329,153 @@ void game_do_transition(u32 duration, u32 target_state, u32 flags) {
         GX_SetMasterBrightness(0xFFFFFFFFu, 0);
 }
 
+/* ======== OS/RTC/FS timer + filesystem stubs (Task 3 / Task 2) =================
+ *
+ * As of HEAD, none of these symbols are referenced by either the decompiled
+ * arm9/src code or the auto-generated host_undefined_stubs.c (the FS module
+ * in arm9/src/sdk_fs.c uses only anonymous FUN_0203* names that map to the
+ * underlying NitroSDK file APIs internally).  We provide functional impls
+ * anyway so that the moment a future symbolication pass renames a FUN_*
+ * caller into one of these names, it links and behaves reasonably.
+ *
+ * OS_GetTick      — 49.152 MHz tick from boot.  We emulate from frame counter
+ *                   (60 Hz nominal) so values are monotonic and deterministic.
+ * OS_GetVBlankCount — straight frame counter.
+ * RTC_GetDate / RTC_GetTime — fixed plausible values.
+ * FS_OpenFile / FS_ReadFile / FS_CloseFile / FS_GetLength —
+ *                   read against the asset pack via pack_get_file().  Path
+ *                   "data/XXXX.bin" (hex) maps directly to FAT id 0xXXXX.
+ *                   The first u32 of each FSFile holds our internal handle.
+ * ============================================================================ */
+
+#include <stdio.h>
+#include <ctype.h>
+
+extern u64 OS_GetTick(void);
+extern u32 OS_GetVBlankCount(void);
+
+u64 OS_GetTick(void) {
+    /* 49152000 Hz / 60 Hz = 819200 ticks per frame. */
+    return (u64)g_game_frame_counter * 819200ULL;
+}
+u32 OS_GetVBlankCount(void) {
+    return g_game_frame_counter;
+}
+u32 OS_GetSystemTick(void) { return (u32)OS_GetTick(); }
+void OS_WaitVBlank(void)   { /* loop is driven from outside */ }
+void OS_SpinWait(u32 cycles) { (void)cycles; }
+void OS_Sleep(u32 ms)        { (void)ms; }
+
+u32 RTC_GetDate(void *out)  { (void)out; return 0; }
+u32 RTC_GetTime(void *out)  { (void)out; return 0; }
+u32 RTC_GetDateTime(void *out) { (void)out; return 0; }
+u32 RTC_Init(void)          { return 0; }
+
+/* ── Minimal FS_* against asset pack.  See header comment above. ── */
+
+typedef struct {
+    /* Mirror enough of NitroSDK FSFile that game code reading offset 0..15
+     * sees plausible values.  Real layout is larger; that's fine — the game
+     * allocates the full struct itself. */
+    u32 magic;       /* 'MLPF' = our marker */
+    u32 fat_id;      /* resolved FAT id      */
+    u32 size;        /* file size in bytes   */
+    u32 pos;         /* current read offset  */
+    const u8 *data;  /* zero-copy pointer into pack mmap */
+} mlpit_fs_handle;
+
+static int parse_fat_path(const char *path, u32 *out_id) {
+    /* Accept "data/0045.bin", "0x0045", "0045", or bare hex. */
+    if (!path) return 0;
+    const char *p = path;
+    const char *slash = path;
+    for (const char *q = path; *q; ++q) if (*q == '/' || *q == '\\') slash = q + 1;
+    p = slash;
+    if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) p += 2;
+    char *end;
+    unsigned long v = strtoul(p, &end, 16);
+    if (end == p) return 0;
+    *out_id = (u32)v & 0xFFF;
+    return 1;
+}
+
+u32 FS_OpenFile(void *file, const char *path) {
+    if (!file) return 0;
+    mlpit_fs_handle *h = (mlpit_fs_handle *)file;
+    h->magic  = 0x4D4C5046u;
+    h->fat_id = 0;
+    h->size   = 0;
+    h->pos    = 0;
+    h->data   = NULL;
+    if (!pack_is_loaded() || !parse_fat_path(path, &h->fat_id)) return 0;
+    void *data = NULL; size_t sz = 0;
+    if (!pack_get_file(h->fat_id, &data, &sz) || !data) return 0;
+    h->data = (const u8 *)data;
+    h->size = (u32)sz;
+    return 1;
+}
+
+s32 FS_ReadFile(void *file, void *buf, s32 len) {
+    if (!file || !buf || len <= 0) return -1;
+    mlpit_fs_handle *h = (mlpit_fs_handle *)file;
+    if (h->magic != 0x4D4C5046u || !h->data) return -1;
+    u32 avail = h->size > h->pos ? h->size - h->pos : 0;
+    u32 take  = (u32)len < avail ? (u32)len : avail;
+    if (take) memcpy(buf, h->data + h->pos, take);
+    h->pos += take;
+    return (s32)take;
+}
+
+u32 FS_CloseFile(void *file) {
+    if (!file) return 0;
+    mlpit_fs_handle *h = (mlpit_fs_handle *)file;
+    h->magic = 0; h->data = NULL; h->size = h->pos = 0;
+    return 1;
+}
+
+u32 FS_GetLength(void *file) {
+    if (!file) return 0;
+    mlpit_fs_handle *h = (mlpit_fs_handle *)file;
+    return (h->magic == 0x4D4C5046u) ? h->size : 0;
+}
+
+u32 FS_SeekFile(void *file, s32 offset, u32 origin) {
+    if (!file) return 0;
+    mlpit_fs_handle *h = (mlpit_fs_handle *)file;
+    if (h->magic != 0x4D4C5046u) return 0;
+    s64 base;
+    switch (origin) {
+        case 0: base = 0;             break;  /* SEEK_SET */
+        case 1: base = (s64)h->pos;   break;  /* SEEK_CUR */
+        case 2: base = (s64)h->size;  break;  /* SEEK_END */
+        default: return 0;
+    }
+    s64 np = base + offset;
+    if (np < 0) np = 0;
+    if (np > (s64)h->size) np = (s64)h->size;
+    h->pos = (u32)np;
+    return 1;
+}
+
 #else /* not HOST_PORT — plain stubs for native build */
 
 void game_update_display(void) {}
 void game_do_transition(u32 d, u32 t, u32 f) { (void)d; (void)t; (void)f; }
+u64 OS_GetTick(void) { return 0; }
+u32 OS_GetVBlankCount(void) { return 0; }
+u32 OS_GetSystemTick(void) { return 0; }
+void OS_WaitVBlank(void) {}
+void OS_SpinWait(u32 c) { (void)c; }
+void OS_Sleep(u32 m)    { (void)m; }
+u32 RTC_GetDate(void *o) { (void)o; return 0; }
+u32 RTC_GetTime(void *o) { (void)o; return 0; }
+u32 RTC_GetDateTime(void *o) { (void)o; return 0; }
+u32 RTC_Init(void) { return 0; }
+u32 FS_OpenFile(void *f, const char *p) { (void)f; (void)p; return 0; }
+s32 FS_ReadFile(void *f, void *b, s32 l) { (void)f; (void)b; (void)l; return -1; }
+u32 FS_CloseFile(void *f) { (void)f; return 0; }
+u32 FS_GetLength(void *f) { (void)f; return 0; }
+u32 FS_SeekFile(void *f, s32 o, u32 r) { (void)f; (void)o; (void)r; return 0; }
 void func_0x01ff85cc(u32 ch, u32 dst, u32 src, u32 ctrl) {
     (void)ch; (void)dst; (void)src; (void)ctrl;
 }

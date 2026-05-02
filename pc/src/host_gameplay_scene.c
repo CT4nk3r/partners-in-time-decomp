@@ -59,6 +59,10 @@ extern void FUN_02005d3c(int scene_anchor, int next_state);
 /* FMapData.dat ROM offset (from NDS filesystem analysis) */
 #define FMAP_ROM_OFFSET     0xD42600u
 
+/* FObjPc.dat ROM offset — character sprite archive */
+#define FOBJPC_ROM_OFFSET   0x2AA9800u
+#define FOBJPC_SIZE         900608u
+
 /* Map descriptor internal structure:
  * u32[0] = offset to BG0 tilemap (typically 0x38)
  * u32[1] = offset to BG1 tilemap
@@ -226,6 +230,119 @@ static int load_fmap_all_layers(int grp_base, int desc_entry)
     #undef FMAP_OFF
 }
 
+/* ================================================================
+ * Character sprite loading from FObjPc.dat
+ * ================================================================
+ *
+ * FObjPc.dat structure:
+ *   Entry 0:  header (152 sprites, 8-byte records)
+ *   Entries 1-304: 152 pairs (odd=metadata, even=tile data), AD-compressed
+ *   Entries 305-307: 3 palettes (512 bytes each, raw RGB555)
+ *   Entries 308+: cell arrangement data
+ *
+ * Tile data: 4bpp (32 bytes per 8x8 tile), AD-compressed.
+ * Palette bank 1 = Mario (blue overalls, red hat)
+ */
+static int s_sprites_loaded = 0;
+
+static int load_character_sprites(int sprite_idx)
+{
+    const uint8_t *rom = rom_data();
+    size_t rom_sz = rom_size();
+    if (!rom || rom_sz < FOBJPC_ROM_OFFSET + FOBJPC_SIZE) return 0;
+
+    const uint8_t *fobj = rom + FOBJPC_ROM_OFFSET;
+
+    /* Read offset table */
+    uint32_t first_off = fobj[0] | (fobj[1]<<8) | (fobj[2]<<16) | (fobj[3]<<24);
+    int num_entries = (int)(first_off / 4);
+    if (num_entries < 310) return 0;
+
+    #define FOBJ_OFF(idx) (fobj[(idx)*4] | (fobj[(idx)*4+1]<<8) | \
+                          (fobj[(idx)*4+2]<<16) | (fobj[(idx)*4+3]<<24))
+
+    /* Tile data entry = sprite_idx * 2 + 2 */
+    int tile_entry = sprite_idx * 2 + 2;
+    if (tile_entry >= num_entries - 1) return 0;
+
+    uint32_t t_off = FOBJ_OFF(tile_entry);
+    uint32_t t_next = FOBJ_OFF(tile_entry + 1);
+    if (t_off >= FOBJPC_SIZE || t_next > FOBJPC_SIZE || t_next <= t_off) return 0;
+
+    uint32_t tile_sz = 0;
+    uint8_t *tiles = ad_decompress(fobj + t_off, t_next - t_off, &tile_sz);
+    if (!tiles || tile_sz == 0) { free(tiles); return 0; }
+
+    /* Write to OBJ VRAM */
+    extern uint8_t *obj_vram_main_ptr(void);
+    extern uint32_t obj_vram_main_size(void);
+    uint8_t *obj_vram = obj_vram_main_ptr();
+    uint32_t max_sz = obj_vram_main_size();
+    uint32_t copy_sz = tile_sz > max_sz ? max_sz : tile_sz;
+    memcpy(obj_vram, tiles, copy_sz);
+    free(tiles);
+
+    /* Load palette from entry 305 */
+    int pal_entry = 305;
+    uint32_t p_off = FOBJ_OFF(pal_entry);
+    uint32_t p_next = FOBJ_OFF(pal_entry + 1);
+    if (p_off < FOBJPC_SIZE && p_next <= FOBJPC_SIZE && (p_next - p_off) >= 512) {
+        void *bank_e = nds_vram_bank('E');
+        if (bank_e) {
+            memcpy((uint8_t*)bank_e + 0x200, fobj + p_off, 512);
+        }
+        extern uint8_t *obj_palette_main_ptr(void);
+        memcpy(obj_palette_main_ptr(), fobj + p_off, 512);
+    }
+
+    fprintf(stderr, "[gameplay] loaded sprite %d: %u bytes (%u tiles)\n",
+            sprite_idx, (unsigned)copy_sz, (unsigned)(copy_sz / 32));
+
+    #undef FOBJ_OFF
+    return 1;
+}
+
+/* Set up an OAM entry for a sprite — writes to NDS shadow OAM (0x0205FFC0)
+ * so the upload tick picks it up naturally. */
+static void setup_player_oam(int oam_slot, int x, int y,
+                              int tile_start, int pal_bank, int w, int h)
+{
+    /* Write to NDS shadow OAM at 0x0205FFC0 */
+    uint8_t *entry = (uint8_t *)(uintptr_t)(0x0205FFC0u + oam_slot * 8);
+
+    int shape = 0, size_bits = 0;
+    if (w == h) {
+        shape = 0;
+        if (w <= 8) size_bits = 0;
+        else if (w <= 16) size_bits = 1;
+        else if (w <= 32) size_bits = 2;
+        else size_bits = 3;
+    } else if (w > h) {
+        shape = 1;
+        if (w == 32 && h == 16) size_bits = 2;
+        else if (w == 32 && h == 8) size_bits = 1;
+        else size_bits = 3;
+    } else {
+        shape = 2;
+        if (w == 16 && h == 32) size_bits = 2;
+        else if (w == 8 && h == 32) size_bits = 1;
+        else size_bits = 3;
+    }
+
+    uint16_t attr0 = (uint16_t)((y & 0xFF) | (shape << 14));
+    uint16_t attr1 = (uint16_t)((x & 0x1FF) | (size_bits << 14));
+    uint16_t attr2 = (uint16_t)((tile_start & 0x3FF) | ((pal_bank & 0xF) << 12));
+
+    entry[0] = (uint8_t)(attr0 & 0xFF);
+    entry[1] = (uint8_t)(attr0 >> 8);
+    entry[2] = (uint8_t)(attr1 & 0xFF);
+    entry[3] = (uint8_t)(attr1 >> 8);
+    entry[4] = (uint8_t)(attr2 & 0xFF);
+    entry[5] = (uint8_t)(attr2 >> 8);
+    entry[6] = 0;
+    entry[7] = 0;
+}
+
 /* ---- Destructor ---- */
 static void host_gameplay_dtor(uintptr_t node_addr, uintptr_t anchor_addr)
 {
@@ -271,9 +388,10 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
         }
 
         if (s_map_loaded) {
-            /* Set up top screen: Mode 0, BG0+BG2, extended palettes (bit 30) */
+            /* Set up top screen: Mode 0, BG0+BG2+OBJ, extended palettes (bit 30)
+             * Bit 4: OBJ 1D mapping, Bit 8: BG0, Bit 10: BG2, Bit 12: OBJ */
             *(volatile u32 *)(uintptr_t)REG_DISPCNT_TOP =
-                0x40010500u;  /* ext_pal(30) + mode 0 + BG0(8) + BG2(10) */
+                0x40011510u;  /* ext_pal(30) + OBJ_1D(4) + mode 0 + BG0(8) + BG2(10) + OBJ(12) */
 
             /* BG2 (background): char_base=0, screen_base=16, 4bpp, 64x64, priority 2 */
             *(volatile u16 *)(uintptr_t)REG_BG2CNT =
@@ -290,9 +408,21 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
             fprintf(stderr,
                     "[gameplay] real map loaded! Use arrow keys to scroll\n");
         } else {
-            /* Fallback: just show text */
-            *(volatile u32 *)(uintptr_t)REG_DISPCNT_TOP = 0x00010100u;
+            /* Fallback: just show text + OBJ */
+            *(volatile u32 *)(uintptr_t)REG_DISPCNT_TOP = 0x00011110u;
             fprintf(stderr, "[gameplay] map load failed, using text fallback\n");
+        }
+
+        /* Load character sprites (Mario = sprite 0, palette bank 1) */
+        s_sprites_loaded = load_character_sprites(0);
+        if (s_sprites_loaded) {
+            /* Place Mario sprite at center of screen.
+             * 32x32 sprite, tile_start=0, palette bank 1 (Mario colors).
+             * On NDS, sprite tiles are sequential in 1D mode. */
+            setup_player_oam(0, 112, 80, 0, 1, 32, 32);
+            /* Second sprite (different tile offset) for variety */
+            setup_player_oam(1, 144, 80, 16, 1, 32, 32);
+            fprintf(stderr, "[gameplay] Mario sprites placed in OAM\n");
         }
 
         /* Sub screen: dark */

@@ -110,8 +110,10 @@ static void render_frame(void) {
     /* Pull shadow OAM (NDS RAM 0x0205FFC0/0x0205FFAC) into g_oam_main /
      * g_oam_sub before obj_render() reads them.  See host_oam_upload.c. */
     extern void host_oam_upload_tick(int);
+    extern void obj_render_sync_palette(void);
     host_oam_upload_tick(s_main_frame++);
     bg_render_sync_vram();
+    obj_render_sync_palette();
     bg_render_top(top);
     bg_render_bottom(bot);
     obj_render(top, 0);

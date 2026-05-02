@@ -136,6 +136,17 @@ static void *nds_addr_to_host(uint32_t addr, uint32_t len)
             return (uint8_t *)i + (addr - 0x06608000u);
     }
 
+    /* ── Main-engine OBJ VRAM 0x06400000 – 0x0643FFFF (256KB).
+     *    Route to the obj_vram_main buffer in nds_bg_render.c. */
+    {
+        extern uint8_t *obj_vram_main_ptr(void);
+        extern uint32_t obj_vram_main_size(void);
+        uint8_t *obj_v = obj_vram_main_ptr();
+        uint32_t obj_sz = obj_vram_main_size();
+        if (obj_v && addr >= 0x06400000u && addr + len <= 0x06400000u + obj_sz)
+            return obj_v + (addr - 0x06400000u);
+    }
+
     /* OAM RAM: main 0x07000000-0x070003FF, sub 0x07000400-0x070007FF.
      * Backed by a static host buffer; rasterized later by obj_render(). */
     {

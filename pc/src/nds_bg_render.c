@@ -313,26 +313,40 @@ void bg_render_bottom(uint16_t *fb) {
 }
 
 /* ──────────────────────────────────────────────────────────────
- * OAM rasterizer stub
+ * OAM rasterizer — proper 4bpp tile-based sprite rendering
  *
- * Walks the 128 OAM entries (8 bytes each) in g_oam_main/g_oam_sub.
- * For every entry that is not "disabled" (rotation/scaling cleared
- * AND attr0.bit9 set ⇒ disabled) we draw a small colored placeholder
- * box at (X, Y) sized per attr1 size bits.  The fill color is derived
- * deterministically from attr2 so that distinct sprites get distinct
- * colors — enough to confirm OAM uploads are happening even though we
- * don't yet decode tile graphics.
- *
- * Real NDS OBJ rasterization is significantly more involved (tile
- * fetching, palette decoding, rotation/scaling, mosaic, alpha, etc.).
- * The intent here is "is the game writing to OAM at all?" not pixel
- * accuracy.
+ * Walks 128 OAM entries, fetches 4bpp tiles from OBJ VRAM, decodes
+ * with OBJ palette, and composites onto the framebuffer with
+ * transparency (palette index 0 = transparent).
  * ────────────────────────────────────────────────────────────── */
 extern uint8_t g_oam_main[1024];
 extern uint8_t g_oam_sub [1024];
 
 #define REG_DISPCNT_MAIN 0x04000000
 #define REG_DISPCNT_SUB  0x04001000
+
+/* OBJ VRAM and palette buffers (populated by gameplay/scene code) */
+static uint8_t g_obj_vram_main[256 * 1024];  /* main engine OBJ tiles */
+static uint8_t g_obj_vram_sub [128 * 1024];  /* sub engine OBJ tiles */
+static uint8_t g_obj_palette_main[512];       /* 16 palettes × 16 colors × 2B */
+static uint8_t g_obj_palette_sub [512];
+
+/* Public accessors for scenes to load sprite data */
+uint8_t *obj_vram_main_ptr(void)    { return g_obj_vram_main; }
+uint8_t *obj_vram_sub_ptr(void)     { return g_obj_vram_sub; }
+uint8_t *obj_palette_main_ptr(void) { return g_obj_palette_main; }
+uint8_t *obj_palette_sub_ptr(void)  { return g_obj_palette_sub; }
+uint32_t obj_vram_main_size(void)   { return sizeof(g_obj_vram_main); }
+
+/* Sync OBJ palette from Bank E (offset 0x200 = main OBJ, 0x600 = sub OBJ) */
+void obj_render_sync_palette(void) {
+    void *bank_e = nds_vram_bank('E');
+    if (bank_e) {
+        memcpy(g_obj_palette_main, (uint8_t*)bank_e + 0x200, 512);
+        if (0x600 + 512 <= 64 * 1024)
+            memcpy(g_obj_palette_sub, (uint8_t*)bank_e + 0x600, 512);
+    }
+}
 
 static const int oam_size_table[4][4][2] = {
     /* shape 0: square */
@@ -345,31 +359,58 @@ static const int oam_size_table[4][4][2] = {
     { {8,8},   {8,8},   {8,8},   {8,8}   },
 };
 
-static void fill_box(uint16_t *fb, int x, int y, int w, int h, uint16_t color) {
-    if (x >= NDS_SCREEN_WIDTH || y >= NDS_SCREEN_HEIGHT) return;
-    if (x + w > NDS_SCREEN_WIDTH)  w = NDS_SCREEN_WIDTH  - x;
-    if (y + h > NDS_SCREEN_HEIGHT) h = NDS_SCREEN_HEIGHT - y;
-    if (x < 0) { w += x; x = 0; }
-    if (y < 0) { h += y; y = 0; }
-    if (w <= 0 || h <= 0) return;
-    for (int yy = 0; yy < h; yy++) {
-        uint16_t *row = fb + (y + yy) * NDS_SCREEN_WIDTH + x;
-        /* Draw outline + dimmer fill so multiple sprites don't merge. */
-        for (int xx = 0; xx < w; xx++) {
-            int edge = (xx == 0) || (xx == w-1) || (yy == 0) || (yy == h-1);
-            row[xx] = edge ? color : (uint16_t)(color & 0x39CE); /* halve channels */
+/* Render a single 8x8 4bpp tile onto the framebuffer */
+static void render_obj_tile_4bpp(uint16_t *fb, const uint8_t *tile_data,
+                                  const uint16_t *palette,
+                                  int dst_x, int dst_y,
+                                  int flip_h, int flip_v)
+{
+    for (int ty = 0; ty < 8; ty++) {
+        int src_y = flip_v ? (7 - ty) : ty;
+        int screen_y = dst_y + ty;
+        if (screen_y < 0 || screen_y >= NDS_SCREEN_HEIGHT) continue;
+        uint16_t *row = fb + screen_y * NDS_SCREEN_WIDTH;
+
+        for (int tx = 0; tx < 8; tx++) {
+            int src_x = flip_h ? (7 - tx) : tx;
+            int screen_x = dst_x + tx;
+            if (screen_x < 0 || screen_x >= NDS_SCREEN_WIDTH) continue;
+
+            /* 4bpp: each byte holds 2 pixels (low nibble first) */
+            uint8_t byte = tile_data[src_y * 4 + src_x / 2];
+            uint8_t idx = (src_x & 1) ? (byte >> 4) : (byte & 0x0F);
+
+            if (idx == 0) continue;  /* transparent */
+            row[screen_x] = palette[idx];
         }
     }
 }
 
 void obj_render(uint16_t *fb, int is_sub) {
     uint32_t dispcnt = nds_reg_read32(is_sub ? REG_DISPCNT_SUB : REG_DISPCNT_MAIN);
+
     /* DISPCNT bit 12 = OBJ enable */
     if (!((dispcnt >> 12) & 1)) return;
 
+    /* DISPCNT bits 20-21: OBJ character mapping
+     * 0 = 2D mapping (32-byte boundary)
+     * 1 = 1D mapping, boundary = 32 << bits[20:21]
+     * For simplicity we default to 1D/32-byte boundary (most common). */
+    int obj_1d = (dispcnt >> 4) & 1;  /* bit 4 of DISPCNT = OBJ 1D mapping */
+    int tile_boundary = 32;  /* default */
+    if (obj_1d) {
+        int map_bits = (dispcnt >> 20) & 3;
+        tile_boundary = 32 << map_bits;  /* 32, 64, 128, or 256 */
+    }
+
     const uint8_t *oam = is_sub ? g_oam_sub : g_oam_main;
+    const uint8_t *obj_vram = is_sub ? g_obj_vram_sub : g_obj_vram_main;
+    const uint8_t *obj_pal = is_sub ? g_obj_palette_sub : g_obj_palette_main;
+    uint32_t vram_size = is_sub ? sizeof(g_obj_vram_sub) : sizeof(g_obj_vram_main);
     int drawn = 0;
-    for (int i = 0; i < 128; i++) {
+
+    /* Render back-to-front (higher OAM index = lower priority on ties) */
+    for (int i = 127; i >= 0; i--) {
         uint16_t attr0 = (uint16_t)(oam[i*8 + 0] | (oam[i*8 + 1] << 8));
         uint16_t attr1 = (uint16_t)(oam[i*8 + 2] | (oam[i*8 + 3] << 8));
         uint16_t attr2 = (uint16_t)(oam[i*8 + 4] | (oam[i*8 + 5] << 8));
@@ -377,35 +418,70 @@ void obj_render(uint16_t *fb, int is_sub) {
         int rot_scale = (attr0 >> 8) & 1;
         int disabled  = !rot_scale && ((attr0 >> 9) & 1);
         if (disabled) continue;
-        /* All-zero entry → consider hidden */
         if (attr0 == 0 && attr1 == 0 && attr2 == 0) continue;
 
         int y     = attr0 & 0xFF;
         int shape = (attr0 >> 14) & 3;
+        int bpp8  = (attr0 >> 13) & 1;  /* 0=4bpp, 1=8bpp */
         int x     = attr1 & 0x1FF;
-        if (x & 0x100) x -= 0x200;   /* sign-extend 9 bits */
-        int size  = (attr1 >> 14) & 3;
+        if (x & 0x100) x -= 0x200;
+        int size   = (attr1 >> 14) & 3;
+        int flip_h = !rot_scale && ((attr1 >> 12) & 1);
+        int flip_v = !rot_scale && ((attr1 >> 13) & 1);
 
         int w = oam_size_table[shape][size][0];
         int h = oam_size_table[shape][size][1];
 
-        /* Hash attr2 → BGR555 color (avoid pure black/white). */
-        uint16_t hash  = (uint16_t)(attr2 ^ (attr2 >> 7) ^ (i * 0x9E37u));
-        uint16_t color = (uint16_t)(((hash & 0x1F) << 0)
-                                 | (((hash >> 5) & 0x1F) << 5)
-                                 | (((hash >> 10) & 0x1F) << 10));
-        if (color == 0) color = 0x7C1F; /* magenta fallback */
+        int tile_num = attr2 & 0x03FF;
+        int pal_num  = (attr2 >> 12) & 0x0F;
 
-        fill_box(fb, x, y, w, h, color);
+        /* Skip 8bpp for now */
+        if (bpp8) continue;
+
+        /* 4bpp palette: 16 colors starting at pal_num * 16 in OBJ palette */
+        const uint16_t *palette = (const uint16_t *)(obj_pal + pal_num * 32);
+
+        /* Render tile grid (w/8 × h/8 tiles).
+         * In 1D mapping: tiles are sequential in memory.
+         * In 2D mapping: row stride is 32 tiles (256 pixels / 8). */
+        int tiles_w = w / 8;
+        int tiles_h = h / 8;
+
+        for (int row_t = 0; row_t < tiles_h; row_t++) {
+            for (int col_t = 0; col_t < tiles_w; col_t++) {
+                int render_col = flip_h ? (tiles_w - 1 - col_t) : col_t;
+                int render_row = flip_v ? (tiles_h - 1 - row_t) : row_t;
+
+                int tile_idx;
+                if (obj_1d) {
+                    tile_idx = tile_num + render_row * tiles_w + render_col;
+                } else {
+                    /* 2D mapping: row stride is 32 tiles */
+                    tile_idx = tile_num + render_row * 32 + render_col;
+                }
+
+                uint32_t tile_offset = (uint32_t)tile_idx * 32;  /* 4bpp = 32 bytes/tile */
+                if (tile_offset + 32 > vram_size) continue;
+
+                const uint8_t *tile_data = obj_vram + tile_offset;
+
+                int dst_x = x + col_t * 8;
+                int dst_y = y + row_t * 8;
+                /* Wrap Y at 256 (NDS OBJ Y wraps) */
+                if (dst_y >= 192) dst_y -= 256;
+
+                render_obj_tile_4bpp(fb, tile_data, palette,
+                                     dst_x, dst_y, flip_h, flip_v);
+            }
+        }
         drawn++;
     }
 
     static int once[2] = {0,0};
     if (drawn && !once[is_sub & 1]) {
         once[is_sub & 1] = 1;
-        /* Best-effort log; nds_log lives in nds_hw_stubs.c. */
         extern void nds_log(const char *fmt, ...);
-        nds_log("[obj-render] %s engine: drew %d OAM placeholder(s) (DISPCNT=%08X)\n",
+        nds_log("[obj-render] %s engine: drew %d sprite(s) (DISPCNT=%08X)\n",
                 is_sub ? "SUB" : "MAIN", drawn, dispcnt);
     }
 }

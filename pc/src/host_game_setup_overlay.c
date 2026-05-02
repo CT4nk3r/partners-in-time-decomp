@@ -170,7 +170,12 @@ void game_setup_overlay(u32 overlay_id, u32 flags)
              * obj+0x28 = state byte.  FUN_02005D54 sets both via the
              * trampoline DAT_02005D68 = FUN_0202A56C (which OR-sets
              * obj[18] |= 3 for "needs update / scheduled"). */
-            FUN_02005d54((int)(uintptr_t)obj, /*state*/ 9);
+            {
+                int initial_state = 9; /* default: title screen */
+                const char *skip_env = getenv("MLPIT_SKIP_TO_GAMEPLAY");
+                if (skip_env && atoi(skip_env)) initial_state = 0;
+                FUN_02005d54((int)(uintptr_t)obj, /*state*/ initial_state);
+            }
             fprintf(stderr,
                     "[setup_overlay] FUN_02005d54 returned\n");
         }

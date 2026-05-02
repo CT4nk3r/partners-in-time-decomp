@@ -264,7 +264,11 @@ static GameState  s_host_game_state;
 static u8         s_host_display_enabled = 1;
 static u8         s_host_pause_flag      = 0;
 static u8         s_host_reset_flag      = 0;
-static u16        s_host_disp_cnt        = 0;
+/* Bit 15 must be set for the game_start() inner do-while to exit each frame.
+ * The loop condition is: (*sDispCnt & 0x8000) >> 15 != 1
+ * When bit 15 is set: (0x8000) >> 15 = 1 → condition is false → loop exits.
+ * Without this the game thread spins forever on GX_VBlankWait without advancing. */
+static u16        s_host_disp_cnt        = 0x8000;
 static u16        s_host_disp_status[2]  = { 0x30C, 0x30C };
 static u8         s_host_cur_brightness  = 0;
 

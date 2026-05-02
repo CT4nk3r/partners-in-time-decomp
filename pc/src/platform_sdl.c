@@ -197,6 +197,15 @@ void platform_present(void) {
         dump_screenshot_ppm(path);
         fprintf(stderr, "[screenshot] frame %d -> %s\n", s_frame_counter, path);
     }
+    {
+        const char* exit_env = getenv("MLPIT_EXIT_AT_FRAME");
+        int exit_at = exit_env ? atoi(exit_env) : -1;
+        if (exit_at > 0 && s_frame_counter >= exit_at) {
+            fprintf(stderr, "[exit] reached frame %d (MLPIT_EXIT_AT_FRAME)\n", s_frame_counter);
+            fflush(stderr);
+            exit(0);
+        }
+    }
     SDL_UpdateTexture(g_top_tex, NULL, g_top_fb, NDS_SCREEN_WIDTH * 2);
     SDL_UpdateTexture(g_bot_tex, NULL, g_bot_fb, NDS_SCREEN_WIDTH * 2);
 

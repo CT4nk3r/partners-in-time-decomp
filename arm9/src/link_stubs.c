@@ -287,8 +287,52 @@ void MI_DmaCopy16(u32 ch, const void *src, void *dst, u32 size) {
     if (src && dst && size) memcpy(dst, src, size);
 }
 
+/* ======== Game inner-loop named stubs (top callers of host_undefined_stubs) ====
+ *
+ * trace_stubs.py reported zero FUN_/func_ stub calls during the inner loop
+ * because game_start()'s do-while body invokes named SDK symbols directly:
+ *   GX_VBlankWait, PAD_Read, FS_Update, game_update_display
+ * (and game_do_transition between frame transitions).  GX_VBlankWait,
+ * PAD_Read and FS_Update are already implemented above; the two below were
+ * still returning 0 from auto-generated host_undefined_stubs.c.  Pulling
+ * them into link_stubs.c lets us bump real frame counters and keep the
+ * top-engine DISPCNT bit 15 set (the loop's exit condition) without relying
+ * on the SDL keep_boot_screen_visible() side-channel.
+ *
+ * ============================================================================ */
+
+extern u32 g_game_frame_counter;
+u32 g_game_frame_counter = 0;
+extern u32 g_game_transition_counter;
+u32 g_game_transition_counter = 0;
+
+void game_update_display(void) {
+    g_game_frame_counter++;
+    /* Keep the inner-loop exit condition satisfied: bit 15 of DISPCNT must be
+     * set for `(*sDispCnt & 0x8000) >> 15 != 1` to be false.  The IO shadow's
+     * MMIO at 0x04000000 already mirrors hardware, so RMW it here per frame —
+     * this is the closest "real" effect to what the SDK's display flush would
+     * do (it always re-arms the visible-plane bit). */
+    uint32_t dispcnt = nds_reg_read32(0x04000000u);
+    nds_reg_write32(0x04000000u, dispcnt | 0x8000u);
+    /* And ensure sub engine shows something too. */
+    uint32_t dispcnt_sub = nds_reg_read32(0x04001000u);
+    nds_reg_write32(0x04001000u, dispcnt_sub | 0x8000u);
+}
+
+void game_do_transition(u32 duration, u32 target_state, u32 flags) {
+    (void)target_state; (void)flags;
+    g_game_transition_counter++;
+    /* On hardware this would interpolate master brightness over `duration`
+     * frames.  We just snap to fully-bright so the screen is visible. */
+    if (duration > 0)
+        GX_SetMasterBrightness(0xFFFFFFFFu, 0);
+}
+
 #else /* not HOST_PORT — plain stubs for native build */
 
+void game_update_display(void) {}
+void game_do_transition(u32 d, u32 t, u32 f) { (void)d; (void)t; (void)f; }
 void func_0x01ff85cc(u32 ch, u32 dst, u32 src, u32 ctrl) {
     (void)ch; (void)dst; (void)src; (void)ctrl;
 }

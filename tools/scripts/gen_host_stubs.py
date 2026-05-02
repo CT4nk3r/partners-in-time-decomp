@@ -49,6 +49,8 @@ EXCLUDE_SYMBOLS = {
     "SND_Init", "SND_Update",
     "PAD_Read",
     "OBJ_Init", "OBJ_Create", "OBJ_Update",
+    # Inner-loop named stubs hoisted into link_stubs.c (Task 4)
+    "game_update_display", "game_do_transition",
     # From nds_rom.c (Task 3)
     "rom_load", "rom_data", "rom_size", "rom_read_file", "rom_read_overlay",
 }

@@ -1622,9 +1622,7 @@ int func_0x0209cd64() { return 0; }
 
 /* === Named SDK stubs (16 symbols) === */
 int enable_ipc_interrupt() { return 0; }
-int game_do_transition() { return 0; }
 int game_setup_overlay() { return 0; }
-int game_update_display() { return 0; }
 int gx_alloc_render_memory() { return 0; }
 int gx_disable_oam_mapping() { return 0; }
 int gx_disable_vram_mapping() { return 0; }

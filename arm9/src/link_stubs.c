@@ -696,6 +696,13 @@ void nds_track_write(u32 addr, u32 len, const char *origin)
     }
 }
 
+/* Logger callable from arm9/src/game_main.c (which has no <stdio.h>). */
+void mlpit_log_missing_calls_wired(void) {
+    fprintf(stderr,
+            "[game_start] inner-loop wired: FUN_020072d4 + FUN_0202a33c_safe\n");
+    fflush(stderr);
+}
+
 #endif /* HOST_PORT */
 
 #ifndef HOST_PORT

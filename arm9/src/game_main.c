@@ -37,6 +37,16 @@ extern void OBJ_Init(void);
 extern u32  OBJ_Create(void *param);
 extern void OBJ_Update(u32 handle);
 
+/* Inner-loop calls reconstructed from FUN_02005444 disassembly:
+ *   +0xC4: BL 0x020072D4  (autosave-timer check, body in misc_funcs.c)
+ *   +0xC8: BL 0x0202A33C  (linked-list scene-queue processor, body in
+ *                          gx_util.c — but the C signature is not
+ *                          x86_64-safe; use the FUN_0202a33c_safe wrapper
+ *                          from pc/src/host_scene_queue.c instead.)
+ * Both BLs sit inside the inner do-while body that runs every frame. */
+extern void FUN_020072d4(void);
+extern void FUN_0202a33c_safe(void);
+
 // Game state globals (addresses from Ghidra data references)
 // These are defined in the BSS section and initialized at runtime
 static GameState *sGameState;       // DAT_020055B4
@@ -136,6 +146,22 @@ NORETURN void game_start(void)
             if (*sDisplayEnabled != 0) {
                 game_update_display();
             }
+
+            /* Restored per-frame BLs from FUN_02005444 +0xC4 / +0xC8.
+             * On a fresh boot DAT_020073BC ('autosave enabled' flag) is
+             * zero so FUN_020072d4 returns immediately; the queue
+             * processor is similarly idle until a node is appended.
+             * Logged once-per-process so verification is trivial. */
+            {
+                static int s_logged_missing_calls = 0;
+                if (!s_logged_missing_calls) {
+                    s_logged_missing_calls = 1;
+                    extern void mlpit_log_missing_calls_wired(void);
+                    mlpit_log_missing_calls_wired();
+                }
+            }
+            FUN_020072d4();
+            FUN_0202a33c_safe();
 
             // Update frame counter if game state is active
             if (sGameState->current != NULL) {

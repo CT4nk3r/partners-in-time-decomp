@@ -58,10 +58,56 @@ extern void FUN_02005d3c(int scene_anchor, int next_state);
 
 /* FMapData.dat ROM offset (from NDS filesystem analysis) */
 #define FMAP_ROM_OFFSET     0xD42600u
+#define MAX_MAP_GROUPS      200
 
 /* FObjPc.dat ROM offset — character sprite archive */
 #define FOBJPC_ROM_OFFSET   0x2AA9800u
 #define FOBJPC_SIZE         900608u
+
+/* Auto-detected map groups from FMapData.dat offset table.
+ * Each group = 3 tile entries + 1 descriptor entry (entries [base..base+3]).
+ * Scanned at startup from the offset table header. */
+static int s_map_groups[MAX_MAP_GROUPS][2];  /* [i][0]=base, [i][1]=desc */
+static int s_num_map_groups = 0;
+
+static void scan_fmap_groups(void)
+{
+    if (s_num_map_groups > 0) return;
+
+    const uint8_t *rom = rom_data();
+    size_t rom_sz = rom_size();
+    if (!rom || rom_sz < FMAP_ROM_OFFSET + 16) return;
+
+    const uint8_t *fmap = rom + FMAP_ROM_OFFSET;
+    uint32_t first_off = fmap[0] | (fmap[1]<<8) | (fmap[2]<<16) | (fmap[3]<<24);
+    int num_entries = (int)(first_off / 4);
+    if (num_entries > 3000) num_entries = 3000;
+
+    int i = 0;
+    while (i + 3 < num_entries && s_num_map_groups < MAX_MAP_GROUPS) {
+        /* Check if entries i..i+3 form a valid group:
+         * all 4 entries must have non-zero size (> 500 bytes compressed) */
+        int valid = 1;
+        for (int j = 0; j < 4 && valid; j++) {
+            uint32_t off  = fmap[(i+j)*4] | (fmap[(i+j)*4+1]<<8) |
+                            (fmap[(i+j)*4+2]<<16) | (fmap[(i+j)*4+3]<<24);
+            uint32_t noff = fmap[(i+j+1)*4] | (fmap[(i+j+1)*4+1]<<8) |
+                            (fmap[(i+j+1)*4+2]<<16) | (fmap[(i+j+1)*4+3]<<24);
+            if (noff <= off || (noff - off) < 500) valid = 0;
+        }
+        if (valid) {
+            s_map_groups[s_num_map_groups][0] = i;      /* base entry */
+            s_map_groups[s_num_map_groups][1] = i + 3;  /* descriptor entry */
+            s_num_map_groups++;
+            i += 4;
+        } else {
+            i++;
+        }
+    }
+
+    fprintf(stderr, "[gameplay] scanned %d map groups from %d FMapData entries\n",
+            s_num_map_groups, num_entries);
+}
 
 /* Map descriptor internal structure:
  * u32[0] = offset to BG0 tilemap (typically 0x38)
@@ -466,19 +512,17 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
             if (vram && sz > 0) memset(vram, 0, sz);
         }
 
-        /* Try to load map from FMapData.dat
-         * Map groups: entry N=tiles, entry N+3=descriptor
-         * Group 0: entries 0,1,2 (tiles for 3 BG layers), entry 3 (descriptor)
-         * Allow override via MLPIT_MAP_INDEX env var */
+        /* Try to load map from FMapData.dat — auto-scan map groups */
+        scan_fmap_groups();
         {
             const char *map_env = getenv("MLPIT_MAP_INDEX");
-            if (map_env) s_current_map = atoi(map_env) % 10;
+            if (map_env && s_num_map_groups > 0)
+                s_current_map = atoi(map_env) % s_num_map_groups;
         }
-        {
-            static const int grp_base[] = {0, 4, 8, 12, 16, 25, 31, 35, 39, 85};
-            static const int map_descs[] = {3, 7, 11, 15, 19, 28, 34, 38, 42, 88};
-            s_map_loaded = load_fmap_all_layers(grp_base[s_current_map],
-                                                map_descs[s_current_map]);
+        if (s_num_map_groups > 0) {
+            s_map_loaded = load_fmap_all_layers(
+                s_map_groups[s_current_map][0],
+                s_map_groups[s_current_map][1]);
         }
 
         if (s_map_loaded) {
@@ -708,24 +752,28 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
         }
 
         /* L/R buttons cycle through maps */
-        if (pressed_new & 0x0200) {  /* R button = next map */
-            static const int grp_base[] = {0, 4, 8, 12, 16, 25, 31, 35, 39, 85};
-            static const int map_descs[] = {3, 7, 11, 15, 19, 28, 34, 38, 42, 88};
-            s_current_map = (s_current_map + 1) % 10;
-            if (load_fmap_all_layers(grp_base[s_current_map], map_descs[s_current_map])) {
-                s_player_x = 128; s_player_y = 128;
-                fprintf(stderr, "[gameplay] switched to map %d (desc=%d)\n",
-                        s_current_map, map_descs[s_current_map]);
+        if (s_num_map_groups > 1) {
+            if (pressed_new & 0x0200) {  /* R button = next map */
+                s_current_map = (s_current_map + 1) % s_num_map_groups;
+                if (load_fmap_all_layers(s_map_groups[s_current_map][0],
+                                          s_map_groups[s_current_map][1])) {
+                    s_player_x = 128; s_player_y = 128;
+                    fprintf(stderr, "[gameplay] switched to map %d/%d (entries %d-%d)\n",
+                            s_current_map, s_num_map_groups,
+                            s_map_groups[s_current_map][0],
+                            s_map_groups[s_current_map][1]);
+                }
             }
-        }
-        if (pressed_new & 0x0100) {  /* L button = prev map */
-            static const int grp_base[] = {0, 4, 8, 12, 16, 25, 31, 35, 39, 85};
-            static const int map_descs[] = {3, 7, 11, 15, 19, 28, 34, 38, 42, 88};
-            s_current_map = (s_current_map + 9) % 10;
-            if (load_fmap_all_layers(grp_base[s_current_map], map_descs[s_current_map])) {
-                s_player_x = 128; s_player_y = 128;
-                fprintf(stderr, "[gameplay] switched to map %d (desc=%d)\n",
-                        s_current_map, map_descs[s_current_map]);
+            if (pressed_new & 0x0100) {  /* L button = prev map */
+                s_current_map = (s_current_map + s_num_map_groups - 1) % s_num_map_groups;
+                if (load_fmap_all_layers(s_map_groups[s_current_map][0],
+                                          s_map_groups[s_current_map][1])) {
+                    s_player_x = 128; s_player_y = 128;
+                    fprintf(stderr, "[gameplay] switched to map %d/%d (entries %d-%d)\n",
+                            s_current_map, s_num_map_groups,
+                            s_map_groups[s_current_map][0],
+                            s_map_groups[s_current_map][1]);
+                }
             }
         }
     }

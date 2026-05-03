@@ -281,7 +281,7 @@ void bg_render_top(uint16_t *fb) {
      * scene dispatch may overwrite it between frames (thread race). */
     extern int g_game_display_active;
     if (g_game_display_active) {
-        dispcnt = 0x40019510u;  /* gameplay config + bit15 */
+        dispcnt = 0x40019710u;  /* gameplay config: BG0+BG1+BG2+OBJ + ext_pal + bit15 */
     }
 
     int bg_mode = dispcnt & 7;

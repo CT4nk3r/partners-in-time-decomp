@@ -1151,11 +1151,23 @@ void FUN_020488f8(int param_1, int param_2, int param_3, void (*param_4)(...))
     }
     param_1 = param_2 * param_3 + param_1;
     if (param_2 != 0) {
+#ifdef HOST_PORT
+        {
+            extern void nds_call_1arg(u32, uintptr_t);
+            u32 fn_addr = (u32)(uintptr_t)param_4;
+            do {
+                param_1 = param_1 - param_3;
+                nds_call_1arg(fn_addr, (uintptr_t)param_1);
+                param_2 = param_2 + -1;
+            } while (param_2 != 0);
+        }
+#else
         do {
             param_1 = param_1 - param_3;
             param_4(param_1);
             param_2 = param_2 + -1;
         } while (param_2 != 0);
+#endif
         return;
     }
     return;
@@ -1173,11 +1185,23 @@ void FUN_02048970(int param_1, int param_2, int param_3, void (*param_4)(...))
     }
     param_1 = param_2 * param_3 + param_1;
     if (param_2 != 0) {
+#ifdef HOST_PORT
+        {
+            extern void nds_call_1arg(u32, uintptr_t);
+            u32 fn_addr = (u32)(uintptr_t)param_4;
+            do {
+                param_1 = param_1 - param_3;
+                nds_call_1arg(fn_addr, (uintptr_t)param_1);
+                param_2 = param_2 + -1;
+            } while (param_2 != 0);
+        }
+#else
         do {
             param_1 = param_1 - param_3;
             param_4(param_1);
             param_2 = param_2 + -1;
         } while (param_2 != 0);
+#endif
         return;
     }
     return;
@@ -1193,6 +1217,22 @@ void FUN_02048a1c(int param_1, int param_2, int param_3, void (*param_4)(...), i
     if (param_4 == (void (*)(...))0x0) {
         return;
     }
+#ifdef HOST_PORT
+    /* On PC, param_4 may be an NDS code address (e.g. overlay function).
+     * Route through fnptr resolver / ARM interpreter instead of direct call. */
+    {
+        extern void nds_call_1arg(u32, uintptr_t);
+        u32 fn_addr = (u32)(uintptr_t)param_4;
+        if (param_2 != 0) {
+            do {
+                nds_call_1arg(fn_addr, (uintptr_t)param_1);
+                param_1 = param_1 + param_3;
+                param_2 = param_2 + -1;
+            } while (param_2 != 0);
+        }
+        return;
+    }
+#endif
     if (param_5 != 0) {
         if (param_2 != 0) {
             do {
@@ -1231,6 +1271,16 @@ int FUN_02048ae8(int param_1, int param_2, int param_3, u32 param_4, void (*para
     }
     if (param_5 != (void (*)(...))0x0) {
         iVar1 = param_1 + param_4;
+#ifdef HOST_PORT
+        {
+            extern void nds_call_1arg(u32, uintptr_t);
+            u32 fn_addr = (u32)(uintptr_t)param_5;
+            for (; param_2 != 0; param_2 = param_2 + -1) {
+                nds_call_1arg(fn_addr, (uintptr_t)iVar1);
+                iVar1 = iVar1 + param_3;
+            }
+        }
+#else
         if (param_6 == 0) {
             for (; param_2 != 0; param_2 = param_2 + -1) {
                 param_5(iVar1);
@@ -1243,6 +1293,7 @@ int FUN_02048ae8(int param_1, int param_2, int param_3, u32 param_4, void (*para
                 iVar1 = iVar1 + param_3;
             }
         }
+#endif
     }
     return param_1 + param_4;
 }
@@ -1255,10 +1306,21 @@ void FUN_02048bb0(u32 param_1, u32 param_2, int param_3, void (*param_4)(...))
 
     local_1c = auStack_30;
     if (param_1 < param_2) {
+#ifdef HOST_PORT
+        {
+            extern void nds_call_1arg(u32, uintptr_t);
+            u32 fn_addr = (u32)(uintptr_t)param_4;
+            do {
+                param_2 = param_2 - param_3;
+                nds_call_1arg(fn_addr, (uintptr_t)param_2);
+            } while (param_1 < param_2);
+        }
+#else
         do {
             param_2 = param_2 - param_3;
             param_4(param_2);
         } while (param_1 < param_2);
+#endif
         return;
     }
     return;

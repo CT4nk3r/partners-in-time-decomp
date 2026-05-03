@@ -46,6 +46,7 @@ src/host_synth_sprite.c
     src/host_title_screen.c
     src/host_title_scene.c
     src/host_gameplay_scene.c
+    src/arm_interp.c
     ${CMAKE_BINARY_DIR}/generated/nds_dat_init_generated.c
     ${CMAKE_BINARY_DIR}/generated/fnptr_table_generated.c
 )
@@ -145,6 +146,7 @@ execute_process(
     COMMAND ${Python3_EXECUTABLE} ${_fnptr_gen_script}
             ${CMAKE_CURRENT_SOURCE_DIR}/../arm9/src
             ${_fnptr_gen_src}
+            ${SDK_ALIAS_HEADER}
     RESULT_VARIABLE _fnptr_rc
 )
 if(NOT _fnptr_rc EQUAL 0)

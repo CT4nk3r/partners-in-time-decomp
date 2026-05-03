@@ -571,53 +571,97 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
 }
 
 /* ---- Constructor (FUN_0206DE6C HOST_PORT) ---- */
+/* Forward to the ARM interpreter so the REAL overlay code runs. */
+extern uint32_t arm_interp_call(uint32_t addr, uint32_t r0, uint32_t r1,
+                                uint32_t r2, uint32_t r3);
+extern int arm_interp_is_enabled(void);
+
 void FUN_0206DE6C(void *obj_ptr, int type, int param)
 {
-    /* The original code gets obj_ptr from OS_Alloc(0x30) which on NDS returns
-     * a 0x0200xxxx address. On HOST_PORT, OS_Alloc returns 0x1000xxxx which
-     * FUN_0202a74c_real rejects (bounds check). Use nds_bump_alloc instead,
-     * same approach as the title/file-select constructors. */
-    (void)obj_ptr;  /* ignore host OS_Alloc result */
+    /* The shim's OS_Alloc returns a host-heap pointer (0x1000xxxx) which
+     * is not in NDS-mapped memory.  Allocate from NDS space instead. */
+    (void)obj_ptr;
     u32 obj_nds = nds_bump_alloc(0x30);
 
     fprintf(stderr,
-            "[FUN_0206DE6C] gameplay ctor: obj=0x%08X type=%d param=%d\n",
+            "[FUN_0206DE6C] gameplay ctor via ARM interpreter: "
+            "obj=0x%08X type=%d param=%d\n",
             (unsigned)obj_nds, type, param);
     fflush(stderr);
 
-    /* Reset state */
     s_gameplay_obj_nds = obj_nds;
-    s_gameplay_frame = 0;
-    s_gameplay_loaded = 0;
-    s_gameplay_state = 0;
 
-    /* Insert into scene queue (same pattern as title/file select) */
-    FUN_0202a74c_real(obj_nds, (u8)type, (u32)param, 0);
+    /* Execute the REAL ARM overlay code at 0x0206DE6C.
+     * The interpreter will:
+     *   - fill in the scene object fields
+     *   - install the real vtable (with tick/dtor/setup addresses)
+     *   - call FUN_0202a74c (scene queue insert) via native bridge
+     * When the scene queue later calls vtable[2] (tick), nds_call_2arg
+     * falls through to the interpreter since those overlay addresses
+     * aren't in the fnptr table. */
+    if (arm_interp_is_enabled()) {
+        extern uint64_t arm_interp_total_cycles(void);
+        uint64_t cyc_before = arm_interp_total_cycles();
+        arm_interp_call(0x0206DE6Cu, obj_nds, (uint32_t)type, (uint32_t)param, 0);
+        uint64_t cyc_after = arm_interp_total_cycles();
+        fprintf(stderr,
+                "[FUN_0206DE6C] interpreter returned (%llu cycles). "
+                "Checking scene queue...\n",
+                (unsigned long long)(cyc_after - cyc_before));
 
-    /* Create and install vtable */
-    u32 vtab_nds = nds_bump_alloc(16);
-    volatile u32 *vtab = (volatile u32 *)(uintptr_t)vtab_nds;
-    vtab[0] = OV0_DTOR_ADDR;
-    vtab[1] = OV0_SETUP_ADDR;
-    vtab[2] = OV0_TICK_ADDR;
+        /* Diagnostic: check what the constructor wrote to the object */
+        u32 vtab_ptr = *(volatile u32 *)(uintptr_t)obj_nds;
+        u16 flags = *(volatile u16 *)(uintptr_t)(obj_nds + 0x12);
+        u32 next = *(volatile u32 *)(uintptr_t)(obj_nds + 0x0c);
+        fprintf(stderr,
+                "[FUN_0206DE6C] obj=0x%08X vtab=0x%08X flags=0x%04X next=0x%08X\n",
+                (unsigned)obj_nds, (unsigned)vtab_ptr,
+                (unsigned)flags, (unsigned)next);
+        if (vtab_ptr >= 0x02000000u && vtab_ptr < 0x02400000u) {
+            u32 vt0 = *(volatile u32 *)(uintptr_t)(vtab_ptr + 0);
+            u32 vt1 = *(volatile u32 *)(uintptr_t)(vtab_ptr + 4);
+            u32 vt2 = *(volatile u32 *)(uintptr_t)(vtab_ptr + 8);
+            fprintf(stderr,
+                    "[FUN_0206DE6C] vtable: [0]=0x%08X [1]=0x%08X [2]=0x%08X\n",
+                    (unsigned)vt0, (unsigned)vt1, (unsigned)vt2);
+        }
 
-    /* Install vtable AFTER FUN_0202a74c_real (which overwrites node[0]) */
-    *(volatile u32 *)(uintptr_t)obj_nds = vtab_nds;
+        /* Check scene queue anchor */
+        u32 anchor = 0x02060A04u;
+        u32 q_head = *(volatile u32 *)(uintptr_t)(anchor + 0x00);
+        u16 q_count = *(volatile u16 *)(uintptr_t)(anchor + 0x08);
+        fprintf(stderr,
+                "[FUN_0206DE6C] scene queue: head=0x%08X count=%u\n",
+                (unsigned)q_head, (unsigned)q_count);
+        fflush(stderr);
 
-    /* Register host functions with fnptr resolver */
-    host_fnptr_register(OV0_TICK_ADDR,  (void *)host_gameplay_tick);
-    host_fnptr_register(OV0_DTOR_ADDR,  (void *)host_gameplay_dtor);
-    host_fnptr_register(OV0_SETUP_ADDR, (void *)host_gameplay_dtor);  /* setup = noop for now */
+        /* Register native tick/dtor so per-frame dispatch uses our
+         * host implementation instead of the interpreter.  The ARM
+         * tick polls a load-complete flag that never gets set on PC,
+         * so it would spin forever doing 14 cycles of nothing. */
+        host_fnptr_register(OV0_TICK_ADDR,  (void *)host_gameplay_tick);
+        host_fnptr_register(OV0_DTOR_ADDR,  (void *)host_gameplay_dtor);
+    } else {
+        /* Fallback: manual setup (old behavior) */
+        FUN_0202a74c_real(obj_nds, (u8)type, (u32)param, 0);
 
-    /* Set field_2c = 0 (normal state, same pattern as other scenes) */
-    *(volatile u32 *)(uintptr_t)(obj_nds + 0x2c) = 0;
+        u32 vtab_nds = nds_bump_alloc(16);
+        volatile u32 *vtab = (volatile u32 *)(uintptr_t)vtab_nds;
+        vtab[0] = OV0_DTOR_ADDR;
+        vtab[1] = OV0_SETUP_ADDR;
+        vtab[2] = OV0_TICK_ADDR;
+        *(volatile u32 *)(uintptr_t)obj_nds = vtab_nds;
 
-    /* Set "needs update" flag so tick fires */
-    volatile u16 *flags_ptr = (volatile u16 *)(uintptr_t)(obj_nds + 0x12);
-    *flags_ptr |= 0x0001;
+        host_fnptr_register(OV0_TICK_ADDR,  (void *)host_gameplay_tick);
+        host_fnptr_register(OV0_DTOR_ADDR,  (void *)host_gameplay_dtor);
+        host_fnptr_register(OV0_SETUP_ADDR, (void *)host_gameplay_dtor);
+
+        *(volatile u32 *)(uintptr_t)(obj_nds + 0x2c) = 0;
+        *(volatile u16 *)(uintptr_t)(obj_nds + 0x12) |= 0x0001;
+    }
 
     fprintf(stderr,
-            "[FUN_0206DE6C] gameplay scene created: obj=0x%08X vtab=0x%08X\n",
-            (unsigned)obj_nds, (unsigned)vtab_nds);
+            "[FUN_0206DE6C] gameplay scene created: obj=0x%08X\n",
+            (unsigned)obj_nds);
     fflush(stderr);
 }

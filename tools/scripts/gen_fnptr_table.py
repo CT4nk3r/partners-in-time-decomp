@@ -95,18 +95,56 @@ def emit(out_path, addrs):
         fh.writelines(out)
 
 
+ALIAS_RE = re.compile(r'^#define\s+FUN_([0-9a-fA-F]{8})\s+\w+')
+
+
+def scan_aliases(alias_header):
+    """Parse sdk_symbol_aliases.h for #define FUN_<8hex> <name> lines.
+    These are renamed functions whose definitions use the real name,
+    so the main scan() misses them.  The generated C includes the alias
+    header, so `extern void FUN_<addr>();` gets preprocessed to the
+    real symbol name and links correctly."""
+    addrs = {}
+    if not alias_header or not os.path.isfile(alias_header):
+        return addrs
+    try:
+        with open(alias_header, 'r', encoding='utf-8', errors='replace') as fh:
+            for line in fh:
+                m = ALIAS_RE.match(line.strip())
+                if not m:
+                    continue
+                addr_hex = m.group(1).lower()
+                try:
+                    addr = int(addr_hex, 16)
+                except ValueError:
+                    continue
+                if 0x02000000 <= addr < 0x02400000:
+                    addrs.setdefault(addr_hex, '<alias>')
+    except OSError:
+        pass
+    return addrs
+
+
 def main(argv):
-    if len(argv) != 3:
+    if len(argv) < 3:
         print(__doc__, file=sys.stderr)
         return 2
     arm9_src_dir, out_path = argv[1], argv[2]
+    # Optional 3rd arg: path to sdk_symbol_aliases.h
+    alias_header = argv[3] if len(argv) > 3 else None
     if not os.path.isdir(arm9_src_dir):
         print(f'error: {arm9_src_dir} is not a directory', file=sys.stderr)
         return 2
     addrs = scan(arm9_src_dir)
+    alias_addrs = scan_aliases(alias_header)
+    new_from_alias = 0
+    for k, v in alias_addrs.items():
+        if k not in addrs:
+            addrs[k] = v
+            new_from_alias += 1
     os.makedirs(os.path.dirname(out_path) or '.', exist_ok=True)
     emit(out_path, addrs)
-    print(f'wrote {out_path} ({len(addrs)} entries)')
+    print(f'wrote {out_path} ({len(addrs)} entries, {new_from_alias} from aliases)')
     return 0
 
 

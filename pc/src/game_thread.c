@@ -271,6 +271,8 @@ int game_thread_main(void* user) {
      * decompiled FUN_<addr>) before injecting the fake node so its
      * vtable[2]==HOST_FNPTR_SYNTHETIC_BASE+0 resolves. */
     host_fnptr_init();
+    extern void arm_interp_set_enabled(int);
+    arm_interp_set_enabled(1);  /* Enable interpreter for overlay vtable dispatch */
     host_test_node_register();
     host_scene_queue_log_state("post_init");
     host_scene_queue_inject_fake();

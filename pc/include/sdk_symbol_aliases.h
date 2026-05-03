@@ -99,6 +99,12 @@
  * hw_gx.c, sdk_io.c, etc. Defined in arm9/src/mem_simple.c. */
 #define FUN_0203b7dc MI_Fill32
 
+/* MI_Fill32Fast — unrolled 8x 32-bit fill, arm9/src/mem_simple.c. */
+#define FUN_0203b808 MI_Fill32Fast
+
+/* obj_set_flags — set object flags with mutex, arm9/src/alloc_wrappers.c. */
+#define FUN_02029ffc obj_set_flags
+
 /* Timer dispatch — called indirectly through DAT_0202b6c0 and directly
  * from gx_util.c.  Decompiled in arm9/src/os_system.c. */
 #define FUN_0203f378 os_timer_dispatch

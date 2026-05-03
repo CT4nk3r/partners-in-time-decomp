@@ -219,6 +219,17 @@ static void keep_boot_screen_visible(void)
     if (s_pulse_mode < 0) s_pulse_mode = getenv("MLPIT_DISPCNT_PULSE") ? 1 : 0;
 
     if (getenv("MLPIT_LET_GAME_DISPLAY")) return;
+
+    /* Once the gameplay scene takes over, write its DISPCNT configuration
+     * instead of the boot-screen override.  We include bit 15 (display on)
+     * so the game thread's do/while exit condition still works.
+     * The game thread wrote DISPCNT=0x40011510 once during init, but we
+     * may have overwritten it before gda became visible — restore it now. */
+    extern int g_game_display_active;
+    if (g_game_display_active) {
+        nds_reg_write32(0x04000000u, 0x40019510u);  /* gameplay + bit15 */
+        return;
+    }
     uint32_t dispcnt = nds_reg_read32(0x04000000u);
     /* Mode 0 + BG0 enable (bit 8). Also preserve BG1 (bit 9) if already set
      * (e.g. title screen uses both BG0 sky + BG1 portal). */

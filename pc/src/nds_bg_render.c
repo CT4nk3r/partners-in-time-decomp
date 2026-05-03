@@ -10,6 +10,7 @@
  */
 #include "nds_platform.h"
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 /* NDS I/O register addresses */

@@ -386,6 +386,11 @@ static void host_gameplay_dtor(uintptr_t node_addr, uintptr_t anchor_addr)
     s_map_loaded = 0;
 }
 
+/* Global flag: set to 1 once gameplay takes over display.
+ * Checked by keep_boot_screen_visible() in platform_sdl.c to stop
+ * overriding DISPCNT with the title-screen configuration. */
+int g_game_display_active = 0;
+
 /* ---- Per-frame tick ---- */
 static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
 {
@@ -395,6 +400,7 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
     /* One-time setup: load map from ROM */
     if (!s_gameplay_loaded) {
         s_gameplay_loaded = 1;
+        g_game_display_active = 1;
 
         /* Clear all VRAM banks */
         for (char bank = 'A'; bank <= 'I'; bank++) {

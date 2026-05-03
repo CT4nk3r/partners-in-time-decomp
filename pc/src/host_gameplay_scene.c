@@ -516,8 +516,10 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
 
     /* Active gameplay: player movement + camera follow */
     if (s_gameplay_state == 1 && s_map_loaded) {
-        /* Read NDS keypad register (active low) */
-        u16 keyinput = *(volatile u16 *)(uintptr_t)0x04000130u;
+        /* Read NDS keypad register (active low) — use nds_reg_read16 to
+         * ensure we read from the IO shadow regardless of VirtualAlloc. */
+        extern uint16_t nds_reg_read16(uint32_t addr);
+        u16 keyinput = nds_reg_read16(0x04000130u);
         u16 held = ~keyinput & 0x03FFu;
         static u16 s_prev_held = 0;
         u16 pressed_new = held & ~s_prev_held;

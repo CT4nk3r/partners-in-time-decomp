@@ -169,11 +169,13 @@ static void pump_input_to_io(void)
         s_auto_start_frame = env ? atoi(env) : -1;
     }
     /* Simulate Start press for a window of frames starting at the target.
-     * Use a wider window (10 frames) to avoid race conditions between the
-     * main thread writing the register and the game thread reading it. */
+     * Use a very wide window (100 frames) because the game thread runs
+     * much slower than the main thread — the title constructor takes
+     * many main-thread frames to complete before the title tick starts
+     * checking input. */
     if (s_auto_start_frame > 0 &&
         s_pump_frame >= s_auto_start_frame &&
-        s_pump_frame < s_auto_start_frame + 10) {
+        s_pump_frame < s_auto_start_frame + 100) {
         g_input.start = 1;
     }
     /* Second auto-press: file select START.
@@ -185,11 +187,12 @@ static void pump_input_to_io(void)
         }
     }
 
-    nds_reg_write16(0x04000130u, build_keyinput_bits());
+    uint16_t ki = build_keyinput_bits();
+    nds_reg_write16(0x04000130u, ki);
     nds_reg_write16(0x04000136u, build_keyinput_ext_bits());
 
     /* Clear auto-press after writing so it doesn't stick */
-    if (s_auto_start_frame > 0 && s_pump_frame >= s_auto_start_frame + 10) {
+    if (s_auto_start_frame > 0 && s_pump_frame >= s_auto_start_frame + 100) {
         g_input.start = 0;
     }
     if (second_press > 0 && s_pump_frame >= second_press + 100) {

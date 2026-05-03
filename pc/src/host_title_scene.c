@@ -35,6 +35,9 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* ---- NDS register access (works regardless of VirtualAlloc) ---- */
+extern uint16_t nds_reg_read16(uint32_t addr);
+
 /* ---- External interfaces ---- */
 extern void host_fnptr_register(uint32_t nds_addr, void *host_fn);
 extern int  host_title_screen_load(void);
@@ -180,7 +183,7 @@ static void host_title_tick(uintptr_t node_addr, uintptr_t anchor_addr)
     /* 2. Check for Start or A button press.
      * SDL keyboard events are mapped to NDS REG_KEYINPUT at 0x04000130
      * by platform_sdl.c → pump_input_to_io(). */
-    u16 keyinput = *(volatile u16 *)(uintptr_t)NDS_REG_KEYINPUT;
+    u16 keyinput = nds_reg_read16(NDS_REG_KEYINPUT);
     int start_pressed = !(keyinput & KEY_START);
     int a_pressed     = !(keyinput & KEY_A);
 

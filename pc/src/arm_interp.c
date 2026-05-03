@@ -1457,8 +1457,9 @@ uint32_t arm_interp_call(uint32_t nds_addr, uint32_t arg0, uint32_t arg1,
 
     int max_cycles = MAX_CYCLES_PER_CALL;
     /* Small-range loop detection: if the PC stays within a narrow range
-     * (< 256 bytes) for 100K+ instructions, we're stuck in a busy-wait
-     * loop (e.g., polling a sprite table or IO register). */
+     * (< 256 bytes) for 1000+ instructions, we're stuck in a busy-wait
+     * loop (e.g., polling a sprite table or IO register).  Low threshold
+     * keeps any loop counter corruption minimal (~143 increments). */
     uint32_t loop_pc_min = cpu.r[15];
     uint32_t loop_pc_max = cpu.r[15];
     int loop_window_count = 0;
@@ -1468,7 +1469,7 @@ uint32_t arm_interp_call(uint32_t nds_addr, uint32_t arg0, uint32_t arg1,
             if (cur_pc < loop_pc_min) loop_pc_min = cur_pc;
             if (cur_pc > loop_pc_max) loop_pc_max = cur_pc;
             loop_window_count++;
-            if (loop_window_count > 100000 && (loop_pc_max - loop_pc_min) < 256) {
+            if (loop_window_count > 1000 && (loop_pc_max - loop_pc_min) < 256) {
                 if (g_log_count < MAX_LOG_LINES) {
                     g_log_count++;
                     fprintf(stderr, "[arm-interp] tight loop at PC=0x%08X..0x%08X (%d iters, breaking)\n",

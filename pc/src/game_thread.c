@@ -351,8 +351,15 @@ int game_thread_main(void* user) {
 
     nds_log("[game] entering vblank heartbeat fallback\n");
     int frame = 0;
+    extern void FUN_0202a33c_safe(void);
     while (!platform_game_should_exit()) {
         arm_swi_05_vblank_intr_wait();
+
+        /* Dispatch the scene queue every frame — this drives the game's
+         * state machine (scene ctors, ticks, dtors) through the linked
+         * list at NDS 0x02060A04. */
+        FUN_0202a33c_safe();
+
         if ((frame % 120) == 0) {
             nds_log("[game] heartbeat frame=%d\n", frame);
         }

@@ -111,6 +111,17 @@ static void render_frame(void) {
      * g_oam_sub before obj_render() reads them.  See host_oam_upload.c. */
     extern void host_oam_upload_tick(int);
     extern void obj_render_sync_palette(void);
+    extern int g_game_display_active;
+
+    /* Apply DISPCNT overrides BEFORE bg_render reads them.
+     * The game thread's scene dispatch may overwrite DISPCNT between
+     * frames, so we restore the gameplay config here on the render
+     * thread, right before rendering. */
+    if (g_game_display_active) {
+        nds_reg_write32(0x04000000u, 0x40019510u);  /* main: gameplay + bit15 */
+        nds_reg_write32(0x04001000u, 0x00009410u);  /* sub: mode0+BG2+OBJ+bit15 */
+    }
+
     host_oam_upload_tick(s_main_frame++);
     bg_render_sync_vram();
     obj_render_sync_palette();

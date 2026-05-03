@@ -227,7 +227,9 @@ static void keep_boot_screen_visible(void)
      * may have overwritten it before gda became visible — restore it now. */
     extern int g_game_display_active;
     if (g_game_display_active) {
-        nds_reg_write32(0x04000000u, 0x40019510u);  /* gameplay + bit15 */
+        nds_reg_write32(0x04000000u, 0x40019510u);  /* gameplay main + bit15 */
+        /* Sub engine: mode 0, BG2+OBJ enabled, OBJ 1D, display on */
+        nds_reg_write32(0x04001000u, 0x00009410u);
         return;
     }
     uint32_t dispcnt = nds_reg_read32(0x04000000u);

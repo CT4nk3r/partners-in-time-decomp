@@ -336,7 +336,8 @@ static int load_character_sprites(int sprite_idx)
 /* Set up an OAM entry for a sprite — writes to NDS shadow OAM (0x0205FFC0)
  * so the upload tick picks it up naturally. */
 static void setup_player_oam(int oam_slot, int x, int y,
-                              int tile_start, int pal_bank, int w, int h)
+                              int tile_start, int pal_bank, int w, int h,
+                              int flip_h)
 {
     /* Write to NDS shadow OAM at 0x0205FFC0 */
     uint8_t *entry = (uint8_t *)(uintptr_t)(0x0205FFC0u + oam_slot * 8);
@@ -362,6 +363,7 @@ static void setup_player_oam(int oam_slot, int x, int y,
 
     uint16_t attr0 = (uint16_t)((y & 0xFF) | (shape << 14));
     uint16_t attr1 = (uint16_t)((x & 0x1FF) | (size_bits << 14));
+    if (flip_h) attr1 |= (1 << 12);  /* attr1 bit 12 = horizontal flip */
     uint16_t attr2 = (uint16_t)((tile_start & 0x3FF) | ((pal_bank & 0xF) << 12));
 
     entry[0] = (uint8_t)(attr0 & 0xFF);
@@ -463,14 +465,36 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
             /* Place Mario sprite at center of screen.
              * 32x32 sprite, tile_start=0, palette bank 1 (Mario colors).
              * On NDS, sprite tiles are sequential in 1D mode. */
-            setup_player_oam(0, 112, 80, 0, 1, 32, 32);
+            setup_player_oam(0, 112, 80, 0, 1, 32, 32, 0);
             /* Second sprite (different tile offset) for variety */
-            setup_player_oam(1, 144, 80, 16, 1, 32, 32);
+            setup_player_oam(1, 144, 80, 16, 1, 32, 32, 0);
             fprintf(stderr, "[gameplay] Mario sprites placed in OAM\n");
         }
 
-        /* Sub screen: dark */
-        *(volatile u32 *)(uintptr_t)REG_DISPCNT_SUB = 0x00010000u;
+        /* Sub screen: mirror the map for bottom display.
+         * Copy tile/map data from bank A→C for sub BG VRAM.
+         * Copy palette to bank E+0x400 (sub palette source).
+         * Configure sub DISPCNT and BGCNT to match main screen. */
+        {
+            void *bank_a = nds_vram_bank('A');
+            void *bank_c = nds_vram_bank('C');
+            if (bank_a && bank_c) {
+                memcpy(bank_c, bank_a, 128 * 1024);
+            }
+            /* Copy main palette to sub palette location (bank E + 0x400) */
+            void *bank_e = nds_vram_bank('E');
+            if (bank_e) {
+                memcpy((uint8_t *)bank_e + 0x400, bank_e, 512);
+            }
+
+            /* Sub DISPCNT: mode 0, BG2 enabled, OBJ 1D */
+            *(volatile u32 *)(uintptr_t)0x04001000u = 0x00001410u;
+            /* Sub BG2: char_base=0, screen_base=16, 8bpp, 64x64, priority 2 */
+            *(volatile u16 *)(uintptr_t)0x0400100Cu =
+                (0 << 2) | (16 << 8) | (1 << 7) | (3 << 14) | 2;
+            *(volatile u16 *)(uintptr_t)0x04001018u = 0;
+            *(volatile u16 *)(uintptr_t)0x0400101Au = 0;
+        }
 
         fprintf(stderr, "[gameplay] scene initialized (frame %u)\n",
                 (unsigned)s_gameplay_frame);
@@ -547,16 +571,8 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
             int scr_y = s_player_y - s_scroll_y;
             if (scr_x < 0) scr_x += MAP_PX_W;
             if (scr_y < 0) scr_y += MAP_PX_H;
-            /* Horizontal flip when facing left (attr1 bit 12) */
-            setup_player_oam(0, scr_x - 16, scr_y - 16, 0, 1, 32, 32);
-            /* OAM attr1 bit 12 = horizontal flip */
-            if (s_player_facing) {
-                void *oam = nds_vram_bank('E');
-                if (oam) {
-                    uint8_t *entry = (uint8_t *)oam + 0x800 + 0 * 8;
-                    entry[3] |= 0x10;  /* attr1 bit 12 = h_flip */
-                }
-            }
+            setup_player_oam(0, scr_x - 16, scr_y - 16, 0, 1, 32, 32,
+                             s_player_facing);
         }
 
         /* L/R buttons cycle through maps */

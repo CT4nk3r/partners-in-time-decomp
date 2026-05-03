@@ -264,6 +264,14 @@ static void render_bg_layer(uint16_t *fb, const uint8_t *vram,
 
 void bg_render_top(uint16_t *fb) {
     uint32_t dispcnt = nds_reg_read32(REG_DISPCNT);
+
+    /* Override main DISPCNT when gameplay is active — the game thread's
+     * scene dispatch may overwrite it between frames (thread race). */
+    extern int g_game_display_active;
+    if (g_game_display_active) {
+        dispcnt = 0x40019510u;  /* gameplay config + bit15 */
+    }
+
     int bg_mode = dispcnt & 7;
 
     /* Fill with backdrop color (palette entry 0) instead of black */
@@ -336,6 +344,14 @@ void bg_render_top(uint16_t *fb) {
 
 void bg_render_bottom(uint16_t *fb) {
     uint32_t dispcnt = nds_reg_read32(0x04001000);
+
+    /* Override sub DISPCNT when gameplay is active — the game thread's
+     * scene dispatch may overwrite it between frames (thread race). */
+    extern int g_game_display_active;
+    if (g_game_display_active) {
+        dispcnt = 0x00009410u;  /* mode 0, BG2+OBJ enabled, OBJ 1D, display on */
+    }
+
     int bg_mode = dispcnt & 7;
 
     memset(fb, 0, NDS_SCREEN_WIDTH * NDS_SCREEN_HEIGHT * 2);
@@ -362,15 +378,41 @@ void bg_render_bottom(uint16_t *fb) {
     hofs[3]  = nds_reg_read16(0x0400101C) & 0x1FF;
     vofs[3]  = nds_reg_read16(0x0400101E) & 0x1FF;
 
+    /* Override sub BG2CNT when gameplay is active — game thread may
+     * have zeroed it via scene dispatch (same thread-race as DISPCNT).
+     * Mirror the main screen's BG2 config: char_base=0, screen_base=16,
+     * 8bpp, 64x64, priority 2. */
+    if (g_game_display_active) {
+        bgcnt[2] = (0 << 2) | (16 << 8) | (1 << 7) | (3 << 14) | 2;
+    }
+
+    int sub_drawn = 0;
+    const uint8_t *vram_src = g_vram_sub;
+    const uint8_t *pal_src = g_palette_sub;
+    const uint8_t *ext_pal_src = g_ext_palette_sub;
+
+    /* When gameplay is active, the game thread clears sub VRAM banks
+     * via scene dispatch (thread race). Use main VRAM/palette data
+     * directly — we want to mirror the top screen map anyway. */
+    if (g_game_display_active) {
+        vram_src = g_vram_main;
+        pal_src = g_palette_main;
+        ext_pal_src = g_ext_palette_main;
+    }
+
     for (int pri = 3; pri >= 0; pri--) {
         for (int bg = 3; bg >= 0; bg--) {
             if (!bg_enable[bg]) continue;
             if ((bgcnt[bg] & 3) != (uint16_t)pri) continue;
-            render_bg_layer(fb, g_vram_sub, g_palette_sub,
-                            g_ext_palette_sub, bg,
-                            bgcnt[bg], hofs[bg], vofs[bg], 0);
+            sub_drawn++;
+            render_bg_layer(fb, vram_src, pal_src,
+                            ext_pal_src, bg,
+                            bgcnt[bg], hofs[bg], vofs[bg],
+                            g_game_display_active ? 1 : 0);
         }
     }
+
+
 }
 
 /* ──────────────────────────────────────────────────────────────

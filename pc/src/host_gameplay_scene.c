@@ -122,25 +122,45 @@ static int load_fmap_all_layers(int grp_base, int desc_entry)
     void *bank_a = nds_vram_bank('A');
     void *bank_b = nds_vram_bank('B');
     void *bank_e = nds_vram_bank('E');
+    void *bank_f = nds_vram_bank('F');
     if (!bank_a || !bank_e) { free(desc); return 0; }
 
     /* Clear VRAM */
     memset(bank_a, 0, nds_vram_bank_size('A'));
     if (bank_b) memset(bank_b, 0, nds_vram_bank_size('B'));
+    if (bank_f) memset(bank_f, 0, nds_vram_bank_size('F'));
 
-    /* Write per-BG palettes into extended palette area of Bank E
-     * Layout: offset 0x1000 + bg_index * 512 */
-    if (sec_off[5] + 512 <= desc_size) {
-        /* BG2 palette (section 5) at ext_pal slot 2 */
-        memcpy((uint8_t*)bank_e + 0x1000 + 2*512, desc + sec_off[5], 512);
-    }
+    /* Write per-BG palettes into VRAM banks F/G (NDS extended palette).
+     * NDS ext palette: each BG gets 8KB (16 sub-palettes × 256 entries × 2B).
+     * Bank F = 16KB: BG0 at offset 0, BG1 at offset 0x2000.
+     * Bank G = 16KB: BG2 at offset 0, BG3 at offset 0x2000.
+     *
+     * The 512-byte palette from FMapData is a 256-color palette.
+     * Replicate it to ALL 16 sub-palette slots so any pal_bank works. */
     if (sec_off[3] + 512 <= desc_size) {
-        /* BG0 palette (section 3) at ext_pal slot 0 */
+        /* BG0 palette (section 3) → Bank F slot 0 */
+        if (bank_f) {
+            for (int sp = 0; sp < 16; sp++)
+                memcpy((uint8_t*)bank_f + 0*8192 + sp*512, desc + sec_off[3], 512);
+        }
         memcpy((uint8_t*)bank_e + 0x1000 + 0*512, desc + sec_off[3], 512);
     }
     if (sec_off[4] + 512 <= desc_size) {
-        /* BG1 palette (section 4) at ext_pal slot 1 */
+        /* BG1 palette (section 4) → Bank F slot 1 */
+        if (bank_f) {
+            for (int sp = 0; sp < 16; sp++)
+                memcpy((uint8_t*)bank_f + 1*8192 + sp*512, desc + sec_off[4], 512);
+        }
         memcpy((uint8_t*)bank_e + 0x1000 + 1*512, desc + sec_off[4], 512);
+    }
+    if (sec_off[5] + 512 <= desc_size) {
+        /* BG2 palette (section 5) → Bank G slot 0 */
+        void *bank_g = nds_vram_bank('G');
+        if (bank_g) {
+            for (int sp = 0; sp < 16; sp++)
+                memcpy((uint8_t*)bank_g + 0*8192 + sp*512, desc + sec_off[5], 512);
+        }
+        memcpy((uint8_t*)bank_e + 0x1000 + 2*512, desc + sec_off[5], 512);
     }
     /* Also write section 5 to standard palette for backdrop color */
     if (sec_off[5] + 512 <= desc_size)
@@ -393,15 +413,15 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
             *(volatile u32 *)(uintptr_t)REG_DISPCNT_TOP =
                 0x40011510u;  /* ext_pal(30) + OBJ_1D(4) + mode 0 + BG0(8) + BG2(10) + OBJ(12) */
 
-            /* BG2 (background): char_base=0, screen_base=16, 4bpp, 64x64, priority 2 */
+            /* BG2 (background): char_base=0, screen_base=16, 8bpp, 64x64, priority 2 */
             *(volatile u16 *)(uintptr_t)REG_BG2CNT =
-                (0 << 2) | (16 << 8) | (0 << 7) | (3 << 14) | 2;
+                (0 << 2) | (16 << 8) | (1 << 7) | (3 << 14) | 2;
             *(volatile u16 *)(uintptr_t)REG_BG2HOFS = 0;
             *(volatile u16 *)(uintptr_t)REG_BG2VOFS = 0;
 
-            /* BG0 (foreground): char_base=4, screen_base=24, 4bpp, 64x64, priority 0 */
+            /* BG0 (foreground): char_base=4, screen_base=24, 8bpp, 64x64, priority 0 */
             *(volatile u16 *)(uintptr_t)REG_BG0CNT =
-                (4 << 2) | (24 << 8) | (0 << 7) | (3 << 14) | 0;
+                (4 << 2) | (24 << 8) | (1 << 7) | (3 << 14) | 0;
             *(volatile u16 *)(uintptr_t)REG_BG0HOFS = (u16)(s_scroll_x & 0x1FF);
             *(volatile u16 *)(uintptr_t)REG_BG0VOFS = (u16)(s_scroll_y & 0x1FF);
 

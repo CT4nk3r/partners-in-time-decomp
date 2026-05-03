@@ -1,0 +1,29 @@
+version: Original
+title:
+  japanese: |-
+    MARIO & LUIGI
+    PARTNERS IN TIME
+    Nintendo
+  english: |-
+    MARIO & LUIGI
+    PARTNERS IN TIME
+    Nintendo
+  french: |-
+    MARIO & LUIGI
+    PARTNERS IN TIME
+    Nintendo
+  german: |-
+    MARIO & LUIGI
+    PARTNERS IN TIME
+    Nintendo
+  italian: |-
+    MARIO & LUIGI
+    PARTNERS IN TIME
+    Nintendo
+  spanish: |-
+    MARIO & LUIGI
+    PARTNERS IN TIME
+    Nintendo
+images:
+  bitmap_path: bitmap.png
+  palette_path: palette.png

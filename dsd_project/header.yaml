@@ -1,0 +1,14 @@
+title: MARIO&LUIGI2
+gamecode: ARME
+makercode: "01"
+unitcode: 0
+seed_select: 0
+ds_flags: 0
+rom_version: 0
+autostart: 0
+normal_cmd_setting: 5791744
+key1_cmd_setting: 1575160
+secure_area_delay: 1310
+rom_nand_end: 0
+rw_nand_end: 0
+has_arm9_build_info_offset: false

@@ -1,0 +1,17 @@
+//
+// menu_parts_ncg.h
+//
+
+#ifndef _MENU_PARTS_NCG_H
+#define _MENU_PARTS_NCG_H
+
+#define MENU_STATE_BG_CHR_MARIO 0
+#define MENU_STATE_BG_CHR_LUIGI 12
+#define MENU_STATE_BG_CHR_BMARIO 22
+#define MENU_STATE_BG_CHR_BLUIGI 62
+#define MENU_STATE_BG_CHR_NUM 102
+#define MENU_STATE_BG_CHR_LV 122
+#define MENU_STATE_BG_CHR_HP 126
+#define MENU_STATE_BG_CHR_SLASH 130
+
+#endif

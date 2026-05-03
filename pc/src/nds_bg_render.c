@@ -49,11 +49,10 @@
  */
 static uint8_t g_palette_main[512];
 static uint8_t g_palette_sub[512];
-/* Extended palettes: per-BG 256-color palettes for 8bpp mode.
- * On NDS hardware, these live in VRAM banks F/G; we pack them into Bank E
- * as consecutive 512-byte slots: [0]=BG0, [512]=BG1, [1024]=BG2, [1536]=BG3 */
-static uint8_t g_ext_palette_main[4][512];
-static uint8_t g_ext_palette_sub[4][512];
+/* Extended palettes: per-BG, 16 sub-palettes × 256 colors × 2 bytes = 8192 bytes.
+ * On NDS hardware, these live in VRAM banks F/G (main) and H (sub). */
+static uint8_t g_ext_palette_main[4][8192];
+static uint8_t g_ext_palette_sub[4][8192];
 static uint8_t g_vram_main[256 * 1024];
 static uint8_t g_vram_sub[128 * 1024];
 
@@ -84,6 +83,8 @@ void bg_render_sync_vram(void) {
     }
 
     void *bank_e = nds_vram_bank('E');
+    void *bank_f = nds_vram_bank('F');
+    void *bank_g = nds_vram_bank('G');
     if (bank_e) {
         /* Real NDS palette RAM layout (bank E mapped to 0x05000000):
          *   0x000..0x1FF  main BG palette
@@ -93,38 +94,83 @@ void bg_render_sync_vram(void) {
          */
         memcpy(g_palette_main, bank_e,                    512);
         memcpy(g_palette_sub,  (uint8_t*)bank_e + 0x400,  512);
+    }
 
-        /* Extended palettes: stored at Bank E offset 0x1000+, one 512-byte
-         * slot per BG (0x1000=BG0, 0x1200=BG1, 0x1400=BG2, 0x1600=BG3).
-         * Falls back to copying from the standard palette slot layout
-         * (i*512) if the extended area is empty. */
-        for (int i = 0; i < 4; i++) {
-            int ext_off = 0x1000 + i * 512;
-            const uint8_t *src = (const uint8_t*)bank_e + ext_off;
-            /* Check if extended palette area has data */
-            int has_data = 0;
-            for (int j = 0; j < 32; j++) { if (src[j]) { has_data = 1; break; } }
-            if (has_data) {
-                memcpy(g_ext_palette_main[i], src, 512);
-            } else {
-                /* Fallback: use standard palette layout */
-                int off = i * 512;
-                if ((uint32_t)(off + 512) <= 64 * 1024)
-                    memcpy(g_ext_palette_main[i], (uint8_t*)bank_e + off, 512);
+    /* Extended palettes: on real NDS hardware, these live in VRAM banks
+     * F/G (16KB each), mapped to extended palette slots via VRAMCNT.
+     * Bank F typically provides main BG extended palettes (4 BGs ×
+     * 16 sub-palettes × 256 colors × 2 bytes = 32KB, but bank F is
+     * 16KB so it covers BG0/BG1 or specific slots based on mapping).
+     * We check F first, then G, then fall back to E offsets. */
+    {
+        const uint8_t *ext_src = NULL;
+        uint32_t ext_size = 0;
+        if (bank_f) {
+            const uint8_t *p = (const uint8_t*)bank_f;
+            for (int j = 0; j < 64; j++) { if (p[j]) { ext_src = p; ext_size = 16*1024; break; } }
+        }
+        if (!ext_src && bank_g) {
+            const uint8_t *p = (const uint8_t*)bank_g;
+            for (int j = 0; j < 64; j++) { if (p[j]) { ext_src = p; ext_size = 16*1024; break; } }
+        }
+        if (ext_src) {
+            /* NDS ext palette layout: each BG slot = 8KB (16 sub-palettes × 256 × 2).
+             * Bank F (16KB) covers 2 slots. Slot mapping depends on VRAMCNT_F offset.
+             * Common: slot0=BG0, slot1=BG1 from bank F; slot2=BG2, slot3=BG3 from bank G.
+             * We copy what fits: first 8KB → BG0, next 8KB → BG1, etc. */
+            for (int i = 0; i < 4; i++) {
+                uint32_t off = (uint32_t)i * 8192;  /* 8KB per slot */
+                uint32_t copy = 8192;
+                if (off + copy > ext_size) copy = (off < ext_size) ? ext_size - off : 0;
+                if (copy > 0) memcpy(g_ext_palette_main[i], ext_src + off, copy);
+            }
+            /* If bank G has data too, use it for slots 2-3 */
+            if (ext_src == (const uint8_t*)bank_f && bank_g) {
+                const uint8_t *g = (const uint8_t*)bank_g;
+                int g_has = 0;
+                for (int j = 0; j < 64; j++) { if (g[j]) { g_has = 1; break; } }
+                if (g_has) {
+                    for (int i = 2; i < 4; i++) {
+                        uint32_t off = (uint32_t)(i - 2) * 8192;
+                        uint32_t copy = 8192;
+                        if (off + copy > 16*1024) copy = 16*1024 - off;
+                        memcpy(g_ext_palette_main[i], g + off, copy);
+                    }
+                }
+            }
+        } else if (bank_e) {
+            /* Fallback: try Bank E extended area (limited to 512 bytes per slot) */
+            for (int i = 0; i < 4; i++) {
+                int ext_off = 0x1000 + i * 512;
+                const uint8_t *src = (const uint8_t*)bank_e + ext_off;
+                int has_data = 0;
+                for (int j = 0; j < 32; j++) { if (src[j]) { has_data = 1; break; } }
+                if (has_data) {
+                    memcpy(g_ext_palette_main[i], src, 512);
+                }
             }
         }
-        /* Sub engine extended palettes: offset 0x400 onward */
-        for (int i = 0; i < 4; i++) {
-            int off = 0x400 + i * 512;
-            if ((uint32_t)(off + 512) <= 64 * 1024)
-                memcpy(g_ext_palette_sub[i], (uint8_t*)bank_e + off, 512);
+        /* Sub engine extended palettes from bank H (32KB) */
+        void *bank_h = nds_vram_bank('H');
+        if (bank_h) {
+            const uint8_t *h = (const uint8_t*)bank_h;
+            int h_has = 0;
+            for (int j = 0; j < 64; j++) { if (h[j]) { h_has = 1; break; } }
+            if (h_has) {
+                for (int i = 0; i < 4; i++) {
+                    uint32_t off = (uint32_t)i * 8192;
+                    uint32_t copy = 8192;
+                    if (off + copy > 32*1024) copy = 32*1024 - off;
+                    memcpy(g_ext_palette_sub[i], h + off, copy);
+                }
+            }
         }
     }
 }
 
 static void render_bg_layer(uint16_t *fb, const uint8_t *vram,
                              const uint8_t *palette,
-                             const uint8_t ext_pal[4][512],
+                             const uint8_t ext_pal[4][8192],
                              int bg_index, uint16_t bgcnt,
                              int hofs, int vofs, int use_ext_pal)
 {
@@ -179,10 +225,15 @@ static void render_bg_layer(uint16_t *fb, const uint8_t *vram,
                 uint8_t b = tile_base[byte_off];
                 color_idx = (px & 1) ? (b >> 4) : (b & 0xF);
                 if (color_idx == 0) continue;
-                /* In extended palette mode (4bpp), use per-BG palette */
+                /* NDS ext palette layout: each sub-palette is 256 entries
+                 * (512 bytes) even in 4bpp mode. pal_bank selects which
+                 * sub-palette. Lookup: offset = pal_bank * 256 + pixel_val */
                 if (use_ext_pal) {
-                    color_idx += pal_bank * 16;
+                    int full_idx = pal_bank * 256 + color_idx;
                     pal_src = ext_pal[bg_index];
+                    uint16_t pal_entry = (uint16_t)(pal_src[full_idx * 2] | (pal_src[full_idx * 2 + 1] << 8));
+                    fb[y * NDS_SCREEN_WIDTH + x] = pal_entry;
+                    continue;
                 } else {
                     color_idx += pal_bank * 16;
                     pal_src = palette;
@@ -191,8 +242,17 @@ static void render_bg_layer(uint16_t *fb, const uint8_t *vram,
                 int byte_off = tile_num * 64 + py * 8 + px;
                 color_idx = tile_base[byte_off];
                 if (color_idx == 0) continue;
-                /* 8bpp: use per-BG extended palette if available */
-                pal_src = ext_pal[bg_index];
+                /* 8bpp: extended palette uses pal_bank (map bits 12-15)
+                 * to select one of 16 sub-palettes of 256 colors each.
+                 * Full index = pal_bank * 256 + pixel_value. */
+                if (use_ext_pal) {
+                    int full_idx = pal_bank * 256 + color_idx;
+                    pal_src = ext_pal[bg_index];
+                    uint16_t pal_entry = (uint16_t)(pal_src[full_idx * 2] | (pal_src[full_idx * 2 + 1] << 8));
+                    fb[y * NDS_SCREEN_WIDTH + x] = pal_entry;
+                    continue;
+                }
+                pal_src = palette;
             }
 
             uint16_t pal_entry = (uint16_t)(pal_src[color_idx * 2] | (pal_src[color_idx * 2 + 1] << 8));

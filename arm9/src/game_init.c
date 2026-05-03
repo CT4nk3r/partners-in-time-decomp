@@ -74,6 +74,31 @@ static u32 *DAT_02006368;   /* scene state pointer */
 static void (*DAT_02005d68)(int param_1, int param_2); /* scene jump target — called as tail-call w/ r0,r1 preserved */
 
 #ifdef HOST_PORT
+/* On the real NDS these are .data literals initialized by the linker.
+ * On the host they are C file-statics that default to 0.  We must set
+ * them to the original ROM values (all are NDS addresses pointing into
+ * mapped memory regions) before any game code dereferences them. */
+static void host_init_dat_pointers(void)
+{
+    DAT_02004e34 = (u32 *)(uintptr_t)0x02059C68u;
+    DAT_02004ef4 = 0x02059BFCu;
+    DAT_020050e0 = 0x0204FF74u;
+    DAT_020050e4 = (u32 *)(uintptr_t)0x0204FF40u;
+    DAT_020050e8 = 0x0204FF80u;
+    DAT_020050ec = (u32 *)(uintptr_t)0x02059BE4u;
+    DAT_020050f0 = 0x0204FF88u;
+    DAT_0200527c = (u8 *)(uintptr_t)0x02059BC8u;
+    DAT_02005280 = (u8 *)(uintptr_t)0x02059BDCu;
+    DAT_02005284 = 0x0400006Cu;
+    DAT_02005288 = 0x0400106Cu;
+    DAT_020062dc = 0x0204FFDCu;
+    DAT_02006360 = 0x0204FFDCu;
+    DAT_02006364 = (u32 *)(uintptr_t)0x02059BE4u;
+    DAT_02006368 = (u32 *)(uintptr_t)0x02059C68u;
+}
+#endif
+
+#ifdef HOST_PORT
 /* HOST_PORT shim: on real hardware DAT_02005d28..d38 (and DAT_02005d68) are
  * .data literals filled in by C++ static constructors and by overlay scene-
  * factory code we have not yet decompiled.  Until that path is reachable,
@@ -100,6 +125,7 @@ void host_game_init_install_globals(u32 *slot,
     DAT_02005d34 = cfg_blob;
     DAT_02005d38 = disp_flag;
     DAT_02005d68 = scene_jmp;
+    host_init_dat_pointers();
 }
 #endif
 

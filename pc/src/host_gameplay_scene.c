@@ -372,6 +372,13 @@ static void setup_player_oam(int oam_slot, int x, int y,
     entry[5] = (uint8_t)(attr2 >> 8);
     entry[6] = 0;
     entry[7] = 0;
+
+    /* Also write directly to g_oam_main so obj_render sees it immediately,
+     * bypassing the shadow-OAM upload path which may have timing issues. */
+    {
+        extern uint8_t g_oam_main[1024];
+        memcpy(g_oam_main + oam_slot * 8, entry, 8);
+    }
 }
 
 /* ---- Destructor ---- */

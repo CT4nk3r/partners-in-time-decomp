@@ -541,8 +541,7 @@ void obj_render(uint16_t *fb, int is_sub) {
     static int once[2] = {0,0};
     if (drawn && !once[is_sub & 1]) {
         once[is_sub & 1] = 1;
-        extern void nds_log(const char *fmt, ...);
-        nds_log("[obj-render] %s engine: drew %d sprite(s) (DISPCNT=%08X)\n",
+        fprintf(stderr, "[obj-render] %s engine: drew %d sprite(s) (DISPCNT=%08X)\n",
                 is_sub ? "SUB" : "MAIN", drawn, dispcnt);
     }
 }

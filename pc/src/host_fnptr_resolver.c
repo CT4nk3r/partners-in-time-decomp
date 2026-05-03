@@ -705,16 +705,6 @@ void nds_call_2arg(uint32_t nds_addr, uintptr_t a, uintptr_t b)
         ((fn_2arg_t)fn)(a, b);
         return;
     }
-    /* Trace unmapped calls for debugging */
-    if (nds_addr >= 0xE0000000u) {
-        static int s_bad_log = 0;
-        if (s_bad_log < 3) {
-            s_bad_log++;
-            fprintf(stderr, "[TRACE-BAD] nds_call_2arg(0x%08X, 0x%lX, 0x%lX)\n",
-                    nds_addr, (unsigned long)a, (unsigned long)b);
-            fflush(stderr);
-        }
-    }
     /* Fall through to ARM interpreter */
     if (arm_interp_is_enabled()) {
         arm_interp_call(nds_addr, (uint32_t)a, (uint32_t)b, 0, 0);
@@ -731,15 +721,6 @@ void nds_call_1arg(uint32_t nds_addr, uintptr_t a)
     if (fn) {
         ((fn_1arg_t)fn)(a);
         return;
-    }
-    if (nds_addr >= 0xE0000000u) {
-        static int s_bad_log = 0;
-        if (s_bad_log < 3) {
-            s_bad_log++;
-            fprintf(stderr, "[TRACE-BAD] nds_call_1arg(0x%08X, 0x%lX)\n",
-                    nds_addr, (unsigned long)a);
-            fflush(stderr);
-        }
     }
     if (arm_interp_is_enabled()) {
         arm_interp_call(nds_addr, (uint32_t)a, 0, 0, 0);

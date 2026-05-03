@@ -666,14 +666,14 @@ void FUN_0206DE6C(void *obj_ptr, int type, int param)
                 (unsigned)q_head, (unsigned)q_count);
         fflush(stderr);
 
-        /* Let the ARM interpreter run the REAL overlay tick/dtor code.
-         * The scene queue's vtable[2] dispatch will fall through to the
-         * interpreter since these overlay addresses aren't in the fnptr
-         * table.  Previously we overrode them with host recreations —
-         * now we let the original game logic drive everything. */
+        /* Register native gameplay tick to load real map data from
+         * FMapData.dat.  The ARM-interpreted overlay tick doesn't produce
+         * visible output because the game state (clGameMain) hasn't been
+         * initialized through the New Game flow.  The native tick bypasses
+         * this by loading map graphics directly. */
+        host_fnptr_register(OV0_TICK_ADDR, (void *)host_gameplay_tick);
         fprintf(stderr,
-                "[FUN_0206DE6C] NOT registering host tick override — "
-                "real OV0 tick at 0x%08X will run via interpreter\n",
+                "[FUN_0206DE6C] registered native gameplay tick at 0x%08X\n",
                 (unsigned)OV0_TICK_ADDR);
         fflush(stderr);
     } else {

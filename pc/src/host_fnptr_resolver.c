@@ -34,6 +34,25 @@ static fnptr_entry_t g_table[FNPTR_TABLE_CAP];
 static int g_table_count = 0;
 static int g_initialised = 0;
 
+/* Safe-native tracking: addresses registered via host_fnptr_register_overrides()
+ * are known safe to call natively (no NDS pointer DAT issues). */
+#define SAFE_NATIVE_CAP 256
+static uint32_t g_safe_native[SAFE_NATIVE_CAP];
+static int g_safe_native_count = 0;
+
+int host_fnptr_is_safe_native(uint32_t addr) {
+    for (int i = 0; i < g_safe_native_count; i++) {
+        if (g_safe_native[i] == addr) return 1;
+    }
+    return 0;
+}
+
+static void register_safe(uint32_t nds_addr, void *host_fn) {
+    host_fnptr_register(nds_addr, host_fn);
+    if (g_safe_native_count < SAFE_NATIVE_CAP)
+        g_safe_native[g_safe_native_count++] = nds_addr;
+}
+
 #define UNMAPPED_LOG_CAP 256
 static uint32_t g_unmapped_logged[UNMAPPED_LOG_CAP];
 static int g_unmapped_count = 0;
@@ -347,6 +366,14 @@ static uint32_t native_FUN_02073EFC(uint32_t r0, uint32_t r1, uint32_t r2, uint3
     return 0;
 }
 
+/* Generic no-op for stubbing overlay functions that crash due to
+ * HOST_PORT / NDS memory mismatch (e.g. post-load init). */
+static uint32_t native_noop(uint32_t r0, uint32_t r1, uint32_t r2, uint32_t r3)
+{
+    (void)r0; (void)r1; (void)r2; (void)r3;
+    return 0;
+}
+
 /* FUN_02068028 — overlay 5 helper called from 02073EFC's call chain.
  * Likely a display command queue submission.  No-op. */
 static uint32_t native_FUN_02068028(uint32_t r0, uint32_t r1, uint32_t r2, uint32_t r3)
@@ -580,75 +607,84 @@ static uint32_t native_sdk_os_free(uint32_t r0, uint32_t r1, uint32_t r2, uint32
     return 0;
 }
 
+/* FUN_0202b9b8 — partition size calculator (5 ARM instructions)
+ * R0=unused, R1=u32* array, R2=index
+ * Returns array[index+1] - array[index] */
+static uint32_t native_FUN_0202b9b8(uint32_t r0, uint32_t r1, uint32_t r2, uint32_t r3)
+{
+    (void)r0; (void)r3;
+    if (r1 == 0) return 0;  /* guard against NULL array */
+    uint32_t *arr = (uint32_t *)(uintptr_t)r1;
+    return arr[r2 + 1] - arr[r2];
+}
+
 static void host_fnptr_register_overrides(void)
 {
-    /* FUN_0202a74c is aliased to sdk_os_destroy_heap (no-op) for native
-     * callers with wrong 0-arg signature.  The real implementation is
-     * FUN_0202a74c_real (scene queue insert, 4 args).  The ARM interpreter
-     * calls with r0-r3 so it needs the real function. */
-    host_fnptr_register(0x0202a74cu, (void *)FUN_0202a74c_real);
-    host_fnptr_register(0x02007590u, (void *)native_FUN_02007590);
-    host_fnptr_register(0x02035B28u, (void *)native_FUN_02035B28);
+    /* All registrations here use register_safe() so the ARM interpreter
+     * knows these are hand-verified safe for native calls (no NDS pointer
+     * DAT issues).  Auto-generated fnptr entries are NOT safe and will
+     * be interpreted instead. */
+    register_safe(0x0202a74cu, (void *)FUN_0202a74c_real);
+    register_safe(0x02007590u, (void *)native_FUN_02007590);
+    register_safe(0x02035B28u, (void *)native_FUN_02035B28);
 
     /* 6 previously-skipped arm9-base functions (GX/DMA/resource stubs) */
-    host_fnptr_register(0x0203564Cu, (void *)native_FUN_0203564C);
-    host_fnptr_register(0x020371CCu, (void *)native_FUN_020371CC);
-    host_fnptr_register(0x02036E64u, (void *)native_FUN_02036E64);
-    host_fnptr_register(0x02037060u, (void *)native_FUN_02037060);
-    host_fnptr_register(0x02036F60u, (void *)native_FUN_02036F60);
-    host_fnptr_register(0x02036F1Cu, (void *)native_FUN_02036F1C);
+    register_safe(0x0203564Cu, (void *)native_FUN_0203564C);
+    register_safe(0x020371CCu, (void *)native_FUN_020371CC);
+    register_safe(0x02036E64u, (void *)native_FUN_02036E64);
+    register_safe(0x02037060u, (void *)native_FUN_02037060);
+    register_safe(0x02036F60u, (void *)native_FUN_02036F60);
+    register_safe(0x02036F1Cu, (void *)native_FUN_02036F1C);
 
-    /* Render pipeline stubs — arm9-base but needed by overlay code via
-     * the ARM interpreter.  Without these the interpreter SKIPs them
-     * and returns 0, blocking the title tick's render/input path. */
-    host_fnptr_register(0x02029518u, (void *)native_FUN_02029518);
-    host_fnptr_register(0x020294B0u, (void *)native_FUN_020294B0);
+    /* Render pipeline stubs */
+    register_safe(0x02029518u, (void *)native_FUN_02029518);
+    register_safe(0x020294B0u, (void *)native_FUN_020294B0);
 
-    /* Derived title-screen tick — skip ARM interpreter tail-call issue */
-    host_fnptr_register(0x02077A88u, (void *)native_FUN_02077A88);
+    /* Derived title-screen tick */
+    register_safe(0x02077A88u, (void *)native_FUN_02077A88);
 
-    /* Title screen base tick — native override for proper teardown.
-     * The interpreter version fails to unlink the node on teardown,
-     * causing FUN_02005d3c to reset phase=2 every frame. */
-    host_fnptr_register(0x02077444u, (void *)native_FUN_02077444);
+    /* Title screen base tick */
+    register_safe(0x02077444u, (void *)native_FUN_02077444);
 
-    /* Display pipeline functions called by base tick after display gate.
-     * NOTE: FUN_0206619C is NOT a no-op — it's the per-frame callback
-     * dispatch that drives scene state machines.  It's implemented
-     * natively in overlay5_display.c as FUN_0206619c(). */
-    /* host_fnptr_register(0x0206619Cu, ...) — handled natively in overlay5_display.c */
-    host_fnptr_register(0x02068C60u, (void *)native_FUN_02068C60);
-    host_fnptr_register(0x02068B60u, (void *)native_FUN_02068B60);
-    host_fnptr_register(0x02009560u, (void *)native_FUN_02009560);
+    /* Display pipeline */
+    register_safe(0x02068C60u, (void *)native_FUN_02068C60);
+    register_safe(0x02068B60u, (void *)native_FUN_02068B60);
+    register_safe(0x02009560u, (void *)native_FUN_02009560);
 
-    /* Overlay 8 helpers that the ARM interpreter cannot fully execute
-     * (deep call chains into un-stubbed overlay functions). Stubbed to
-     * no-ops so the title state machine can advance. */
-    host_fnptr_register(0x02073EFCu, (void *)native_FUN_02073EFC);
-    host_fnptr_register(0x02068028u, (void *)native_FUN_02068028);
-    host_fnptr_register(0x02028b80u, (void *)native_FUN_02028b80);
+    /* Overlay 8 helpers */
+    register_safe(0x02073EFCu, (void *)native_FUN_02073EFC);
+    register_safe(0x02068028u, (void *)native_FUN_02068028);
+    register_safe(0x02028b80u, (void *)native_FUN_02028b80);
 
     /* Title screen state machine helpers */
-    host_fnptr_register(0x02028CDCu, (void *)native_FUN_02028CDC);
-    host_fnptr_register(0x02028C20u, (void *)native_FUN_02028C20);
-    host_fnptr_register(0x02028D24u, (void *)native_FUN_02028D24);
-    host_fnptr_register(0x02028B04u, (void *)native_FUN_02028B04);
-    host_fnptr_register(0x02028B34u, (void *)native_FUN_02028B34);
-    host_fnptr_register(0x020289F4u, (void *)native_FUN_020289F4);
-    host_fnptr_register(0x02028AB4u, (void *)native_FUN_02028AB4);
+    register_safe(0x02028CDCu, (void *)native_FUN_02028CDC);
+    register_safe(0x02028C20u, (void *)native_FUN_02028C20);
+    register_safe(0x02028D24u, (void *)native_FUN_02028D24);
+    register_safe(0x02028B04u, (void *)native_FUN_02028B04);
+    register_safe(0x02028B34u, (void *)native_FUN_02028B34);
+    register_safe(0x020289F4u, (void *)native_FUN_020289F4);
+    register_safe(0x02028AB4u, (void *)native_FUN_02028AB4);
 
-    /* SDK memory/heap functions — needed by ARM interpreter when overlay
-     * code calls into arm9-base MI and OS functions. */
-    host_fnptr_register(0x0203b914u, (void *)native_MI_CpuFill8);
-    host_fnptr_register(0x0203b9a8u, (void *)native_MI_CpuCopy8);
-    host_fnptr_register(0x0202cc10u, (void *)native_MI_CpuFill32Fast);
-    host_fnptr_register(0x0202cc94u, (void *)native_sdk_mi_cpu_copy16);
-    host_fnptr_register(0x0202cd68u, (void *)native_sdk_mi_cpu_fill16);
-    host_fnptr_register(0x02029964u, (void *)native_OS_AllocFromHeap);
-    host_fnptr_register(0x02029c1cu, (void *)native_OS_Alloc);
-    host_fnptr_register(0x02029ab8u, (void *)native_sdk_os_free);
-    host_fnptr_register(0x0203b7dcu, (void *)native_MI_Fill32);
-    host_fnptr_register(0x0203b7f0u, (void *)native_MI_Copy32);
+    /* SDK memory/heap functions */
+    register_safe(0x0203b914u, (void *)native_MI_CpuFill8);
+    register_safe(0x0203b9a8u, (void *)native_MI_CpuCopy8);
+    register_safe(0x0202cc10u, (void *)native_MI_CpuFill32Fast);
+    register_safe(0x0202cc94u, (void *)native_sdk_mi_cpu_copy16);
+    register_safe(0x0202cd68u, (void *)native_sdk_mi_cpu_fill16);
+    register_safe(0x02029964u, (void *)native_OS_AllocFromHeap);
+    register_safe(0x02029c1cu, (void *)native_OS_Alloc);
+    register_safe(0x02029ab8u, (void *)native_sdk_os_free);
+    register_safe(0x0203b7dcu, (void *)native_MI_Fill32);
+    register_safe(0x0203b7f0u, (void *)native_MI_Copy32);
+
+    /* Partition size calculator */
+    register_safe(0x0202b9b8u, (void *)native_FUN_0202b9b8);
+
+    /* Post-load init stub (HOST_PORT/NDS mismatch) */
+    register_safe(0x0206D24Cu, (void *)native_noop);
+
+    /* Animation tick stub (NDS pointer DATs) */
+    register_safe(0x02018748u, (void *)native_noop);
 
     /* 0x02010CCC (data struct init) is whitelisted for interpretation
      * in arm_interp.c instead — it's pure memory ops + memset calls. */

@@ -431,6 +431,7 @@ extern void FUN_0202c094();
 extern void FUN_0202c0bc();
 extern void FUN_0202c0d0();
 extern void FUN_0202c10c();
+extern void FUN_0202b9b8();
 extern void FUN_0202c37c();
 extern void FUN_0202c40c();
 extern void FUN_0202c4d8();
@@ -1533,6 +1534,7 @@ void host_fnptr_register_decompiled(void)
     host_fnptr_register(0x0202c0bcu, (void *)FUN_0202c0bc);
     host_fnptr_register(0x0202c0d0u, (void *)FUN_0202c0d0);
     host_fnptr_register(0x0202c10cu, (void *)FUN_0202c10c);
+    host_fnptr_register(0x0202b9b8u, (void *)FUN_0202b9b8);
     host_fnptr_register(0x0202c37cu, (void *)FUN_0202c37c);
     host_fnptr_register(0x0202c40cu, (void *)FUN_0202c40c);
     host_fnptr_register(0x0202c4d8u, (void *)FUN_0202c4d8);

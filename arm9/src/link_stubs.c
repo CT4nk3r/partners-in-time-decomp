@@ -176,7 +176,7 @@ void NitroMain(void) {}
 
 /* ======== Global variables ======== */
 
-u32 gGameStateBase = 0;
+u8 *gGameStateBase = 0;
 u32 sHeapBuffer = 0;
 u32 sHeapConfig = 0;
 u32 sHeapReady = 0;

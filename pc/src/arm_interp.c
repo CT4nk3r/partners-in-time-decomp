@@ -51,9 +51,19 @@ extern uint8_t  nds_reg_read8(uint32_t addr);
 extern void   *nds_vram_bank(char bank);
 extern int     nds_arm9_ram_is_mapped(void);
 
+/* Heap arena bounds (set by OS_Alloc in heap.c) */
+extern uintptr_t g_heap_arena_base;
+extern uintptr_t g_heap_arena_end;
+
 static int is_ram_addr(uint32_t addr) {
-    return (addr >= 0x01FF0000u && addr < 0x02000000u) ||
-           (addr >= 0x02000000u && addr < 0x03000000u);
+    if ((addr >= 0x01FF0000u && addr < 0x02000000u) ||
+        (addr >= 0x02000000u && addr < 0x03000000u))
+        return 1;
+    /* Also accept addresses in the OS_Alloc heap arena (0x10000000+) */
+    if (g_heap_arena_base && addr >= (uint32_t)g_heap_arena_base &&
+        addr < (uint32_t)g_heap_arena_end)
+        return 1;
+    return 0;
 }
 
 static uint8_t mem_read8(uint32_t addr) {
@@ -212,8 +222,42 @@ typedef void (*native_void_t)(uint32_t, uint32_t, uint32_t, uint32_t);
 
 /* Try to call a native function. Returns 1 if found and called, 0 if not.
  * For arm9-base addresses not in the fnptr table, returns 1 (skip) with r0=0. */
+/* ---------- Native call dispatch ---------- */
+extern int host_fnptr_is_safe_native(uint32_t addr);
+
 static int try_native_call(ArmCpu *cpu, uint32_t target) {
     uint32_t addr = target & ~1u;
+
+    /* Force-interpret list: functions that MUST be interpreted because
+     * their C decompilation loses parameters (>4 stack args, or sub-calls
+     * with zero-arg Ghidra artifacts that actually pass regs in ARM),
+     * or they double-deref NDS pointers as u32** which reads 8 bytes
+     * on 64-bit host instead of 4. */
+    static const uint32_t force_interpret[] = {
+        0x0201FA50u, /* FUN_0201fa50 — scene constructor, 11 params */
+        0x02015C38u, /* FUN_02015c38 — anim manager constructor, 11 params + NDS ptr DATs */
+    };
+    for (int i = 0; i < (int)(sizeof(force_interpret)/sizeof(force_interpret[0])); i++) {
+        if (addr == force_interpret[i]) {
+            return 0;  /* not handled — interpreter will execute */
+        }
+    }
+
+    /* Force-interpret ranges: whole subsystems where DAT globals are used
+     * as NDS pointers and double-dereferenced (u32**, u16**) — breaks on
+     * 64-bit host because pointer reads get garbage upper 4 bytes. */
+    static const struct { uint32_t lo; uint32_t hi; } force_ranges[] = {
+        { 0x0200D000u, 0x0200E100u }, /* resource/tile copy cluster */
+        { 0x02020F00u, 0x02023000u }, /* scene/entity/sprite engine */
+        { 0x02015C00u, 0x02016000u }, /* anim manager */
+    };
+    for (int i = 0; i < (int)(sizeof(force_ranges)/sizeof(force_ranges[0])); i++) {
+        if (addr >= force_ranges[i].lo && addr < force_ranges[i].hi) {
+            return 0;
+        }
+    }
+
+    /* Check fnptr table — includes both auto-generated and manual overrides */
     void *fn = host_fnptr_lookup(addr);
     if (fn) {
         /* Log native calls to diagnose crashes from indirect NDS fn ptrs */
@@ -228,39 +272,6 @@ static int try_native_call(ArmCpu *cpu, uint32_t target) {
         uint32_t ret = ((native_fn_t)fn)(cpu->r[0], cpu->r[1], cpu->r[2], cpu->r[3]);
         cpu->r[0] = ret;
         return 1;
-    }
-
-    /* For arm9 base addresses, don't interpret — these are decompiled C
-     * functions that should be called natively. If they're not in the
-     * fnptr table, they're stubs or renamed functions.
-     * Exception: whitelisted addresses that should be interpreted
-     * (pure memory/arithmetic functions not in any source file). */
-    if (addr >= ARM9_BASE_START && addr < ARM9_BASE_END) {
-        /* Whitelist: arm9-base functions safe to interpret */
-        static const uint32_t interpret_whitelist[] = {
-            0x02010CCCu, /* data structure init (linked list setup, memset calls) */
-            0x02026388u, /* struct initializer for display objects (14-param) */
-            0x0202626cu, /* display object helper called by FUN_02026388 */
-        };
-        int whitelisted = 0;
-        for (int i = 0; i < (int)(sizeof(interpret_whitelist)/sizeof(interpret_whitelist[0])); i++) {
-            if (addr == interpret_whitelist[i]) { whitelisted = 1; break; }
-        }
-        if (!whitelisted) {
-            static uint32_t s_warned[32];
-            static int s_warn_count = 0;
-            int already = 0;
-            for (int i = 0; i < s_warn_count && i < 32; i++) {
-                if (s_warned[i] == addr) { already = 1; break; }
-            }
-            if (!already && s_warn_count < 32) {
-                s_warned[s_warn_count++] = addr;
-                fprintf(stderr, "[arm-interp] SKIP arm9-base 0x%08X (not in fnptr table, returning 0)\n", addr);
-            }
-            cpu->r[0] = 0;
-            return 1;  /* handled (skipped) */
-        }
-        /* Fall through to return 0 — interpreter will execute it */
     }
 
     return 0;  /* not handled — interpreter should execute the code */
@@ -1395,6 +1406,23 @@ uint32_t arm_interp_call(uint32_t nds_addr, uint32_t arg0, uint32_t arg1,
                 g_call_count, nds_addr, arg0, arg1, arg2, arg3);
     }
 
+    /* Always log gameplay tick (overlay 0) calls */
+    static int s_ov0_tick_count = 0;
+    int is_ov0_tick = (nds_addr == 0x0206C34Cu);
+    if (is_ov0_tick) {
+        s_ov0_tick_count++;
+        /* Read phase byte at obj+0x10 and a few key fields */
+        uint8_t phase = *(volatile uint8_t *)(uintptr_t)(arg0 + 0x10);
+        uint16_t flags = *(volatile uint16_t *)(uintptr_t)(arg0 + 0x12);
+        uint32_t field_44 = *(volatile uint32_t *)(uintptr_t)(arg0 + 0x44);
+        if (s_ov0_tick_count <= 20) {
+            fprintf(stderr, "[OV0-TICK] #%d entry: obj=0x%08X phase=%u flags=0x%04X "
+                    "field44=0x%08X (call#%d)\n",
+                    s_ov0_tick_count, arg0, phase, flags, field_44, g_call_count);
+            fflush(stderr);
+        }
+    }
+
     /* Enable verbose trace for call #20 (a mid-run title tick) */
     static int s_trace_done = 0;
     if (!s_trace_done && g_call_count >= 15 && nds_addr == 0x02077444u) {
@@ -1428,23 +1456,30 @@ uint32_t arm_interp_call(uint32_t nds_addr, uint32_t arg0, uint32_t arg1,
     }
 
     int max_cycles = MAX_CYCLES_PER_CALL;
-    uint32_t last_pc = 0;
-    int same_pc_count = 0;
+    /* Small-range loop detection: if the PC stays within a narrow range
+     * (< 256 bytes) for 100K+ instructions, we're stuck in a busy-wait
+     * loop (e.g., polling a sprite table or IO register). */
+    uint32_t loop_pc_min = cpu.r[15];
+    uint32_t loop_pc_max = cpu.r[15];
+    int loop_window_count = 0;
     while (!cpu.halted && max_cycles > 0) {
-        /* Tight-loop detection: if the same PC is visited 1000+ times,
-         * the interpreter is stuck in a busy-wait (e.g., polling IO). */
-        if (cpu.r[15] == last_pc) {
-            same_pc_count++;
-            if (same_pc_count > 1000) {
+        uint32_t cur_pc = cpu.r[15];
+        if (cur_pc >= loop_pc_min && cur_pc <= loop_pc_max + 64) {
+            if (cur_pc < loop_pc_min) loop_pc_min = cur_pc;
+            if (cur_pc > loop_pc_max) loop_pc_max = cur_pc;
+            loop_window_count++;
+            if (loop_window_count > 100000 && (loop_pc_max - loop_pc_min) < 256) {
                 if (g_log_count < MAX_LOG_LINES) {
                     g_log_count++;
-                    fprintf(stderr, "[arm-interp] tight loop at PC=0x%08X (breaking out)\n", cpu.r[15]);
+                    fprintf(stderr, "[arm-interp] tight loop at PC=0x%08X..0x%08X (%d iters, breaking)\n",
+                            loop_pc_min, loop_pc_max, loop_window_count);
                 }
                 break;
             }
         } else {
-            last_pc = cpu.r[15];
-            same_pc_count = 0;
+            loop_pc_min = cur_pc;
+            loop_pc_max = cur_pc;
+            loop_window_count = 0;
         }
         int err = arm_step(&cpu);
         if (err) {
@@ -1456,13 +1491,18 @@ uint32_t arm_interp_call(uint32_t nds_addr, uint32_t arg0, uint32_t arg1,
 
     if (max_cycles <= 0 && g_log_count < MAX_LOG_LINES) {
         g_log_count++;
-        fprintf(stderr, "[arm-interp] call to 0x%08X hit cycle limit (%llu cycles)\n",
-                nds_addr, (unsigned long long)cpu.cycles);
+        fprintf(stderr, "[arm-interp] call to 0x%08X hit cycle limit (%llu cycles), stuck at PC=0x%08X\n",
+                nds_addr, (unsigned long long)cpu.cycles, cpu.r[15]);
     }
 
     if (g_call_count <= 50) {
         fprintf(stderr, "[arm-interp] call#%d to 0x%08X finished: %llu cycles, r0=0x%X\n",
                 g_call_count, nds_addr, (unsigned long long)cpu.cycles, cpu.r[0]);
+    }
+    if (is_ov0_tick && s_ov0_tick_count <= 20) {
+        fprintf(stderr, "[OV0-TICK] #%d done: %llu cycles, r0=0x%X, max_left=%d\n",
+                s_ov0_tick_count, (unsigned long long)cpu.cycles, cpu.r[0], max_cycles);
+        fflush(stderr);
     }
     if (g_verbose_trace && nds_addr == 0x02077444u) {
         fprintf(stderr, "[trace] === VERBOSE TRACE END (%llu cycles) ===\n",

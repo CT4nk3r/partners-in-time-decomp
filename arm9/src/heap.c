@@ -147,28 +147,24 @@ void *OS_AllocFromHeap(u32 heap_id, int size, HeapBlock *block, int direction)
  * OS_Alloc — Allocate from heap (front direction)
  * Original: FUN_02029c1c @ 0x02029C1C
  */
+
+#ifdef HOST_PORT
+/* Exposed so the ARM interpreter can access heap-allocated memory */
+uintptr_t g_heap_arena_base = 0;
+uintptr_t g_heap_arena_end  = 0;
+#endif
+
 void *OS_Alloc(u32 size, u32 heap_id)
 {
 #ifdef HOST_PORT
-    /* The real heap requires OS_InitHeap + sHeapTable + an 8KB
-     * sHeapBuffer that we don't yet wire up on host. Carve from a
-     * low-memory arena so the returned pointers fit in the u32 slots
-     * the decompiled code uses (e.g. *DAT_02005d28 = (u32)alloc_result;
-     * later cast back to pointer). On 64-bit Windows libc malloc
-     * hands back addresses far above 4GiB which silently truncate.
-     *
-     * Strategy: lazily VirtualAlloc one big region whose base address
-     * fits in 32 bits, then bump-allocate from it. Never freed - this
-     * is a one-shot leak suitable for boot-up factories. */
     extern void *VirtualAlloc(void *, unsigned long long, unsigned long, unsigned long);
     extern void *memset(void *, int, unsigned long long);
 
     static unsigned char *s_arena = 0;
     static unsigned long s_off = 0;
-    static const unsigned long ARENA_SIZE = 4u * 1024u * 1024u; /* 4 MiB */
+    static const unsigned long ARENA_SIZE = 16u * 1024u * 1024u; /* 16 MiB */
 
     if (!s_arena) {
-        /* MEM_RESERVE|MEM_COMMIT = 0x3000, PAGE_READWRITE = 0x04. */
         for (unsigned long base = 0x10000000u; base < 0x80000000u && !s_arena;
              base += 0x01000000u) {
             s_arena = (unsigned char *)VirtualAlloc(
@@ -178,6 +174,10 @@ void *OS_Alloc(u32 size, u32 heap_id)
         if (!s_arena) {
             s_arena = (unsigned char *)VirtualAlloc(
                 (void *)0, ARENA_SIZE, 0x3000u, 0x04u);
+        }
+        if (s_arena) {
+            g_heap_arena_base = (uintptr_t)s_arena;
+            g_heap_arena_end  = (uintptr_t)s_arena + ARENA_SIZE;
         }
     }
     if (!s_arena) {

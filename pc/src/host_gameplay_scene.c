@@ -790,7 +790,7 @@ void FUN_0206DE6C(void *obj_ptr, int type, int param)
     /* The shim's OS_Alloc returns a host-heap pointer (0x1000xxxx) which
      * is not in NDS-mapped memory.  Allocate from NDS space instead. */
     (void)obj_ptr;
-    u32 obj_nds = nds_bump_alloc(0x30);
+    u32 obj_nds = nds_bump_alloc(0x3B8);
 
     fprintf(stderr,
             "[FUN_0206DE6C] gameplay ctor via ARM interpreter: "
@@ -842,17 +842,72 @@ void FUN_0206DE6C(void *obj_ptr, int type, int param)
         fprintf(stderr,
                 "[FUN_0206DE6C] scene queue: head=0x%08X count=%u\n",
                 (unsigned)q_head, (unsigned)q_count);
+
+        /* Dump key object fields to understand constructor output */
+        fprintf(stderr, "[FUN_0206DE6C] obj dump:\n");
+        for (int off = 0x28; off <= 0x60; off += 4) {
+            u32 val = *(volatile u32 *)(uintptr_t)(obj_nds + off);
+            if (val != 0) {
+                fprintf(stderr, "  +0x%03X = 0x%08X\n", off, (unsigned)val);
+            }
+        }
+        /* Check sub-object pointers */
+        for (int off = 0x390; off <= 0x3B8; off += 4) {
+            u32 val = *(volatile u32 *)(uintptr_t)(obj_nds + off);
+            if (val != 0) {
+                fprintf(stderr, "  +0x%03X = 0x%08X\n", off, (unsigned)val);
+            }
+        }
         fflush(stderr);
 
-        /* Register native gameplay tick to load real map data from
-         * FMapData.dat.  The ARM-interpreted overlay tick doesn't produce
-         * visible output because the game state (clGameMain) hasn't been
-         * initialized through the New Game flow.  The native tick bypasses
-         * this by loading map graphics directly. */
-        host_fnptr_register(OV0_TICK_ADDR, (void *)host_gameplay_tick);
-        fprintf(stderr,
-                "[FUN_0206DE6C] registered native gameplay tick at 0x%08X\n",
-                (unsigned)OV0_TICK_ADDR);
+        /* By default, let the REAL overlay 0 tick run via ARM interpreter
+         * so the game's own code drives VRAM/OAM/palette writes.
+         * Set MLPIT_FAKE_TICK=1 to use the test-harness tick instead. */
+        if (getenv("MLPIT_FAKE_TICK") && getenv("MLPIT_FAKE_TICK")[0] == '1') {
+            host_fnptr_register(OV0_TICK_ADDR, (void *)host_gameplay_tick);
+            fprintf(stderr,
+                    "[FUN_0206DE6C] FAKE tick registered (MLPIT_FAKE_TICK=1)\n");
+        } else {
+            /* The tick's phase 0 checks *(u16*)(obj[0x44]+0x440) == 2.
+             * This is the BG layer 2 index written by FUN_020192f8 into
+             * the display context at *DAT_02019730.  The constructor
+             * doesn't set obj[0x44] — it's supposed to be connected to
+             * the display context by the game's init chain.
+             *
+             * Read the display context pointer from NDS memory at
+             * 0x02019730 and wire it into obj+0x44 so the tick can
+             * see the layer-init flags that FUN_020192f8 already set. */
+            u32 disp_ctx = *(volatile u32 *)(uintptr_t)0x02019730u;
+            fprintf(stderr,
+                    "[FUN_0206DE6C] NDS DAT_02019730 = 0x%08X\n",
+                    (unsigned)disp_ctx);
+            if (disp_ctx >= 0x02000000u && disp_ctx < 0x03000000u) {
+                *(volatile u32 *)(uintptr_t)(obj_nds + 0x44) = disp_ctx;
+                /* FUN_020192f8 (display init) writes layer indices to the
+                 * HOST_PORT g_disp_DAT_02019730 variable, not to NDS RAM.
+                 * The ARM interpreter reads from NDS RAM at disp_ctx+0x440.
+                 * Sync all 4 layer index flags so the tick can see them:
+                 *   +0x3F8 = 0 (layer 0), +0x41C = 1 (layer 1),
+                 *   +0x440 = 2 (layer 2), +0x464 = 3 (layer 3) */
+                *(volatile u16 *)(uintptr_t)(disp_ctx + 0x3F8) = 0;
+                *(volatile u16 *)(uintptr_t)(disp_ctx + 0x41C) = 1;
+                *(volatile u16 *)(uintptr_t)(disp_ctx + 0x440) = 2;
+                *(volatile u16 *)(uintptr_t)(disp_ctx + 0x464) = 3;
+                u16 flag = *(volatile u16 *)(uintptr_t)(disp_ctx + 0x440);
+                fprintf(stderr,
+                        "[FUN_0206DE6C] wired obj+0x44 → display ctx 0x%08X "
+                        "(flag@+0x440 = %u, synced layer indices)\n",
+                        (unsigned)disp_ctx, (unsigned)flag);
+            } else {
+                fprintf(stderr,
+                        "[FUN_0206DE6C] WARNING: DAT_02019730 not in NDS RAM "
+                        "(0x%08X) — cannot wire display ctx\n",
+                        (unsigned)disp_ctx);
+            }
+            fprintf(stderr,
+                    "[FUN_0206DE6C] REAL overlay 0 tick at 0x%08X\n",
+                    (unsigned)OV0_TICK_ADDR);
+        }
         fflush(stderr);
     } else {
         /* Fallback: manual setup (old behavior) — still use real vtable */

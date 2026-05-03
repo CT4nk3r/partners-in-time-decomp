@@ -95,6 +95,13 @@ void host_display_data_init_install(void)
      * clGameMain instance pointer. */
     g_disp_DAT_02019730 = (int *)game_state_host_get_current_slot();
 
+    /* gGameStateBase (DAT_020058fc / DAT_02005b68) shares the same
+     * game-state buffer.  GameProp_Get/Set use it for property lookups. */
+    {
+        extern u8 *gGameStateBase;
+        gGameStateBase = (u8 *)game_state_host_get_current_slot();
+    }
+
     /* Scalar offsets (used as +offset added to *DAT_02019730). */
     g_disp_DAT_02019744 = (intptr_t)HOSTDATA_DAT_02019744;  /* 0x41C */
     g_disp_DAT_02019768 = (intptr_t)HOSTDATA_DAT_02019768;  /* 0x464 */

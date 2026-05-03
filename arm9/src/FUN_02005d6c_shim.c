@@ -62,7 +62,7 @@ static int state_to_overlay(u8 state)
  *   BL OS_Alloc(0x30)  →  BL FUN_0206DE6C(ptr, 8, 0)
  * The wrapper is inlined in FUN_02005d6c, unlike states 2/9 which use
  * separate alloc_construct_obj_g/h wrappers. */
-extern void *OS_Alloc(u32 size);
+extern void *OS_Alloc(u32 size, u32 heap_id);
 extern void FUN_0206DE6C(void *obj, int type, int param);
 
 static int s_dispatch_count = 0;
@@ -156,8 +156,9 @@ void FUN_02005d6c(int obj_addr)
         /* State switch for phase 1 init functions */
         switch (state) {
         case 0: {
-            /* Gameplay: inline alloc + construct (from ARM @ 0x02005F88-FA4) */
-            void *ptr = OS_Alloc(0x30);
+            /* Gameplay: inline alloc + construct (from ARM @ 0x02005F84-FA4)
+             * Real ARM: MOV R0, #0x3B8; BL FUN_02029C1C (heap alloc) */
+            void *ptr = OS_Alloc(0x3B8, 0);
             if (ptr != NULL) {
                 FUN_0206DE6C(ptr, 8, 0);
             }
@@ -234,7 +235,7 @@ void FUN_02005d6c(int obj_addr)
 
         switch (state) {
         case 0: {
-            void *ptr = OS_Alloc(0x30);
+            void *ptr = OS_Alloc(0x3B8, 0);
             if (ptr != NULL) {
                 FUN_0206DE6C(ptr, 8, 0);
             }

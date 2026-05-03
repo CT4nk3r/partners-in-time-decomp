@@ -1375,7 +1375,13 @@ int FUN_0202a74c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202a7
 int FUN_0202acdc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202acdc\n");} return 0; }
 int FUN_0202b428() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202b428\n");} return 0; }
 int FUN_0202b944() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202b944\n");} return 0; }
-int FUN_0202b9b8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202b9b8\n");} return 0; }
+/* FUN_0202b9b8 — partition size: array[index+1] - array[index]
+ * ARM code: ADD R0,R1,R2,LSL#2; LDR R3,[R0,#4]; LDR R0,[R1,R2,LSL#2]; SUB R0,R3,R0; BX LR
+ * R0(param_1) is unused. R1(param_2) is u32* array. R2(param_3) is index. */
+int FUN_0202b9b8(int unused, int array_nds, int index) {
+    unsigned int *arr = (unsigned int *)(uintptr_t)(unsigned int)array_nds;
+    return (int)(arr[index + 1] - arr[index]);
+}
 int FUN_0202ba28() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202ba28\n");} return 0; }
 int FUN_0202bacc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202bacc\n");} return 0; }
 int FUN_0202bb54() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202bb54\n");} return 0; }

@@ -686,6 +686,11 @@ static void host_fnptr_register_overrides(void)
     /* Animation tick stub (NDS pointer DATs) */
     register_safe(0x02018748u, (void *)native_noop);
 
+    /* OV0 sprite/tile processing state machine — contains busy-wait loop
+     * scanning uninitialized sprite table (no entries have bit 0 set).
+     * Stub as noop until sprite system is properly initialized. */
+    register_safe(0x0206C34Cu, (void *)native_noop);
+
     /* 0x02010CCC (data struct init) is whitelisted for interpretation
      * in arm_interp.c instead — it's pure memory ops + memset calls. */
 }

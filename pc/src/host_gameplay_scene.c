@@ -90,6 +90,19 @@ static int  s_player_y     = 128;
 static int  s_player_vy    = 0;    /* vertical velocity (subpixels, /16) */
 static int  s_player_on_ground = 1;
 static int  s_player_facing = 0;   /* 0=right, 1=left */
+static int  s_player_moving = 0;   /* 1 = moving horizontally this frame */
+
+/* Luigi state (follows Mario) */
+static int  s_luigi_x      = 96;
+static int  s_luigi_y      = 128;
+static int  s_luigi_facing = 0;
+
+/* Animation state */
+static int  s_anim_frame   = 0;    /* current animation frame (0-3) */
+static int  s_anim_timer   = 0;    /* frame counter for animation */
+#define ANIM_SPEED 8  /* frames per animation step */
+#define MARIO_TILES_PER_FRAME 16  /* tiles per 32x32 animation frame (4x4) */
+#define LUIGI_OBJ_VRAM_OFFSET (32 * 1024)  /* Luigi tiles start after Mario in OBJ VRAM */
 
 #define GAMEPLAY_FADE_DURATION 30
 #define PLAYER_SPEED 2
@@ -251,10 +264,42 @@ static int load_fmap_all_layers(int grp_base, int desc_entry)
         }
     }
 
+    /* Load BG1 (middle layer — between foreground and background) */
+    {
+        int tile_entry = grp_base + 1;
+        if (tile_entry < num_entries) {
+            uint32_t t_off = FMAP_OFF(tile_entry);
+            uint32_t t_next = FMAP_OFF(tile_entry + 1);
+            uint32_t tile_sz = 0;
+            uint8_t *tiles = ad_decompress(fmap + t_off, t_next - t_off, &tile_sz);
+            if (tiles && tile_sz > 0) {
+                /* Tiles at char_base=2 → offset 0x8000 (after BG2 tilemap)
+                 * Need to offset so it doesn't clash with BG2 tilemap at 0x8000.
+                 * Use char_base=6 → offset 0x18000 in bank B. */
+                uint32_t copy = tile_sz > 0x8000 ? 0x8000 : tile_sz;
+                if (vram_b) {
+                    memcpy(vram_b + 0x8000, tiles, copy);
+                }
+                free(tiles);
+
+                /* Tilemap at screen_base=28 → offset 0xE000 */
+                uint32_t tmap_off = sec_off[1];
+                uint32_t tmap_end = sec_off[2];
+                if (tmap_off < desc_size && tmap_end <= desc_size) {
+                    uint32_t tmap_sz = tmap_end - tmap_off;
+                    if (tmap_sz > 8192) tmap_sz = 8192;
+                    memcpy(vram + 0xE000, desc + tmap_off, tmap_sz);
+                    layers_ok |= (1 << 1);
+                }
+            } else { free(tiles); }
+        }
+    }
+
     fprintf(stderr, "[gameplay] multi-layer load: layers_ok=0x%X "
-            "(BG0=%s BG2=%s)\n",
+            "(BG0=%s BG1=%s BG2=%s)\n",
             layers_ok,
             (layers_ok & 1) ? "yes" : "no",
+            (layers_ok & 2) ? "yes" : "no",
             (layers_ok & 4) ? "yes" : "no");
 
     free(desc);
@@ -393,6 +438,9 @@ static void host_gameplay_dtor(uintptr_t node_addr, uintptr_t anchor_addr)
     s_gameplay_loaded = 0;
     s_gameplay_state = 0;
     s_map_loaded = 0;
+    s_anim_frame = 0;
+    s_anim_timer = 0;
+    s_player_moving = 0;
 }
 
 /* Global flag: set to 1 once gameplay takes over display.
@@ -434,16 +482,22 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
         }
 
         if (s_map_loaded) {
-            /* Set up top screen: Mode 0, BG0+BG2+OBJ, extended palettes (bit 30)
-             * Bit 4: OBJ 1D mapping, Bit 8: BG0, Bit 10: BG2, Bit 12: OBJ */
+            /* Set up top screen: Mode 0, BG0+BG1+BG2+OBJ, extended palettes (bit 30)
+             * Bit 4: OBJ 1D mapping, Bit 8: BG0, Bit 9: BG1, Bit 10: BG2, Bit 12: OBJ */
             *(volatile u32 *)(uintptr_t)REG_DISPCNT_TOP =
-                0x40011510u;  /* ext_pal(30) + OBJ_1D(4) + mode 0 + BG0(8) + BG2(10) + OBJ(12) */
+                0x40011710u;  /* ext_pal(30) + OBJ_1D(4) + mode 0 + BG0(8) + BG1(9) + BG2(10) + OBJ(12) */
 
             /* BG2 (background): char_base=0, screen_base=16, 8bpp, 64x64, priority 2 */
             *(volatile u16 *)(uintptr_t)REG_BG2CNT =
                 (0 << 2) | (16 << 8) | (1 << 7) | (3 << 14) | 2;
             *(volatile u16 *)(uintptr_t)REG_BG2HOFS = 0;
             *(volatile u16 *)(uintptr_t)REG_BG2VOFS = 0;
+
+            /* BG1 (middle layer): char_base=6 (0x18000 in bank B), screen_base=28 (0xE000), 8bpp, 64x64, priority 1 */
+            *(volatile u16 *)(uintptr_t)REG_BG1CNT =
+                (6 << 2) | (28 << 8) | (1 << 7) | (3 << 14) | 1;
+            *(volatile u16 *)(uintptr_t)REG_BG1HOFS = 0;
+            *(volatile u16 *)(uintptr_t)REG_BG1VOFS = 0;
 
             /* BG0 (foreground): char_base=4, screen_base=24, 8bpp, 64x64, priority 0 */
             *(volatile u16 *)(uintptr_t)REG_BG0CNT =
@@ -459,16 +513,52 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
             fprintf(stderr, "[gameplay] map load failed, using text fallback\n");
         }
 
-        /* Load character sprites (Mario = sprite 0, palette bank 1) */
+        /* Load character sprites — Mario (index 0) and Luigi (index 1) */
         s_sprites_loaded = load_character_sprites(0);
         if (s_sprites_loaded) {
-            /* Place Mario sprite at center of screen.
-             * 32x32 sprite, tile_start=0, palette bank 1 (Mario colors).
-             * On NDS, sprite tiles are sequential in 1D mode. */
+            /* Also load Luigi's tile data into the same OBJ VRAM (offset past Mario) */
+            {
+                const uint8_t *rom = rom_data();
+                const uint8_t *fobj = rom + FOBJPC_ROM_OFFSET;
+                int num_entries = (int)((fobj[0] | (fobj[1]<<8) | (fobj[2]<<16) | (fobj[3]<<24)) / 4);
+                if (num_entries >= 310) {
+                    /* Luigi = sprite index 1 → tile entry 4 */
+                    uint32_t t_off = fobj[4*4] | (fobj[4*4+1]<<8) | (fobj[4*4+2]<<16) | (fobj[4*4+3]<<24);
+                    uint32_t t_next = fobj[5*4] | (fobj[5*4+1]<<8) | (fobj[5*4+2]<<16) | (fobj[5*4+3]<<24);
+                    uint32_t tile_sz = 0;
+                    uint8_t *tiles = ad_decompress(fobj + t_off, t_next - t_off, &tile_sz);
+                    if (tiles && tile_sz > 0) {
+                        extern uint8_t *obj_vram_main_ptr(void);
+                        extern uint32_t obj_vram_main_size(void);
+                        uint32_t max = obj_vram_main_size();
+                        uint32_t copy = tile_sz;
+                        if (LUIGI_OBJ_VRAM_OFFSET + copy > max)
+                            copy = max - LUIGI_OBJ_VRAM_OFFSET;
+                        memcpy(obj_vram_main_ptr() + LUIGI_OBJ_VRAM_OFFSET, tiles, copy);
+                        fprintf(stderr, "[gameplay] loaded Luigi sprite: %u bytes\n", (unsigned)copy);
+                    }
+                    free(tiles);
+
+                    /* Load Luigi palette (entry 306 = palette 1, green overalls) */
+                    uint32_t p_off = fobj[306*4] | (fobj[306*4+1]<<8) | (fobj[306*4+2]<<16) | (fobj[306*4+3]<<24);
+                    uint32_t p_next = fobj[307*4] | (fobj[307*4+1]<<8) | (fobj[307*4+2]<<16) | (fobj[307*4+3]<<24);
+                    if ((p_next - p_off) >= 512) {
+                        extern uint8_t *obj_palette_main_ptr(void);
+                        /* Luigi palette in OBJ palette bank 2 (offset 32*2=64 bytes) */
+                        memcpy(obj_palette_main_ptr() + 64, fobj + p_off, 32);
+                        void *bank_e = nds_vram_bank('E');
+                        if (bank_e)
+                            memcpy((uint8_t*)bank_e + 0x200 + 64, fobj + p_off, 32);
+                    }
+                }
+            }
+
+            /* Initial OAM placement for Mario and Luigi */
             setup_player_oam(0, 112, 80, 0, 1, 32, 32, 0);
-            /* Second sprite (different tile offset) for variety */
-            setup_player_oam(1, 144, 80, 16, 1, 32, 32, 0);
-            fprintf(stderr, "[gameplay] Mario sprites placed in OAM\n");
+            /* Luigi tile starts at LUIGI_OBJ_VRAM_OFFSET/32 = 1024 tiles in */
+            int luigi_tile = LUIGI_OBJ_VRAM_OFFSET / 32;
+            setup_player_oam(1, 80, 80, luigi_tile, 2, 32, 32, 0);
+            fprintf(stderr, "[gameplay] Mario + Luigi sprites placed in OAM\n");
         }
 
         /* Sub screen: mirror the map for bottom display.
@@ -526,8 +616,9 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
         s_prev_held = held;
 
         /* Player horizontal movement */
-        if (held & 0x0040) { s_player_x -= PLAYER_SPEED; s_player_facing = 1; }
-        if (held & 0x0080) { s_player_x += PLAYER_SPEED; s_player_facing = 0; }
+        s_player_moving = 0;
+        if (held & 0x0040) { s_player_x -= PLAYER_SPEED; s_player_facing = 1; s_player_moving = 1; }
+        if (held & 0x0080) { s_player_x += PLAYER_SPEED; s_player_facing = 0; s_player_moving = 1; }
 
         /* Jump (A button = Z key) */
         if ((pressed_new & 0x0001) && s_player_on_ground) {
@@ -552,6 +643,30 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
         if (s_player_x >= MAP_PX_W) s_player_x -= MAP_PX_W;
         if (s_player_y < 0) s_player_y = 0;
 
+        /* Luigi follows Mario with slight delay (trails behind) */
+        {
+            int dx = s_player_x - s_luigi_x;
+            int dy = s_player_y - s_luigi_y;
+            /* Handle wrap-around */
+            if (dx > MAP_PX_W / 2) dx -= MAP_PX_W;
+            if (dx < -MAP_PX_W / 2) dx += MAP_PX_W;
+            if (dx > 2 || dx < -2) s_luigi_x += dx / 4;
+            if (dy > 2 || dy < -2) s_luigi_y += dy / 4;
+            if (dx != 0) s_luigi_facing = (dx < 0) ? 1 : 0;
+        }
+
+        /* Animation frame cycling */
+        s_anim_timer++;
+        if (s_player_moving || !s_player_on_ground) {
+            if (s_anim_timer >= ANIM_SPEED) {
+                s_anim_timer = 0;
+                s_anim_frame = (s_anim_frame + 1) % 4;
+            }
+        } else {
+            s_anim_frame = 0;  /* idle = frame 0 */
+            s_anim_timer = 0;
+        }
+
         /* Camera follows player (centered) */
         s_scroll_x = s_player_x - 128;  /* center horizontally */
         s_scroll_y = s_player_y - 80;   /* slightly above center */
@@ -563,18 +678,33 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
         /* Update BG scroll registers */
         *(volatile u16 *)(uintptr_t)REG_BG0HOFS = (u16)(s_scroll_x & 0x1FF);
         *(volatile u16 *)(uintptr_t)REG_BG0VOFS = (u16)(s_scroll_y & 0x1FF);
-        /* BG2 scrolls at half speed for parallax effect */
+        /* BG1 scrolls at 3/4 speed for mid-layer parallax */
+        *(volatile u16 *)(uintptr_t)REG_BG1HOFS = (u16)(((s_scroll_x * 3) / 4) & 0x1FF);
+        *(volatile u16 *)(uintptr_t)REG_BG1VOFS = (u16)(((s_scroll_y * 3) / 4) & 0x1FF);
+        /* BG2 scrolls at half speed for background parallax */
         *(volatile u16 *)(uintptr_t)REG_BG2HOFS = (u16)((s_scroll_x / 2) & 0x1FF);
         *(volatile u16 *)(uintptr_t)REG_BG2VOFS = (u16)((s_scroll_y / 2) & 0x1FF);
 
-        /* Update Mario sprite OAM position (screen-relative) */
+        /* Update character sprites with animation */
         if (s_sprites_loaded) {
-            int scr_x = s_player_x - s_scroll_x;
-            int scr_y = s_player_y - s_scroll_y;
-            if (scr_x < 0) scr_x += MAP_PX_W;
-            if (scr_y < 0) scr_y += MAP_PX_H;
-            setup_player_oam(0, scr_x - 16, scr_y - 16, 0, 1, 32, 32,
+            int mario_tile = s_anim_frame * MARIO_TILES_PER_FRAME;
+            int luigi_tile = LUIGI_OBJ_VRAM_OFFSET / 32 + s_anim_frame * MARIO_TILES_PER_FRAME;
+
+            /* Mario position (screen-relative) */
+            int m_scr_x = s_player_x - s_scroll_x;
+            int m_scr_y = s_player_y - s_scroll_y;
+            if (m_scr_x < 0) m_scr_x += MAP_PX_W;
+            if (m_scr_y < 0) m_scr_y += MAP_PX_H;
+            setup_player_oam(0, m_scr_x - 16, m_scr_y - 16, mario_tile, 1, 32, 32,
                              s_player_facing);
+
+            /* Luigi position (screen-relative) */
+            int l_scr_x = s_luigi_x - s_scroll_x;
+            int l_scr_y = s_luigi_y - s_scroll_y;
+            if (l_scr_x < 0) l_scr_x += MAP_PX_W;
+            if (l_scr_y < 0) l_scr_y += MAP_PX_H;
+            setup_player_oam(1, l_scr_x - 16, l_scr_y - 16, luigi_tile, 2, 32, 32,
+                             s_luigi_facing);
         }
 
         /* L/R buttons cycle through maps */

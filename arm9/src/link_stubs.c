@@ -14,6 +14,13 @@
 #ifdef HOST_PORT
 #  include "asset_pack.h"
 #  include "nds_rom.h"
+
+/* Track which overlay is active at the 0x020659C0 base address.
+ * OV5 (display helpers) and OV0 (gameplay) share this base and are
+ * mutually exclusive.  OV5 functions (FUN_020660ac, etc.) must NOT
+ * run when OV0 is loaded — their data tables are clobbered. */
+static int g_overlay_at_659 = 5;  /* start with OV5 loaded */
+int host_get_overlay_at_659(void) { return g_overlay_at_659; }
 #endif
 
 /* ======== CRT0 helper functions (called from crt0.s) ======== */
@@ -339,14 +346,21 @@ u32  FS_LoadOverlay(u32 id, u32 flags, void *callback, u32 param) {
         fflush(stderr);
     }
 
-    /* Overlay 0 shares its base address (0x020659C0) with overlay 5
-     * (the display-system helper overlay).  Loading OV0 clobbers OV5's
-     * code.  For the title screen (state 9), we need overlay 5's
-     * functions (FUN_02065A10, FUN_02065B5C, etc.).  Reload overlay 5's
-     * first 17440 bytes on top of overlay 0 to restore them. */
-    if (id == 0) {
-        extern void nds_reload_overlay(int ovid);
-        nds_reload_overlay(5);
+    /* Overlay 0 (368 KB) extends through the overlay 8 address range.
+     * When overlay 0 loads, it clobbers overlay 8 vtables.  Any queue
+     * nodes still referencing overlay 8 vtables will have garbage
+     * function pointers.  Clear the secondary queue to remove stale
+     * overlay 8 nodes (e.g. the title sub-object at 0x02302400). */
+    if (id < sizeof(ov_info)/sizeof(ov_info[0]) && ov_info[id].base == 0x020659C0u) {
+        g_overlay_at_659 = (int)id;
+        fprintf(stderr, "[FS_LoadOverlay] active overlay at 0x020659C0 = OV%d\n", (int)id);
+        if (id == 0 || id == 2) {
+            /* These large overlays clobber the 0x0206A800 range (OV8).
+             * Clear both scene queues of stale overlay nodes. */
+            *(volatile u32 *)(uintptr_t)0x02060A08u = 0; /* secondary head */
+            fprintf(stderr, "[FS_LoadOverlay] cleared secondary queue (stale OV8 nodes)\n");
+        }
+        fflush(stderr);
     }
 #endif
     return id + 1; /* non-zero handle */
@@ -667,18 +681,24 @@ void game_update_display(void) {
          * FUN_02065A7C which in turn calls FUN_020660AC(0, 0xA) to dispatch
          * registered callbacks.
          *
+         * GUARD: FUN_020660ac reads a callback table at 0x02069ED4 which
+         * is in the overlay 5 address range.  When overlay 0 (gameplay)
+         * is loaded, that region contains OV0 code — calling into it
+         * reads ARM opcodes as pointers, causing unmapped address errors.
+         *
          * NOTE: FUN_0206619C (per-frame callback tick) is NOT called here;
          * it's auto-registered in the fnptr table and called from within
          * the base tick FUN_02077444 (via the ARM interpreter), matching
          * the original NDS execution flow.  Calling it here would cause
          * double-dispatch of the state machine. */
         {
-            /* Cleanup dispatch: fires +0x18 one-shot callbacks on nodes
-             * with flag bit 1, then unlinks them. */
-            extern void FUN_020660ac(int start, int end);
-            FUN_020660ac(0, 0xA);
-            /* Re-set display gate after callback dispatch */
-            *(volatile u32 *)(uintptr_t)0x02069DF8u = 1;
+            extern int host_get_overlay_at_659(void);
+            if (host_get_overlay_at_659() == 5) {
+                extern void FUN_020660ac(int start, int end);
+                FUN_020660ac(0, 0xA);
+                /* Re-set display gate after callback dispatch */
+                *(volatile u32 *)(uintptr_t)0x02069DF8u = 1;
+            }
         }
     }
 }

@@ -1366,10 +1366,10 @@ unsigned int FUN_02029c1c(unsigned int size, unsigned int dir,
     return (unsigned int)(uintptr_t)p;
 }
 int FUN_02029e20() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029e20\n");} return 0; }
-int FUN_02029ffc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_02029ffc\n");} return 0; }
+/* FUN_02029ffc — real impl in host_scene_queue.c */
 int FUN_0202a034() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202a034\n");} return 0; }
 int FUN_0202a068() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202a068\n");} return 0; }
-int FUN_0202a20c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202a20c\n");} return 0; }
+/* FUN_0202a20c — real impl in host_scene_queue.c */
 int FUN_0202a5a8() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202a5a8\n");} return 0; }
 int FUN_0202a74c() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202a74c\n");} return 0; }
 int FUN_0202acdc() { static int s; if(!s){s=1; fprintf(stderr,"[stub] FUN_0202acdc\n");} return 0; }

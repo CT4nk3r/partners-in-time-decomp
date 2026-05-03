@@ -31,6 +31,7 @@ static int      g_enabled = 1;
 static uint64_t g_total_cycles = 0;
 static int      g_call_count = 0;
 static int      g_log_count = 0;
+static int      g_verbose_trace = 0;  /* enabled for one call to trace BL targets */
 #define MAX_LOG_LINES 200
 
 void arm_interp_set_enabled(int e) { g_enabled = e; }
@@ -369,6 +370,12 @@ static int exec_arm(ArmCpu *cpu) {
             return 0;
         }
 
+        /* Verbose trace: log non-native BL targets */
+        if (link && g_verbose_trace) {
+            fprintf(stderr, "[trace] BL pc=0x%08X -> 0x%08X r0=0x%X r1=0x%X\n",
+                    pc, target, cpu->r[0], cpu->r[1]);
+        }
+
         cpu->r[15] = target;
         return 0;
     }
@@ -672,6 +679,11 @@ static int exec_arm(ArmCpu *cpu) {
                                  (cpu->r[rd] << (32 - misalign * 8));
                 }
             }
+            /* Verbose trace: log reads from pad state area */
+            if (g_verbose_trace && addr >= 0x0205FF90u && addr <= 0x02060400u) {
+                fprintf(stderr, "[trace] LDR r%d, [0x%08X] = 0x%X  (pad/state area)\n",
+                        rd, addr, cpu->r[rd]);
+            }
             if (rd == 15) {
                 /* LDR PC — branch */
                 if (cpu->r[15] & 1) {
@@ -686,6 +698,10 @@ static int exec_arm(ArmCpu *cpu) {
                 mem_write8(addr, (uint8_t)val);
             } else {
                 mem_write32(addr, val);
+            }
+            /* Watch for writes to title object field_2C */
+            if (addr == 0x0230202Cu) {
+                fprintf(stderr, "[WATCH] write to title.field_2C: val=0x%X pc=0x%08X\n", val, pc);
             }
         }
 
@@ -1345,12 +1361,27 @@ uint32_t arm_interp_call(uint32_t nds_addr, uint32_t arg0, uint32_t arg1,
                 g_call_count, nds_addr, arg0, arg1, arg2, arg3);
     }
 
+    /* Enable verbose trace for call #20 (a mid-run title tick) */
+    static int s_trace_done = 0;
+    if (!s_trace_done && g_call_count >= 15 && nds_addr == 0x02077444u) {
+        g_verbose_trace = 1;
+        s_trace_done = 1;
+        fprintf(stderr, "[trace] === VERBOSE TRACE START (call#%d to 0x%08X) ===\n",
+                g_call_count, nds_addr);
+        fflush(stderr);
+    }
+
     ArmCpu cpu;
     memset(&cpu, 0, sizeof(cpu));
     cpu.r[0] = arg0;
     cpu.r[1] = arg1;
     cpu.r[2] = arg2;
     cpu.r[3] = arg3;
+    /* The real scene-queue dispatch (FUN_0202a33c) keeps the current node
+     * in R5 and does `MOV R0, R5; BLX Rn` — so R5 == R0 at tick entry.
+     * Several tick functions (e.g. title tick → FUN_02065B5C) rely on R5
+     * being the node/scene-obj pointer without saving it themselves. */
+    cpu.r[5] = arg0;
     cpu.r[13] = INTERP_STACK_BASE;  /* SP */
     cpu.r[14] = SENTINEL_LR;        /* LR = sentinel (return detection) */
 
@@ -1398,6 +1429,11 @@ uint32_t arm_interp_call(uint32_t nds_addr, uint32_t arg0, uint32_t arg1,
     if (g_call_count <= 50) {
         fprintf(stderr, "[arm-interp] call#%d to 0x%08X finished: %llu cycles, r0=0x%X\n",
                 g_call_count, nds_addr, (unsigned long long)cpu.cycles, cpu.r[0]);
+    }
+    if (g_verbose_trace && nds_addr == 0x02077444u) {
+        fprintf(stderr, "[trace] === VERBOSE TRACE END (%llu cycles) ===\n",
+                (unsigned long long)cpu.cycles);
+        g_verbose_trace = 0;
     }
     g_total_cycles += cpu.cycles;
     return cpu.r[0];

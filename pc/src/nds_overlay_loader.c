@@ -78,7 +78,7 @@ static uint8_t  g_loaded[MAX_OVERLAYS];
  * Since we don't execute either binary's code (only consult the
  * vtables and decompiled C), this overlap is harmless.  We log it.
  */
-static const int kRenderOverlays[] = { 0, 8, -1 };
+static const int kRenderOverlays[] = { 5, 8, -1 };
 
 static const char *kOvtCandidates[] = {
     "extracted/y9.bin",
@@ -196,6 +196,14 @@ void nds_load_overlay(int ovid) {
     g_loaded[ovid] = 1;
     nds_log("[overlay] ov%d loaded: %u bytes at 0x%08X..0x%08X (bss %u)\n",
             ovid, e->size, e->ram, e->ram + e->size, e->bss);
+}
+
+/* Force-reload an overlay even if already marked as loaded.
+ * Needed when overlay 0 clobbers overlay 5 at the same base address. */
+void nds_reload_overlay(int ovid) {
+    if (ovid >= 0 && ovid < MAX_OVERLAYS)
+        g_loaded[ovid] = 0;
+    nds_load_overlay(ovid);
 }
 
 void nds_load_render_overlays(void) {

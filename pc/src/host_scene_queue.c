@@ -418,3 +418,174 @@ void FUN_0202a33c_safe(void)
     }
 }
 
+/* ================================================================
+ * Secondary scene queue at *(0x02060A08)
+ *
+ * The NDS engine has TWO parallel scene queues:
+ *   - Main queue: head at *(0x02060A04), dispatched by FUN_0202A33C
+ *   - Secondary queue: head at *(0x02060A08), dispatched by FUN_02029EC4
+ *
+ * The title screen's sub-object (vtable 0x02077EB0, tick at 0x02077A88)
+ * is inserted into the secondary queue.  The title screen's callback
+ * state machine (FUN_020768F0) is registered via FUN_0206621C and gets
+ * dispatched by the animation system called from the derived tick.
+ * ================================================================ */
+
+#define SECONDARY_LIST_HEAD  0x02060A08u
+#define SECONDARY_CURR_SAVE  0x020609FCu
+#define SECONDARY_NEXT_SAVE  0x02060A00u
+#define SECONDARY_NODE_COUNT 0x020609ECu
+#define SECONDARY_BASE_VTABLE 0x020597B4u
+
+extern void nds_call_2arg(uint32_t nds_addr, uintptr_t a, uintptr_t b);
+
+/* FUN_0202A20C — Insert node into secondary priority-sorted linked list.
+ * ARM signature: (R0=node, R1=priority, R2=unused, R3=parent). */
+void FUN_0202a20c(u32 node, u8 priority, u32 r2, u32 parent)
+{
+    (void)r2;
+    if (!nds_arm9_ram_is_mapped()) return;
+    if (!nds_addr_in_arm9(node)) return;
+
+    /* Set base vtable (overwritten by derived ctor afterward). */
+    nds_w32(node + 0x00, SECONDARY_BASE_VTABLE);
+
+    /* Insert into doubly-linked list at *(SECONDARY_LIST_HEAD).
+     * Simplified: insert at HEAD (original does priority-sorted). */
+    u32 old_head = nds_r32(SECONDARY_LIST_HEAD);
+
+    nds_w32(node + 0x08, 0);          /* prev = NULL (new head) */
+    nds_w32(node + 0x0C, old_head);   /* next = old head */
+    if (old_head && nds_addr_in_arm9(old_head)) {
+        nds_w32(old_head + 0x08, node);  /* old_head.prev = node */
+    }
+    nds_w32(SECONDARY_LIST_HEAD, node);
+
+    /* Set node fields. */
+    nds_w32(node + 0x04, parent);
+    *(volatile u8 *)(uintptr_t)(node + 0x10) = 0;           /* state */
+    *(volatile u8 *)(uintptr_t)(node + 0x11) = priority;    /* priority */
+    u8 flags = *(volatile u8 *)(uintptr_t)(node + 0x12);
+    flags = (flags & ~1u) | 2u;  /* active=0, sched=1 */
+    *(volatile u8 *)(uintptr_t)(node + 0x12) = flags;
+    nds_w32(node + 0x14, 0);                                /* tick counter */
+
+    /* Increment global node count. */
+    u8 cnt = *(volatile u8 *)(uintptr_t)SECONDARY_NODE_COUNT;
+    *(volatile u8 *)(uintptr_t)SECONDARY_NODE_COUNT = cnt + 1;
+
+    fprintf(stderr,
+            "[FUN_0202a20c] node=0x%08X prio=%u parent=0x%08X head=0x%08X\n",
+            (unsigned)node, (unsigned)priority,
+            (unsigned)parent, (unsigned)nds_r32(SECONDARY_LIST_HEAD));
+    fflush(stderr);
+}
+
+/* FUN_02029FFC — Activate a scene node (set active + sched flags).
+ * On ARM: locks mutex, sets flag bits, unlocks.  We skip the mutex. */
+void FUN_02029ffc(u32 node)
+{
+    if (!nds_arm9_ram_is_mapped()) return;
+    if (!nds_addr_in_arm9(node)) return;
+
+    u8 *flags = (u8 *)(uintptr_t)(node + 0x12);
+    *flags = (*flags & 0xFEu) | 0x01u;   /* set active */
+    *flags = *flags | 0x02u;              /* set sched */
+
+    static int s_log = 0;
+    if (s_log < 5) {
+        s_log++;
+        fprintf(stderr,
+                "[FUN_02029ffc] activate node=0x%08X flags=0x%02X\n",
+                (unsigned)node, (unsigned)*flags);
+        fflush(stderr);
+    }
+}
+
+/* FUN_02029EC4 — Secondary queue dispatch.
+ * Walks the secondary list, calls vtable[2] for active && !sched nodes,
+ * increments tick counter, then clears sched flags.
+ * HOST_PORT version: uses nds_call_2arg for virtual dispatch. */
+void FUN_02029ec4(void)
+{
+    if (!nds_arm9_ram_is_mapped()) return;
+
+    u32 head = nds_r32(SECONDARY_LIST_HEAD);
+    if (!head || !nds_addr_in_arm9(head)) return;
+
+    /* First pass: dispatch active && !sched nodes. */
+    u32 cur = head;
+    int hop = 0;
+    while (cur && nds_addr_in_arm9(cur) && hop < 256) {
+        u32 next = nds_r32(cur + 0x0C);   /* save next before dispatch */
+
+        u8 flags = *(volatile u8 *)(uintptr_t)(cur + 0x12);
+        int active = (flags & 1) != 0;
+        int sched  = (flags & 2) != 0;
+
+        if (active && !sched) {
+            u32 vtable = nds_r32(cur);
+            if (vtable && nds_addr_in_arm9(vtable)) {
+                u32 fn_addr = nds_r32(vtable + 8);
+
+                static int s_disp_log = 0;
+                if (s_disp_log < 20) {
+                    s_disp_log++;
+                    fprintf(stderr,
+                            "[sec-dispatch] #%d node=0x%08X vtable=0x%08X "
+                            "fn=0x%08X flags=0x%02X\n",
+                            s_disp_log, (unsigned)cur, (unsigned)vtable,
+                            (unsigned)fn_addr, (unsigned)flags);
+                    fflush(stderr);
+                }
+
+                nds_call_2arg(fn_addr, (uintptr_t)cur, 0);
+            }
+
+            /* Post-dispatch: increment tick counter, set sched. */
+            u32 tick = nds_r32(cur + 0x14);
+            nds_w32(cur + 0x14, tick + 1);
+            flags = *(volatile u8 *)(uintptr_t)(cur + 0x12);
+            *(volatile u8 *)(uintptr_t)(cur + 0x12) = flags | 2u;
+        }
+
+        if (next == cur) break;  /* self-loop guard */
+        cur = next;
+        hop++;
+    }
+
+    /* Second pass: clear sched flag on all nodes. */
+    cur = nds_r32(SECONDARY_LIST_HEAD);
+    hop = 0;
+    while (cur && nds_addr_in_arm9(cur) && hop < 256) {
+        u8 flags = *(volatile u8 *)(uintptr_t)(cur + 0x12);
+        *(volatile u8 *)(uintptr_t)(cur + 0x12) = flags & ~2u;
+        u32 next = nds_r32(cur + 0x0C);
+        if (next == cur) break;
+        cur = next;
+        hop++;
+    }
+}
+
+/* FUN_02029F90 — Mark/schedule secondary queue nodes.
+ * For each node with priority != 0 && != 0xFF: clear active, set sched. */
+void FUN_02029f90(void)
+{
+    if (!nds_arm9_ram_is_mapped()) return;
+
+    u32 node = nds_r32(SECONDARY_LIST_HEAD);
+    int hop = 0;
+    while (node && nds_addr_in_arm9(node) && hop < 256) {
+        u8 priority = *(volatile u8 *)(uintptr_t)(node + 0x11);
+        if (priority != 0 && priority != 0xFF) {
+            u8 flags = *(volatile u8 *)(uintptr_t)(node + 0x12);
+            flags &= ~1u;   /* clear active */
+            flags |= 2u;    /* set sched */
+            *(volatile u8 *)(uintptr_t)(node + 0x12) = flags;
+        }
+        u32 next = nds_r32(node + 0x0C);
+        if (next == node) break;
+        node = next;
+        hop++;
+    }
+}

@@ -7,6 +7,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 #include "types.h"
 #include "arm_compat.h"
 
@@ -337,6 +338,16 @@ u32  FS_LoadOverlay(u32 id, u32 flags, void *callback, u32 param) {
                 (unsigned)id, sz);
         fflush(stderr);
     }
+
+    /* Overlay 0 shares its base address (0x020659C0) with overlay 5
+     * (the display-system helper overlay).  Loading OV0 clobbers OV5's
+     * code.  For the title screen (state 9), we need overlay 5's
+     * functions (FUN_02065A10, FUN_02065B5C, etc.).  Reload overlay 5's
+     * first 17440 bytes on top of overlay 0 to restore them. */
+    if (id == 0) {
+        extern void nds_reload_overlay(int ovid);
+        nds_reload_overlay(5);
+    }
 #endif
     return id + 1; /* non-zero handle */
 }
@@ -358,6 +369,7 @@ void SND_Update(void) {}
  * On HOST_PORT, SDL writes both registers each frame via pump_input_to_io(). */
 extern void FUN_02029664(u16 *param_1, u32 param_2);
 
+static int s_pad_log_count = 0;
 void PAD_Read(void)
 {
     u16 main_keys = nds_reg_read16(0x04000130u);   /* active-low, bits 0-9 */
@@ -370,6 +382,21 @@ void PAD_Read(void)
 
     u16 mask = 0x0FFFu;  /* 12 button bits */
     u16 pressed = (~combined) & mask;  /* active-high */
+
+#ifdef HOST_PORT
+    if (s_pad_log_count < 10 || pressed != 0) {
+        volatile u16 *title_obj = (volatile u16 *)(uintptr_t)0x02302000u;
+        u8 field_2c = *(volatile u8 *)(uintptr_t)(0x02302000u + 0x2Cu);
+        fprintf(stderr, "[PAD] frame=%d keys=0x%04X pressed=0x%04X pad@FFAC=[%04X,%04X,%04X] field2C=%u\n",
+                s_pad_log_count, main_keys, pressed,
+                *(volatile u16 *)(uintptr_t)0x0205FFACu,
+                *(volatile u16 *)(uintptr_t)0x0205FFAEu,
+                *(volatile u16 *)(uintptr_t)0x0205FFB0u,
+                (unsigned)field_2c);
+        fflush(stderr);
+    }
+    s_pad_log_count++;
+#endif
 
     /* Pad state struct at 0x0205FFAC in NDS RAM */
     volatile u16 *pad = (volatile u16 *)(uintptr_t)0x0205FFACu;
@@ -542,6 +569,17 @@ static int  g_queue_processor_enabled = -1;  /* tri-state: 0/1, -1=unread */
 
 void game_update_display(void) {
     g_game_frame_counter++;
+    {
+        static u32 s_last_ms = 0;
+        u32 now_ms = (u32)(clock() * 1000 / CLOCKS_PER_SEC);
+        u32 delta = now_ms - s_last_ms;
+        if (g_game_frame_counter <= 20 || (g_game_frame_counter % 60) == 0) {
+            fprintf(stderr, "[timing] game_frame=%u  delta=%ums\n",
+                    (unsigned)g_game_frame_counter, (unsigned)delta);
+            fflush(stderr);
+        }
+        s_last_ms = now_ms;
+    }
     shadow_probe_tick(g_game_frame_counter);
     /* Keep the inner-loop exit condition satisfied: bit 15 of DISPCNT must be
      * set for `(*sDispCnt & 0x8000) >> 15 != 1` to be false.  The IO shadow's
@@ -586,6 +624,17 @@ void game_update_display(void) {
             host_scene_queue_log_state(tag);
         }
         FUN_0202a33c_safe();
+
+        /* Secondary scene queue dispatch — dispatches sub-scene nodes
+         * (e.g. the derived title-screen object at vtable 0x02077EB0).
+         * On real NDS, FUN_02029ec4 is called from game_check_reset area
+         * every frame.  FUN_02029f90 is NOT per-frame — it's called only
+         * during transitions to suspend nodes (clears active flag). */
+        {
+            extern void FUN_02029ec4(void);  /* secondary queue dispatch */
+            FUN_02029ec4();
+        }
+
         host_gxfifo_observer_tick();
     }
 }

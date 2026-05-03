@@ -479,17 +479,13 @@ u32 FUN_02067b44(int screen, int bg)
 }
 
 /* FUN_02077AF8: Sub-scene init (overlay 8).
- * Calls base init FUN_0202a20c and sets vtable. */
-extern void FUN_0202a20c(u32 obj);
+ * Calls base init FUN_0202a20c and sets vtable.
+ * ARM: R0=obj, R1=type, R2=param, R3=parent pass through to FUN_0202a20c. */
+extern void FUN_0202a20c(u32 obj, u8 priority, u32 r2, u32 parent);
 
 void FUN_02077af8(u32 obj, int type, int param, u32 parent)
 {
-    /* The ARM code only uses r0 effectively:
-     * bl FUN_0202a20c  ; init base object
-     * str vtable, [r4] ; set vtable to 0x02077EB0
-     */
-    (void)type; (void)param; (void)parent;
-    FUN_0202a20c(obj);
+    FUN_0202a20c(obj, (u8)type, (u32)param, parent);
     *(volatile u32 *)(uintptr_t)obj = 0x02077EB0u;
 }
 

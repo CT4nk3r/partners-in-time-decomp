@@ -172,6 +172,49 @@ static uint32_t native_FUN_02036F1C(uint32_t r0, uint32_t r1, uint32_t r2, uint3
     return 0;
 }
 
+/* FUN_02029518: OAM/render transfer.  Called from the display tick with
+ * r0 = mode (typically 3).  On PC, nothing to transfer; return 0. */
+static uint32_t native_FUN_02029518(uint32_t r0, uint32_t r1, uint32_t r2, uint32_t r3)
+{
+    (void)r0; (void)r1; (void)r2; (void)r3;
+    return 0;
+}
+
+/* FUN_020294B0: display-engine finalize / swap.  Called at the end of the
+ * per-frame display tick (FUN_02065A10).  The title-screen tick checks its
+ * return value — non-zero means "frame ready" and gates the entire
+ * render / input path.  Return 1 so the game can proceed. */
+static uint32_t native_FUN_020294B0(uint32_t r0, uint32_t r1, uint32_t r2, uint32_t r3)
+{
+    (void)r0; (void)r1; (void)r2; (void)r3;
+    return 1;
+}
+
+/* FUN_02077A88: derived title-screen tick.
+ * On real NDS, this function's body after BL 0x02065B80 is dead code
+ * (the mid-function tail-call never returns).  Its only meaningful
+ * effect is calling FUN_02065B80 which handles palette DMA, display mode
+ * setup for the sub-scene.  The ARM interpreter can't handle the
+ * tail-call (POP reads more stack than was pushed), so we skip it. */
+static uint32_t native_FUN_02077A88(uint32_t r0, uint32_t r1, uint32_t r2, uint32_t r3)
+{
+    (void)r1; (void)r2; (void)r3;
+    /* r0 = sub-scene object (node pointer).
+     * On real NDS, BL 0x02065B80 enters FUN_02065A10 mid-function and
+     * performs palette/display register writes using the scene object.
+     * For now, return 0 (skip the display work — the base tick handles
+     * the main display).  As we implement more overlay 5 display helpers,
+     * this can be expanded. */
+    static int s_log = 0;
+    if (s_log < 5) {
+        s_log++;
+        fprintf(stderr, "[native] FUN_02077A88 (derived tick) node=0x%08X (no-op)\n",
+                (unsigned)r0);
+        fflush(stderr);
+    }
+    return 0;
+}
+
 static void host_fnptr_register_overrides(void)
 {
     /* FUN_0202a74c is aliased to sdk_os_destroy_heap (no-op) for native
@@ -189,6 +232,16 @@ static void host_fnptr_register_overrides(void)
     host_fnptr_register(0x02037060u, (void *)native_FUN_02037060);
     host_fnptr_register(0x02036F60u, (void *)native_FUN_02036F60);
     host_fnptr_register(0x02036F1Cu, (void *)native_FUN_02036F1C);
+
+    /* Render pipeline stubs — arm9-base but needed by overlay code via
+     * the ARM interpreter.  Without these the interpreter SKIPs them
+     * and returns 0, blocking the title tick's render/input path. */
+    host_fnptr_register(0x02029518u, (void *)native_FUN_02029518);
+    host_fnptr_register(0x020294B0u, (void *)native_FUN_020294B0);
+
+    /* Derived title-screen tick — skip ARM interpreter tail-call issue */
+    host_fnptr_register(0x02077A88u, (void *)native_FUN_02077A88);
+
     /* 0x02010CCC (data struct init) is whitelisted for interpretation
      * in arm_interp.c instead — it's pure memory ops + memset calls. */
 }

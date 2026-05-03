@@ -272,9 +272,10 @@ void FUN_02077784(void *ptr, int type, int param)
      * This is the ACTUAL game code, not a HOST_PORT replacement. */
 
     /* The ptr from OS_Alloc is a host-heap pointer; scene queue uses NDS
-     * addresses so we allocate in NDS-mapped RAM instead. */
+     * addresses so we allocate in NDS-mapped RAM instead.
+     * Must be large: ARM code accesses fields up to +0x3B4. */
     (void)ptr;
-    u32 obj_nds = nds_bump_alloc(0x30);
+    u32 obj_nds = nds_bump_alloc(0x400);
     fprintf(stderr,
             "[FUN_02077784] REAL title ctor: obj=0x%08X type=%d param=%d\n",
             (unsigned)obj_nds, type, param);
@@ -295,6 +296,14 @@ void FUN_02077784(void *ptr, int type, int param)
      * vtable layout: [0]=???, [1]=dtor, [2]=tick (each 4 bytes) */
     *(volatile u32 *)(uintptr_t)(OV8_VTABLE_ADDR + 4) = OV8_DTOR_ADDR;
     *(volatile u32 *)(uintptr_t)(OV8_VTABLE_ADDR + 8) = OV8_TICK_ADDR;
+
+    /* Also patch the DERIVED class vtable at 0x02077EB0.  The sub-object
+     * (created at step 15) uses this vtable.  Its tick (vtable[2]) is
+     * FUN_02077A88.  Overlay 8 data should already contain these values
+     * but OV0 overlaps this region and may have clobbered them. */
+    *(volatile u32 *)(uintptr_t)(0x02077EB0u + 0) = 0x02075C88u;  /* vtable[0] */
+    *(volatile u32 *)(uintptr_t)(0x02077EB0u + 4) = 0x02075CACu;  /* vtable[1] = derived dtor */
+    *(volatile u32 *)(uintptr_t)(0x02077EB0u + 8) = 0x02077A88u;  /* vtable[2] = derived tick */
 
     /* Let the ARM interpreter run the REAL overlay tick/dtor code.
      * The scene queue's vtable[2] dispatch will fall through to the
@@ -420,10 +429,11 @@ void FUN_02077784(void *ptr, int type, int param)
     FUN_02009040(0, data_buf + 0x2000, data_buf);
     FUN_02009040(1, data_buf + 0x2200, data_buf + 0x4200);
 
-    /* 15. Allocate sub-scene object */
+    /* 15. Allocate sub-scene object — must be in NDS memory for the
+     *     secondary scene queue dispatch to read vtable, flags, etc. */
     extern void FUN_02077af8(u32, int, int, u32);
     fprintf(stderr, "[title-ctor] step 15: sub-scene\n"); fflush(stderr);
-    u32 sub_obj = FUN_02029c1c(0x28, 0, 0, 0);
+    u32 sub_obj = nds_bump_alloc(0x40);  /* 0x28 bytes + padding for safety */
     fprintf(stderr, "[title-ctor] step 15: sub_obj=0x%08X\n", (unsigned)sub_obj); fflush(stderr);
     if (sub_obj != 0) {
         FUN_02077af8(sub_obj, 8, 0, obj_nds);

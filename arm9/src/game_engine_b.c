@@ -1452,6 +1452,7 @@ LAB_02029d9c:
 
 
 // FUN_02029ec4 @ 0x02029ec4 (192 bytes)
+#ifndef HOST_PORT  /* HOST_PORT version in host_scene_queue.c */
 void FUN_02029ec4(void)
 
 {
@@ -1486,9 +1487,11 @@ void FUN_02029ec4(void)
   } while (iVar3 != 0);
   return;
 }
+#endif /* !HOST_PORT */
 
 
 // FUN_02029f90 @ 0x02029f90 (104 bytes)
+#ifndef HOST_PORT  /* HOST_PORT version in host_scene_queue.c */
 void FUN_02029f90(void)
 
 {
@@ -1504,6 +1507,7 @@ void FUN_02029f90(void)
   FUN_02038cc8();
   return;
 }
+#endif /* !HOST_PORT */
 
 
 // FUN_0202a0ec @ 0x0202a0ec (136 bytes)

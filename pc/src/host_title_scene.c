@@ -296,9 +296,14 @@ void FUN_02077784(void *ptr, int type, int param)
     *(volatile u32 *)(uintptr_t)(OV8_VTABLE_ADDR + 4) = OV8_DTOR_ADDR;
     *(volatile u32 *)(uintptr_t)(OV8_VTABLE_ADDR + 8) = OV8_TICK_ADDR;
 
-    /* Register host tick/dtor so fnptr resolver can dispatch vtable calls */
-    host_fnptr_register(OV8_TICK_ADDR, (void *)host_title_tick);
-    host_fnptr_register(OV8_DTOR_ADDR, (void *)host_title_dtor);
+    /* Let the ARM interpreter run the REAL overlay tick/dtor code.
+     * The scene queue's vtable[2] dispatch will fall through to the
+     * interpreter since these overlay addresses aren't in the fnptr table. */
+    fprintf(stderr,
+            "[FUN_02077784] NOT registering host tick override — "
+            "real OV8 tick at 0x%08X will run via interpreter\n",
+            (unsigned)OV8_TICK_ADDR);
+    fflush(stderr);
 
     /* 3. Display system initialization (overlay 5 calls). */
     extern void FUN_02065da8(int screen);
@@ -893,9 +898,12 @@ void FUN_020739ec(void *ptr, int type, int param)
     /* Install vtable AFTER FUN_0202a74c_real (which overwrites node[0]) */
     *(volatile u32 *)(uintptr_t)obj_nds = vtab_nds;
 
-    /* Register host functions with fnptr resolver */
-    host_fnptr_register(OV8_NEXT_TICK_ADDR, (void *)host_next_scene_tick);
-    host_fnptr_register(OV8_NEXT_DTOR_ADDR, (void *)host_next_scene_dtor);
+    /* No host overrides — let ARM interpreter run real tick */
+    fprintf(stderr,
+            "[FUN_020739ec] NOT registering host tick override — "
+            "real OV8 next tick at 0x%08X will run via interpreter\n",
+            (unsigned)OV8_NEXT_TICK_ADDR);
+    fflush(stderr);
 
     /* Set field_2c = 0 (normal state) */
     *(volatile u32 *)(uintptr_t)(obj_nds + 0x2c) = 0;

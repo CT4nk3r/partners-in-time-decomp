@@ -268,6 +268,39 @@ void nds_call_1arg(uint32_t nds_addr, uintptr_t a)
     log_unmapped_once(nds_addr, "1arg");
 }
 
+typedef void (*fn_0arg_t)(void);
+typedef void (*fn_4arg_t)(uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+
+void nds_call_0arg(uint32_t nds_addr)
+{
+    void *fn = host_fnptr_lookup(nds_addr);
+    if (fn) {
+        ((fn_0arg_t)fn)();
+        return;
+    }
+    if (arm_interp_is_enabled()) {
+        arm_interp_call(nds_addr, 0, 0, 0, 0);
+        return;
+    }
+    log_unmapped_once(nds_addr, "0arg");
+}
+
+void nds_call_4arg(uint32_t nds_addr, uintptr_t a, uintptr_t b,
+                    uintptr_t c, uintptr_t d)
+{
+    void *fn = host_fnptr_lookup(nds_addr);
+    if (fn) {
+        ((fn_4arg_t)fn)(a, b, c, d);
+        return;
+    }
+    if (arm_interp_is_enabled()) {
+        arm_interp_call(nds_addr, (uint32_t)a, (uint32_t)b,
+                        (uint32_t)c, (uint32_t)d);
+        return;
+    }
+    log_unmapped_once(nds_addr, "4arg");
+}
+
 int host_fnptr_count(void)
 {
     return g_table_count;

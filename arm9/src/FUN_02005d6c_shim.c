@@ -34,6 +34,26 @@ extern void FUN_020290a0(void);
 extern void FUN_020290e4(void);
 extern void FUN_02029128(void);
 
+/* Overlay loading — needed before overlay constructors run */
+extern u32  FS_LoadOverlay(u32 id, u32 flags, void *callback, u32 param);
+extern void FS_AttachOverlay(u32 handle, u32 id);
+
+/* State → overlay mapping.  On real NDS, overlays sharing the same base
+ * address are mutually exclusive (only one can be active at a time).
+ * The scene state machine loads the correct overlay before constructing
+ * the scene object.  Returns -1 if no overlay change is needed. */
+static int state_to_overlay(u8 state)
+{
+    switch (state) {
+    case 0:  return 0;   /* gameplay (overlay 0, base 0x020659C0) */
+    case 9:  return 8;   /* title screen (overlay 8, base 0x0206A800) */
+    case 2:  return 8;   /* file select uses same overlay range */
+    case 1:  return 8;   /* uses overlay 8 range */
+    case 3:  return 7;   /* uses overlay 7 range */
+    default: return -1;  /* unknown, don't load */
+    }
+}
+
 /* State 0 (gameplay) — inline alloc+construct pattern.
  * Original ARM code at 0x02005F88..0x02005FA4:
  *   BL OS_Alloc(0x30)  →  BL FUN_0206DE6C(ptr, 8, 0)
@@ -113,6 +133,22 @@ void FUN_02005d6c(int obj_addr)
         }
 
         FUN_0202a58c(obj_addr);
+
+        /* Load the correct overlay binary before constructing the scene.
+         * On real NDS, overlays sharing the same base address are mutually
+         * exclusive — loading one evicts the previous.  The ARM interpreter
+         * will execute code from the loaded overlay. */
+        {
+            int ov_id = state_to_overlay(state);
+            if (ov_id >= 0) {
+                fprintf(stderr,
+                        "[FUN_02005d6c] phase1: loading overlay %d for state %u\n",
+                        ov_id, (unsigned)state);
+                fflush(stderr);
+                u32 h = FS_LoadOverlay((u32)ov_id, 1, (void*)0, 0);
+                FS_AttachOverlay(h, (u32)ov_id);
+            }
+        }
 
         /* State switch for phase 1 init functions */
         switch (state) {
@@ -213,6 +249,19 @@ void FUN_02005d6c(int obj_addr)
         }
 
         FUN_0202a58c(obj_addr);
+
+        /* Load the correct overlay for the destination scene */
+        {
+            int ov_id = state_to_overlay(state);
+            if (ov_id >= 0) {
+                fprintf(stderr,
+                        "[FUN_02005d6c] phase3: loading overlay %d for state %u\n",
+                        ov_id, (unsigned)state);
+                fflush(stderr);
+                u32 h = FS_LoadOverlay((u32)ov_id, 1, (void*)0, 0);
+                FS_AttachOverlay(h, (u32)ov_id);
+            }
+        }
 
         switch (state) {
         case 0: {

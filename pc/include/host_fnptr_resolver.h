@@ -17,6 +17,9 @@ int   host_fnptr_count(void);
 
 void  nds_call_2arg(uint32_t nds_addr, uintptr_t a, uintptr_t b);
 void  nds_call_1arg(uint32_t nds_addr, uintptr_t a);
+void  nds_call_0arg(uint32_t nds_addr);
+void  nds_call_4arg(uint32_t nds_addr, uintptr_t a, uintptr_t b,
+                     uintptr_t c, uintptr_t d);
 
 /* Reserved synthetic NDS address range for host-only trampolines. The
  * real ROM never produces code pointers here; we use it for fake nodes

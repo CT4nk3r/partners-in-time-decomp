@@ -57,12 +57,82 @@ void panic_check2(void) {}
 
 /* ======== DMA functions ======== */
 
+#ifdef HOST_PORT
+#include "nds_platform.h"
+/*
+ * dma_command — GX DMA command dispatcher (FUN_0203bda8).
+ * On real NDS this is a complex DMA channel management system.
+ * On host we perform immediate memory copies for the known command types.
+ *
+ * Command types (from os_system.c dma_cmd_* wrappers):
+ *   6,7: DMA copy  — p2=src, p3=dst, p4=word_count
+ *   0x11: DMA with flags  — p1=dst, p2=src, p3=flags
+ *   0x12: DMA with aux    — p1=ch, p2=src, p3=dst, p4=aux_ctrl
+ *   0x14: DMA copy variant — p1=ch, p2=src, p3=ctrl
+ *   0x15,0x1A,0x1B: DMA ops — p1=dst, p2=src
+ *   0x16: Set DMA mode     — p1=mode (no transfer)
+ *   0x19: DMA copy          — p1=ch, p2=src, p3=dst, p4=ctrl
+ *   0x1E,0x1F,0x20: DMA fill/copy — p1=dst, p2=value_or_src
+ */
+void dma_command(int cmd, u32 p1, u32 p2, u32 p3, u32 p4)
+{
+    switch (cmd) {
+    case 6:  /* MI_DmaCopy: channel=p1, src=p2, dst=p3, size=p4 words */
+    case 7:  /* MI_DmaCopy variant: channel+mode=p1, src=p2, dst=p3, size=p4 */
+        if (p2 && p3 && p4) {
+            u32 bytes = p4 * 4;  /* word count to bytes */
+            nds_dma_immediate(p3, p2, (1u << 31) | (1u << 26) | (p4 & 0x1FFFFFu));
+        }
+        break;
+    case 0x11: /* DMA with flags: dst=p1, src=p2, flags=p3 */
+        if (p1 && p2) {
+            /* Extract count from flags or use a default */
+            nds_dma_immediate(p1, p2, (1u << 31) | (1u << 26) | (p3 & 0x1FFFFFu));
+        }
+        break;
+    case 0x12: /* DMA with aux: ch=p1, src=p2, dst=p3, ctrl=p4 */
+        if (p2 && p3 && p4) {
+            nds_dma_immediate(p3, p2, (1u << 31) | p4);
+        }
+        break;
+    case 0x19: /* DMA copy: ch=p1, src=p2, dst=p3, ctrl=p4 */
+        if (p2 && p3 && p4) {
+            nds_dma_immediate(p3, p2, (1u << 31) | p4);
+        }
+        break;
+    case 0x15: /* DMA: dst=p1, src=p2 */
+    case 0x1A:
+    case 0x1B:
+        /* These are typically short transfers; without a size we can't
+         * do much. Log and skip for now. */
+        break;
+    case 0x1E: /* DMA fill/copy: dst=p1, src=p2 */
+    case 0x1F:
+    case 0x20:
+        /* Fill operations — p1=dst, p2=value or src */
+        break;
+    case 0x14: /* DMA: ch=p1, src=p2, ctrl=p3 */
+        break;
+    case 0x16: /* Set DMA mode — no actual transfer */
+        break;
+    default:
+        break;
+    }
+}
+#else
 void dma_command(u32 ch, u32 src, u32 dst, u32 ctrl) {
     (void)ch; (void)src; (void)dst; (void)ctrl;
 }
+#endif
 void dma_channel_enable(u32 ch) { (void)ch; }
 void dma_channel_reset(u32 ch) { (void)ch; }
-u32  dma_aux_param = 0;
+u32  dma_aux_param(u32 p1, u32 p4, u32 p5) {
+    /* Compute DMA auxiliary control parameter.
+     * On real hardware this encodes transfer mode/timing.
+     * Return a basic 32-bit word copy control value. */
+    (void)p1; (void)p4; (void)p5;
+    return (1u << 31) | (1u << 26) | (p4 & 0x1FFFFFu);
+}
 
 /* ======== GX / display functions ======== */
 

@@ -666,14 +666,18 @@ void FUN_0206DE6C(void *obj_ptr, int type, int param)
                 (unsigned)q_head, (unsigned)q_count);
         fflush(stderr);
 
-        /* Register native tick/dtor so per-frame dispatch uses our
-         * host implementation instead of the interpreter.  The ARM
-         * tick polls a load-complete flag that never gets set on PC,
-         * so it would spin forever doing 14 cycles of nothing. */
-        host_fnptr_register(OV0_TICK_ADDR,  (void *)host_gameplay_tick);
-        host_fnptr_register(OV0_DTOR_ADDR,  (void *)host_gameplay_dtor);
+        /* Let the ARM interpreter run the REAL overlay tick/dtor code.
+         * The scene queue's vtable[2] dispatch will fall through to the
+         * interpreter since these overlay addresses aren't in the fnptr
+         * table.  Previously we overrode them with host recreations —
+         * now we let the original game logic drive everything. */
+        fprintf(stderr,
+                "[FUN_0206DE6C] NOT registering host tick override — "
+                "real OV0 tick at 0x%08X will run via interpreter\n",
+                (unsigned)OV0_TICK_ADDR);
+        fflush(stderr);
     } else {
-        /* Fallback: manual setup (old behavior) */
+        /* Fallback: manual setup (old behavior) — still use real vtable */
         FUN_0202a74c_real(obj_nds, (u8)type, (u32)param, 0);
 
         u32 vtab_nds = nds_bump_alloc(16);
@@ -683,9 +687,7 @@ void FUN_0206DE6C(void *obj_ptr, int type, int param)
         vtab[2] = OV0_TICK_ADDR;
         *(volatile u32 *)(uintptr_t)obj_nds = vtab_nds;
 
-        host_fnptr_register(OV0_TICK_ADDR,  (void *)host_gameplay_tick);
-        host_fnptr_register(OV0_DTOR_ADDR,  (void *)host_gameplay_dtor);
-        host_fnptr_register(OV0_SETUP_ADDR, (void *)host_gameplay_dtor);
+        /* No host overrides — let ARM interpreter run real tick */
 
         *(volatile u32 *)(uintptr_t)(obj_nds + 0x2c) = 0;
         *(volatile u16 *)(uintptr_t)(obj_nds + 0x12) |= 0x0001;

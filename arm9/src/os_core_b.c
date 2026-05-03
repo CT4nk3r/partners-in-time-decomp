@@ -6,6 +6,13 @@
 
 typedef void (*FuncPtr)(...);
 
+#ifdef HOST_PORT
+/* Route NDS function pointers through the fnptr resolver instead of
+ * calling ARM addresses directly as x86 code. */
+extern void nds_call_1arg(u32 nds_addr, uintptr_t a);
+extern void nds_call_2arg(u32 nds_addr, uintptr_t a, uintptr_t b);
+#endif
+
 /* ======== Extern data references (sorted by address) ======== */
 
 extern u32 DAT_02033618;
@@ -654,11 +661,35 @@ void FUN_02033d4c(int param_1, int param_2, u32 param_3, int param_4)
 /* 0x02033ef4 */
 void FUN_02033ef4(u32 param_1, u32 param_2, u32 param_3, u32 param_4, int param_5)
 {
+#ifdef HOST_PORT
+    u32 fn_8 = *(u32 *)(param_5 + 8);
+    if (fn_8 != 0) { nds_call_0arg(fn_8); }
+    u32 fn_4 = *(u32 *)(param_5 + 4);
+    nds_call_4arg(fn_4, (uintptr_t)param_1, (uintptr_t)param_2,
+                  (uintptr_t)param_3, (uintptr_t)param_5);
+    u32 fn_10 = *(u32 *)(param_5 + 0x10);
+    if (fn_10 != 0) {
+        /* 5 args — use arm_interp_call directly (truncates to 4 regs) */
+        extern uint32_t arm_interp_call(uint32_t, uint32_t, uint32_t,
+                                         uint32_t, uint32_t);
+        extern int arm_interp_is_enabled(void);
+        void *fn = host_fnptr_lookup(fn_10);
+        if (fn) {
+            ((void (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))(fn))(
+                (uintptr_t)param_1, (uintptr_t)param_2,
+                (uintptr_t)param_3, (uintptr_t)param_4);
+        } else if (arm_interp_is_enabled()) {
+            arm_interp_call(fn_10, param_1, param_2, param_3,
+                            *(u32 *)(param_5 + 0x14));
+        }
+    }
+#else
     if (*(FuncPtr *)(param_5 + 8) != (FuncPtr)0) { (*(FuncPtr *)(param_5 + 8))(); }
     (*(FuncPtr *)(param_5 + 4))(param_1, param_2, param_3, param_5);
     if (*(FuncPtr *)(param_5 + 0x10) != (FuncPtr)0) {
         (*(FuncPtr *)(param_5 + 0x10))(param_1, param_2, param_3, param_4, *(u32 *)(param_5 + 0x14));
     }
+#endif
     FUN_0203a04c(param_1, param_3);
     FUN_0203a04c(param_2, param_3);
     return;
@@ -1095,11 +1126,13 @@ u16 FUN_020355c4(void)
 void FUN_020357f0(void)
 {
     u32 uVar1;
-    FuncPtr func;
     uVar1 = DAT_02035814;
-    func = (FuncPtr)DAT_02035810;
     *DAT_0203580c = *DAT_0203580c & 0x7fffffff;
-    func(uVar1);
+#ifdef HOST_PORT
+    nds_call_1arg((u32)(uintptr_t)DAT_02035810, (uintptr_t)uVar1);
+#else
+    ((FuncPtr)DAT_02035810)(uVar1);
+#endif
     return;
 }
 
@@ -1107,25 +1140,35 @@ void FUN_020357f0(void)
 void FUN_02035818(void)
 {
     u32 uVar1;
-    FuncPtr func;
     uVar1 = DAT_0203583c;
-    func = (FuncPtr)DAT_02035838;
     *DAT_02035834 = *DAT_02035834 & 0xbfffffff;
-    func(uVar1);
+#ifdef HOST_PORT
+    nds_call_1arg((u32)(uintptr_t)DAT_02035838, (uintptr_t)uVar1);
+#else
+    ((FuncPtr)DAT_02035838)(uVar1);
+#endif
     return;
 }
 
 /* 0x02035840 */
 void FUN_02035840(void)
 {
+#ifdef HOST_PORT
+    nds_call_1arg((u32)(uintptr_t)DAT_0203584c, (uintptr_t)DAT_02035850);
+#else
     ((FuncPtr)DAT_0203584c)(DAT_02035850);
+#endif
     return;
 }
 
 /* 0x02035854 */
 void FUN_02035854(void)
 {
+#ifdef HOST_PORT
+    nds_call_1arg((u32)(uintptr_t)DAT_02035860, (uintptr_t)DAT_02035864);
+#else
     ((FuncPtr)DAT_02035860)(DAT_02035864);
+#endif
     return;
 }
 
@@ -1133,7 +1176,11 @@ void FUN_02035854(void)
 void FUN_02035868(void)
 {
     _DAT_04000000 = _DAT_04000000 & 0x7fffffff;
+#ifdef HOST_PORT
+    nds_call_1arg((u32)(uintptr_t)DAT_02035884, (uintptr_t)DAT_02035888);
+#else
     ((FuncPtr)DAT_02035884)(DAT_02035888);
+#endif
     return;
 }
 
@@ -1141,7 +1188,11 @@ void FUN_02035868(void)
 void FUN_0203588c(void)
 {
     _DAT_04000000 = _DAT_04000000 & 0xbfffffff;
+#ifdef HOST_PORT
+    nds_call_1arg((u32)(uintptr_t)DAT_020358a8, (uintptr_t)DAT_020358ac);
+#else
     ((FuncPtr)DAT_020358a8)(DAT_020358ac);
+#endif
     return;
 }
 

@@ -151,13 +151,24 @@ finish:
 
 #ifdef HOST_PORT
     static int s_logged = 0;
-    if (s_logged < 4) {
+    if (s_logged < 6) {
         s_logged++;
+        /* Verify the insertion actually stuck */
+        u32 verify_next = *(volatile u32 *)(uintptr_t)(node_addr + 0x0C);
+        u32 verify_prev = *(volatile u32 *)(uintptr_t)(node_addr + 0x08);
         fprintf(stderr,
                 "[FUN_0202a74c_real] inserted node=0x%08X prio=%u r3=0x%08X "
-                "head=0x%08X\n",
+                "head=0x%08X prev=0x%08X next=0x%08X\n",
                 (unsigned)node_addr, (unsigned)priority,
-                (unsigned)r3_param, (unsigned)*queue_head);
+                (unsigned)r3_param, (unsigned)*queue_head,
+                (unsigned)verify_prev, (unsigned)verify_next);
+        /* Also dump the predecessor's next to confirm linkage */
+        if (verify_prev >= 0x02000000u && verify_prev < 0x02400000u) {
+            u32 pred_next = *(volatile u32 *)(uintptr_t)(verify_prev + 0x0C);
+            fprintf(stderr,
+                    "[FUN_0202a74c_real]   pred(0x%08X)->next = 0x%08X\n",
+                    (unsigned)verify_prev, (unsigned)pred_next);
+        }
         fflush(stderr);
     }
 #endif

@@ -32,7 +32,7 @@ static uint64_t g_total_cycles = 0;
 static int      g_call_count = 0;
 static int      g_log_count = 0;
 static int      g_verbose_trace = 0;  /* enabled for one call to trace BL targets */
-#define MAX_LOG_LINES 200
+#define MAX_LOG_LINES 2000
 
 void arm_interp_set_enabled(int e) { g_enabled = e; }
 int  arm_interp_is_enabled(void)   { return g_enabled; }
@@ -178,6 +178,16 @@ static void mem_write16(uint32_t addr, uint16_t val) {
 
 static void mem_write32(uint32_t addr, uint32_t val) {
     addr &= ~3u;
+    /* Watchpoint: catch writes to title node's next pointer (0x0230200C) */
+    if (addr == 0x0230200Cu) {
+        static int s_watch = 0;
+        if (s_watch < 10) {
+            s_watch++;
+            fprintf(stderr, "[WATCH-0C] write 0x%08X to 0x0230200C (interp)\n",
+                    (unsigned)val);
+            fflush(stderr);
+        }
+    }
     if (is_ram_addr(addr)) {
         *(volatile uint32_t *)(uintptr_t)addr = val;
         return;
@@ -208,7 +218,7 @@ static int try_native_call(ArmCpu *cpu, uint32_t target) {
     if (fn) {
         /* Log native calls to diagnose crashes from indirect NDS fn ptrs */
         static int s_native_log = 0;
-        if (s_native_log < 100) {
+        if (s_native_log < 500) {
             s_native_log++;
             fprintf(stderr, "[arm-interp] native 0x%08X (r0=0x%X r1=0x%X r2=0x%X r3=0x%X)\n",
                     addr, cpu->r[0], cpu->r[1], cpu->r[2], cpu->r[3]);
@@ -229,6 +239,8 @@ static int try_native_call(ArmCpu *cpu, uint32_t target) {
         /* Whitelist: arm9-base functions safe to interpret */
         static const uint32_t interpret_whitelist[] = {
             0x02010CCCu, /* data structure init (linked list setup, memset calls) */
+            0x02026388u, /* struct initializer for display objects (14-param) */
+            0x0202626cu, /* display object helper called by FUN_02026388 */
         };
         int whitelisted = 0;
         for (int i = 0; i < (int)(sizeof(interpret_whitelist)/sizeof(interpret_whitelist[0])); i++) {
@@ -351,6 +363,22 @@ static int exec_arm(ArmCpu *cpu) {
     uint32_t inst = mem_read32(pc);
     cpu->r[15] = pc + 4;
 
+    /* Targeted trace: state 2 fallback bit manipulation (one-shot) */
+    static int s_state2_traced = 0;
+    if (!s_state2_traced && pc >= 0x02076AE4u && pc <= 0x02076B08u) {
+        fprintf(stderr, "[trace-s2] pc=0x%08X inst=0x%08X r0=0x%X r1=0x%X r6=0x%X r7=0x%X r10=0x%X cpsr=0x%X\n",
+                pc, inst, cpu->r[0], cpu->r[1], cpu->r[6], cpu->r[7], cpu->r[10], cpu->cpsr);
+        fflush(stderr);
+        if (pc == 0x02076B08u) s_state2_traced = 1;
+    }
+    /* Also trace state 3 decision */
+    if (!s_state2_traced && pc >= 0x02076B6Cu && pc <= 0x02076BB8u) {
+        fprintf(stderr, "[trace-s3] pc=0x%08X inst=0x%08X r0=0x%X r4=0x%X cpsr=0x%X\n",
+                pc, inst, cpu->r[0], cpu->r[4], cpu->cpsr);
+        fflush(stderr);
+        if (pc == 0x02076BB0u) s_state2_traced = 1;
+    }
+
     uint32_t cond = (inst >> 28) & 0xF;
     if (!check_cond(cpu->cpsr, cond)) return 0;
 
@@ -395,8 +423,14 @@ static int exec_arm(ArmCpu *cpu) {
             return 0;
         }
 
-        /* Try native call */
-        if ((is_blx || rm == 14) && try_native_call(cpu, target & ~1u)) {
+        /* Try native call only for BLX (not plain BX LR which is a return) */
+        if (is_blx && try_native_call(cpu, target & ~1u)) {
+            return 0;
+        }
+
+        /* For BX to a non-LR register that isn't a return, try native call
+         * (e.g. BX R3 used as indirect function call) */
+        if (!is_blx && rm != 14 && try_native_call(cpu, target & ~1u)) {
             return 0;
         }
 

@@ -290,6 +290,32 @@ void FUN_0202a33c_safe(void)
      * We bail out after a fixed number of iterations to be safe. */
     int outer_guard = 64;
     int run_again;
+
+    /* One-time dump of the full linked list after teardown */
+    {
+        static int s_dumped = 0;
+        static int s_call_count = 0;
+        s_call_count++;
+        if (!s_dumped && s_call_count > 85) {
+            s_dumped = 1;
+            fprintf(stderr, "[queue-dump] full list at call #%d:\n", s_call_count);
+            u32 n = head;
+            int h = 0;
+            while (n && h < 16) {
+                if (!nds_addr_in_arm9(n)) break;
+                u16 f = *(volatile u16 *)(uintptr_t)(n + 0x12);
+                u32 vt = *(volatile u32 *)(uintptr_t)n;
+                u32 nxt = *(volatile u32 *)(uintptr_t)(n + 0x0c);
+                fprintf(stderr, "  [%d] node=0x%08X vt=0x%08X flags=0x%04X next=0x%08X\n",
+                        h, (unsigned)n, (unsigned)vt, (unsigned)f, (unsigned)nxt);
+                if (nxt == n) break;
+                n = nxt;
+                h++;
+            }
+            fflush(stderr);
+        }
+    }
+
     do {
         run_again = 0;
         u32 node = head;
@@ -321,7 +347,7 @@ void FUN_0202a33c_safe(void)
                         if (vtable && nds_addr_in_arm9(vtable)) {
                             u32 fn_addr = *(volatile u32 *)(uintptr_t)(vtable + 8);
                             static int s_dispatch_log = 0;
-                            if (s_dispatch_log < 100) {
+                            if (s_dispatch_log < 400) {
                                 s_dispatch_log++;
                                 fprintf(stderr,
                                         "[queue-dispatch] #%d node=0x%08X "
@@ -335,6 +361,22 @@ void FUN_0202a33c_safe(void)
                             nds_call_2arg(fn_addr,
                                           (uintptr_t)node,
                                           (uintptr_t)anchor);
+                            /* Watchpoint: check if dispatch clobbered title next ptr */
+                            {
+                                static int s_watch_clobber = 0;
+                                u32 tn = *(volatile u32 *)(uintptr_t)(0x02302000u + 0x0Cu);
+                                static u32 s_prev_tn = 0;
+                                if (tn != s_prev_tn && s_watch_clobber < 10) {
+                                    s_watch_clobber++;
+                                    fprintf(stderr,
+                                            "[WATCH-0C] title.next changed 0x%08X->0x%08X "
+                                            "after dispatching node=0x%08X fn=0x%08X\n",
+                                            (unsigned)s_prev_tn, (unsigned)tn,
+                                            (unsigned)node, (unsigned)fn_addr);
+                                    fflush(stderr);
+                                }
+                                s_prev_tn = tn;
+                            }
                         } else if (vtable >= HOST_FNPTR_SYNTHETIC_BASE) {
                             /* Vtable lives in synthetic host range — read
                              * vtable[2] from a host-side mirror.  Our

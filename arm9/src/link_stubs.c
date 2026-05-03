@@ -624,6 +624,32 @@ void game_update_display(void) {
             host_scene_queue_log_state(tag);
         }
         FUN_0202a33c_safe();
+        /* ---- Diagnostic: check if title screen set field_2c ---- */
+        {
+            static int s_field2c_logged = 0;
+            u32 title_obj = *(volatile u32 *)(uintptr_t)0x0207A6F8u;
+            if (title_obj >= 0x02000000u && title_obj < 0x03000000u) {
+                u32 f2c = *(volatile u32 *)(uintptr_t)(title_obj + 0x2Cu);
+                if (f2c != 0 && !s_field2c_logged) {
+                    s_field2c_logged = 1;
+                    fprintf(stderr,
+                            "[DIAG] title_obj=0x%08X field_2c=%u at frame %u\n",
+                            (unsigned)title_obj, (unsigned)f2c,
+                            (unsigned)g_game_frame_counter);
+                    fflush(stderr);
+                }
+                /* Also log title state every 100 frames for context */
+                if ((g_game_frame_counter % 100u) == 0u) {
+                    u32 state = *(volatile u32 *)(uintptr_t)(title_obj + 0x20u);
+                    u32 counter = *(volatile u32 *)(uintptr_t)(title_obj + 0x24u);
+                    fprintf(stderr,
+                            "[DIAG] frame=%u title state=%u counter=%u field_2c=%u\n",
+                            (unsigned)g_game_frame_counter,
+                            (unsigned)state, (unsigned)counter, (unsigned)f2c);
+                    fflush(stderr);
+                }
+            }
+        }
 
         /* Secondary scene queue dispatch — dispatches sub-scene nodes
          * (e.g. the derived title-screen object at vtable 0x02077EB0).
@@ -636,6 +662,24 @@ void game_update_display(void) {
         }
 
         host_gxfifo_observer_tick();
+
+        /* VBlank callback dispatch — on real NDS, the VBlank IRQ calls
+         * FUN_02065A7C which in turn calls FUN_020660AC(0, 0xA) to dispatch
+         * registered callbacks.
+         *
+         * NOTE: FUN_0206619C (per-frame callback tick) is NOT called here;
+         * it's auto-registered in the fnptr table and called from within
+         * the base tick FUN_02077444 (via the ARM interpreter), matching
+         * the original NDS execution flow.  Calling it here would cause
+         * double-dispatch of the state machine. */
+        {
+            /* Cleanup dispatch: fires +0x18 one-shot callbacks on nodes
+             * with flag bit 1, then unlinks them. */
+            extern void FUN_020660ac(int start, int end);
+            FUN_020660ac(0, 0xA);
+            /* Re-set display gate after callback dispatch */
+            *(volatile u32 *)(uintptr_t)0x02069DF8u = 1;
+        }
     }
 }
 

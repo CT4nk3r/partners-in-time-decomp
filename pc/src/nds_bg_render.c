@@ -265,6 +265,18 @@ static void render_bg_layer(uint16_t *fb, const uint8_t *vram,
 void bg_render_top(uint16_t *fb) {
     uint32_t dispcnt = nds_reg_read32(REG_DISPCNT);
 
+    /* One-shot diagnostic: dump rendering state */
+    static int s_diag = 0;
+    if (s_diag < 5 || (s_diag < 300 && (s_diag % 60) == 0)) {
+        fprintf(stderr, "[bg-top] frame=%d DISPCNT=0x%08X mode=%d bg_en=%d%d%d%d"
+                " BG0CNT=0x%04X BG2CNT=0x%04X\n",
+                s_diag, dispcnt, dispcnt & 7,
+                (dispcnt >> 8) & 1, (dispcnt >> 9) & 1,
+                (dispcnt >> 10) & 1, (dispcnt >> 11) & 1,
+                nds_reg_read16(REG_BG0CNT), nds_reg_read16(REG_BG2CNT));
+    }
+    s_diag++;
+
     /* Override main DISPCNT when gameplay is active — the game thread's
      * scene dispatch may overwrite it between frames (thread race). */
     extern int g_game_display_active;

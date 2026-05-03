@@ -32,6 +32,7 @@ extern void FUN_02039014(void);            /* hw_gx.c */
 extern void FUN_0203e154(void);            /* sdk_fs.c */
 extern void FUN_02042650(void);            /* sdk_init_b.c */
 extern void MI_CpuFill32Fast(u32 *, u32, int); /* mem_util.c */
+extern void MI_CpuFill8(void *, u8, u32);     /* mem_util.c */
 extern void os_timer_dispatch(u32, u32);   /* os_system.c (FUN_0203f378) */
 
 /* These don't have host implementations yet — use safe no-op stubs. */
@@ -69,6 +70,7 @@ DECL_DAT(020390a0);  /* -> FUN_020390a4 (no impl -> stub) */
 DECL_DAT(02039140);  /* -> FUN_02039144 (no impl -> stub) */
 DECL_DAT(0203e0a0);  /* -> FUN_0203e154 */
 DECL_DAT(02043338);  /* -> FUN_02042650 */
+DECL_DAT(02028b48);  /* -> MI_CpuFill8 (FUN_0203b914) — save data CRC init */
 
 #define PATCH(dat, fn) do { \
     DAT_##dat = (uintptr_t)(void*)(fn); \
@@ -89,6 +91,7 @@ void host_dat_fnptr_patch(void)
     PATCH(02038fc8, FUN_02039014);
     PATCH(0203e0a0, FUN_0203e154);
     PATCH(02043338, FUN_02042650);
+    PATCH(02028b48, MI_CpuFill8);  /* indirect call via save data code */
 
     /* Patched to safe stubs (no host implementation yet) */
     PATCH(0202e320, stub_int);

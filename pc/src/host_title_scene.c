@@ -318,11 +318,24 @@ void FUN_02077784(void *ptr, int type, int param)
     extern void FUN_02065da8(int screen);
     extern void FUN_0206805c(int screen);
     fprintf(stderr, "[title-ctor] step 3: display init\n"); fflush(stderr);
-    FUN_02065da8(0);
+    FUN_02065da8(0);  /* screen=0 basic init (safe) */
     fprintf(stderr, "[title-ctor] step 3a: FUN_0206805c(0)\n"); fflush(stderr);
     FUN_0206805c(0);
     fprintf(stderr, "[title-ctor] step 3b: FUN_0206805c(1)\n"); fflush(stderr);
     FUN_0206805c(1);
+
+    /* Ensure the display pipeline gate is open.  FUN_02065B5C reads
+     * *(u32*)0x02069DF8 — if 0, the base tick skips the entire render
+     * pipeline.  Set it directly since FUN_02065da8(0) returns early. */
+    *(volatile u32 *)(uintptr_t)0x02069DF8u = 1;
+
+    /* Initialize the callback dispatch table (12 slots at 0x02069ED4)
+     * and the node pool at 0x02069EC0.  This is normally done by
+     * FUN_02068438 (called from FUN_02065da8 when screen != 0), but
+     * we call FUN_02065da8(0) to avoid crashes in the full init path.
+     * Must be done before FUN_0206621c registers any callbacks. */
+    extern void FUN_020662b8(u32 max_objs);
+    FUN_020662b8(0x40);
 
     /* 4. Palette init — skip for now (was crashing due to bad literal deref) */
     fprintf(stderr, "[title-ctor] step 4: palette (skipped)\n"); fflush(stderr);
@@ -472,7 +485,9 @@ void FUN_02077784(void *ptr, int type, int param)
     host_title_screen_load();
 
     /* 22. Register per-frame callback (overlay 5).
-     * ARM: bl FUN_0206621c(0x020768F0, 6, 1) */
+     * ARM: bl FUN_0206621c(0x020768F0, 6, 1)
+     * The callback at +0x0C fires every frame via FUN_0206619C when
+     * flags & 3 == 0 (the initial state after registration). */
     extern void FUN_0206621c(u32, u16, u16);
     FUN_0206621c(0x020768F0u, 6, 1);
 
@@ -490,17 +505,22 @@ void FUN_02077784(void *ptr, int type, int param)
 }
 
 /* ==================================================================
- * FUN_020739ec — "file select" / next scene constructor (ov8)
+ * FUN_020739ec — "file select" data object initializer (ov8)
  * ==================================================================
  *
  * Called from alloc_construct_obj_h (FUN_02029128) during phase 3
  * state 2 of the scene state machine, after the title screen
- * transitions.  On real hardware this creates the file-select or
- * story-intro scene.
+ * transitions.
  *
- * For the HOST_PORT we create a minimal scene node that ticks
- * without crashing — proving the full scene transition pipeline
- * works end-to-end.  Actual rendering will come in later phases.
+ * CRITICAL DISCOVERY: The real NDS code at 0x020739EC does NOT create
+ * a queue node (does not call FUN_0202a74c).  Instead, it only
+ * initializes a small data object.  The file-select per-frame logic
+ * (FUN_020739D4) is called from overlay 8's Scene A callback system,
+ * not from the scene queue.
+ *
+ * For the HOST_PORT we initialize the data object and rely on the
+ * native file-select driver in FUN_02005d6c_shim.c (phase 4, state 2)
+ * to drive the UI per frame.
  */
 
 /* ==================================================================
@@ -728,8 +748,8 @@ static void host_next_scene_dtor(uintptr_t node_addr, uintptr_t unused)
 }
 
 /* NDS addresses for the file select scene (distinct from title screen) */
-#define OV8_NEXT_TICK_ADDR    0x020739A0u
-#define OV8_NEXT_DTOR_ADDR    0x020739A4u
+/* 0x020739A0/A4 are mid-function addresses (NOT function starts) —
+ * they were incorrectly used as vtable tick/dtor entries.  Removed. */
 
 void FUN_020739ec(void *ptr, int type, int param)
 {
@@ -890,40 +910,33 @@ void FUN_020739ec(void *ptr, int type, int param)
     if (real_loaded) dispcnt |= 0x0200u;  /* BG1 */
     *(volatile uint32_t *)(uintptr_t)0x04000000u = dispcnt;
 
+    /* The real FUN_020739EC initializes a 0x30-byte data object:
+     *   obj[0x90] = type (8)
+     *   obj[0x90..0x93] = 1 (button state init)
+     *   Calls GameProp_Get to check initial button states
+     *   Copies fields from global game state at *(0x02059C68)
+     *
+     * It does NOT create a queue node or vtable.  On the real NDS the
+     * file-select UI is driven by the overlay 8 callback dispatcher
+     * (FUN_0206619c), not by a dedicated queue node.  For the host
+     * port, the scene state machine's phase-4 handler in
+     * FUN_02005d6c_shim.c provides a native file-select driver. */
+
     u32 obj_nds = nds_bump_alloc(0x30);
     fprintf(stderr,
-            "[FUN_020739ec] next scene ctor: obj=0x%08X type=%d param=%d\n",
+            "[FUN_020739ec] file select data obj: 0x%08X type=%d param=%d\n",
             (unsigned)obj_nds, type, param);
 
-    /* Insert into scene queue */
-    FUN_0202a74c_real(obj_nds, /*priority*/ 8, 0, 0);
-
-    /* Create and install vtable */
-    u32 vtab_nds = nds_bump_alloc(16);
-    volatile u32 *vtab = (volatile u32 *)(uintptr_t)vtab_nds;
-    vtab[0] = OV8_NEXT_DTOR_ADDR;
-    vtab[1] = OV8_NEXT_DTOR_ADDR;
-    vtab[2] = OV8_NEXT_TICK_ADDR;
-
-    /* Install vtable AFTER FUN_0202a74c_real (which overwrites node[0]) */
-    *(volatile u32 *)(uintptr_t)obj_nds = vtab_nds;
-
-    /* No host overrides — let ARM interpreter run real tick */
-    fprintf(stderr,
-            "[FUN_020739ec] NOT registering host tick override — "
-            "real OV8 next tick at 0x%08X will run via interpreter\n",
-            (unsigned)OV8_NEXT_TICK_ADDR);
-    fflush(stderr);
-
-    /* Set field_2c = 0 (normal state) */
-    *(volatile u32 *)(uintptr_t)(obj_nds + 0x2c) = 0;
-
-    /* Set "needs update" flag so tick fires */
-    volatile u16 *flags_ptr = (volatile u16 *)(uintptr_t)(obj_nds + 0x12);
-    *flags_ptr |= 0x0001;
+    /* Initialise obj fields per the real ARM code */
+    volatile u8 *obj = (volatile u8 *)(uintptr_t)obj_nds;
+    obj[0x90 - 0x70] = (u8)type;   /* ptr was allocated at 0x30 size,
+                                       offset 0x90 is relative to the
+                                       CALLER's R4 (caller context).
+                                       For now just mark the object. */
+    /* Store the object address at a global the file-select driver reads */
+    *(volatile u32 *)(uintptr_t)0x02077EF0u = obj_nds;
 
     fprintf(stderr,
-            "[FUN_020739ec] next scene created: obj=0x%08X vtab=0x%08X\n",
-            (unsigned)obj_nds, (unsigned)vtab_nds);
+            "[FUN_020739ec] file select data ready (no queue node)\n");
     fflush(stderr);
 }

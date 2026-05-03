@@ -168,36 +168,38 @@ static void pump_input_to_io(void)
         const char *env = getenv("MLPIT_AUTO_START_FRAME");
         s_auto_start_frame = env ? atoi(env) : -1;
     }
-    /* Simulate Start press for a window of frames starting at the target.
-     * Use a very wide window (100 frames) because the game thread runs
-     * much slower than the main thread — the title constructor takes
-     * many main-thread frames to complete before the title tick starts
-     * checking input. */
-    if (s_auto_start_frame > 0 &&
-        s_pump_frame >= s_auto_start_frame &&
-        s_pump_frame < s_auto_start_frame + 100) {
-        g_input.start = 1;
-    }
-    /* Second auto-press: file select START.
-     * Use a very wide 100-frame window to guarantee the game thread sees it. */
-    int second_press = s_auto_start_frame > 0 ? s_auto_start_frame + 150 : -1;
-    if (second_press > 0) {
-        if (s_pump_frame >= second_press && s_pump_frame < second_press + 100) {
-            g_input.start = 1;
+    /* Auto-press: short 3-frame pulses with gaps so "newly pressed" registers.
+     * The title screen state machine (FUN_020768F0 state 6) checks for A button
+     * (mask 0x0401 = A|X), NOT Start button. Send A button to advance.
+     *
+     * Timing discovery: the first A pulse may come before the title state
+     * machine is ready (state 6 internal timer not expired). The second pulse
+     * triggers the title teardown, consuming it. The third pulse fires after
+     * the file select reaches phase 4.
+     *
+     * Pulse 1: title screen A (might be too early)
+     * Pulse 2: title screen A (triggers transition to file select)
+     * Pulse 3: file select A (triggers transition to gameplay) */
+    if (s_auto_start_frame > 0) {
+        int p1_start = s_auto_start_frame + 30;
+        int p1_end   = p1_start + 3;
+        int p2_start = p1_end + 50;
+        int p2_end   = p2_start + 3;
+        int p3_start = p2_end + 20;  /* after title teardown + phases 2→3→4 (5 frames) */
+        int p3_end   = p3_start + 3;
+
+        if ((s_pump_frame >= p1_start && s_pump_frame < p1_end) ||
+            (s_pump_frame >= p2_start && s_pump_frame < p2_end) ||
+            (s_pump_frame >= p3_start && s_pump_frame < p3_end)) {
+            g_input.a = 1;
+        } else {
+            g_input.a = 0;
         }
     }
 
     uint16_t ki = build_keyinput_bits();
     nds_reg_write16(0x04000130u, ki);
     nds_reg_write16(0x04000136u, build_keyinput_ext_bits());
-
-    /* Clear auto-press after writing so it doesn't stick */
-    if (s_auto_start_frame > 0 && s_pump_frame >= s_auto_start_frame + 100) {
-        g_input.start = 0;
-    }
-    if (second_press > 0 && s_pump_frame >= second_press + 100) {
-        g_input.start = 0;
-    }
 }
 
 /*

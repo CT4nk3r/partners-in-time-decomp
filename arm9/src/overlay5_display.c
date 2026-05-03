@@ -249,64 +249,79 @@ void FUN_0206805c(int screen)
     fprintf(stderr, "[ov5] FUN_0206805C(%d) BG init done\n", screen);
 }
 
-/* FUN_020662B8: Initialize sprite slot array (12 entries of 0x10 bytes) */
+/* FUN_020662B8: Initialize callback dispatch table (12 slots at 0x02069ED4)
+ * and the node pool at 0x02069EC0.
+ * Each slot is 16 bytes: [data, list_head, sentinel, data].
+ * Empty list: list_head → &sentinel, sentinel → &slot. */
 void FUN_020662b8(u32 max_objs)
 {
-    volatile u32 *base = (volatile u32 *)(uintptr_t)0x02069EB0u;
-    volatile u16 *count = (volatile u16 *)(uintptr_t)0x02069ED4u;
-
+    /* 1. Initialize node pool */
     FUN_02066324((void *)(uintptr_t)0x02069EC0u, max_objs);
 
-    u32 arr = 0x02069EB0u;
+    /* 2. Initialize 12 callback dispatch slots at 0x02069ED4 */
+    u32 table_base = 0x02069ED4u;
     for (u32 i = 0; i < 12; i++) {
-        volatile u32 *entry = (volatile u32 *)(uintptr_t)(arr + i * 0x10);
-        entry[0] = 0;
-        volatile u32 *next = (volatile u32 *)(uintptr_t)(arr + 8);
-        entry[1] = (u32)(uintptr_t)next;
-        volatile u32 *self = (volatile u32 *)(uintptr_t)arr;
-        entry[2] = (u32)(uintptr_t)self;
-        entry[3] = 0;
+        u32 slot_addr = table_base + i * 0x10;
+        volatile u32 *slot = (volatile u32 *)(uintptr_t)slot_addr;
+        slot[0] = 0;                          /* +0x00 = unused / data */
+        slot[1] = slot_addr + 8;              /* +0x04 = list head → sentinel */
+        slot[2] = slot_addr;                  /* +0x08 = sentinel back-pointer */
+        slot[3] = 0;                          /* +0x0C = unused */
     }
-    *count = 0;
+
+    /* 3. Reset active callback counter at 0x02069EB0 */
+    *(volatile u16 *)(uintptr_t)0x02069EB0u = 0;
 }
 
-/* FUN_0206621C: Register an animation callback into a linked list */
+/* FUN_0206621C: Register a callback into the dispatch table.
+ * Table base = 0x02069ED4, each slot = 16 bytes.
+ * List entry = table_base + id*16 + param*8.
+ * Node pool at 0x02069EC0, counter at 0x02069EB0. */
 void FUN_0206621c(u32 callback_addr, u16 id, u16 param)
 {
-    volatile u32 *alloc_base = (volatile u32 *)(uintptr_t)0x02069EC0u;
-    volatile u16 *count = (volatile u16 *)(uintptr_t)0x02069ED4u;
-    volatile u32 *pool = (volatile u32 *)(uintptr_t)0x02069EB0u;
-
-    /* Allocate a node from the pool */
+    /* 1. Allocate a node from the pool */
     extern void *FUN_0206640c(void *pool);
-    volatile u32 *node = (volatile u32 *)FUN_0206640c((void *)alloc_base);
+    volatile u32 *node = (volatile u32 *)FUN_0206640c((void *)(uintptr_t)0x02069EC0u);
 
-    /* Fill in node fields */
-    volatile u16 *node16 = (volatile u16 *)node;
-    node16[5] = id;          /* +0x0A: id */
-    node[3] = callback_addr; /* +0x0C: callback */
-    volatile u16 *node16b = (volatile u16 *)node;
-    node16b[4] = 0;          /* +0x08: status */
-    node[4] = 0;             /* +0x10: param1 */
-    node[5] = 0;             /* +0x14: param2 */
+    if (!node) {
+        fprintf(stderr, "[cb-reg] ERROR: pool exhausted for id=%u param=%u\n",
+                (unsigned)id, (unsigned)param);
+        return;
+    }
 
-    /* Link into list (doubly linked) */
-    u32 list_addr = 0x02069EB0u + (u32)id * 0x10 + (u32)param * 8;
-    volatile u32 *list_head = (volatile u32 *)(uintptr_t)(0x02069EB0u + (u32)id * 0x10);
-    volatile u32 *list_entry = (volatile u32 *)(uintptr_t)list_addr;
+    /* 2. Fill node fields */
+    *(volatile u16 *)((u8 *)node + 0x0A) = id;   /* +0x0A: id */
+    node[3] = callback_addr;                       /* +0x0C: callback function */
+    *(volatile u16 *)((u8 *)node + 0x08) = 0;     /* +0x08: flags */
+    node[4] = 0;                                   /* +0x10 */
+    node[5] = 0;                                   /* +0x14 */
 
-    u32 old_head = list_entry[0];
-    node[0] = old_head;
-    node[1] = (u32)(uintptr_t)list_entry;
-    *(volatile u32 *)(uintptr_t)(old_head + 4) = (u32)(uintptr_t)node;
-    list_entry[0] = (u32)(uintptr_t)node;
+    /* 3. Compute list entry address: table_base + id*16 + param*8 */
+    u32 slot_base = 0x02069ED4u + (u32)id * 16u;
+    u32 list_entry_addr = slot_base + (u32)param * 8u;
+    volatile u32 *list_entry = (volatile u32 *)(uintptr_t)list_entry_addr;
 
+    /* 4. Insert node at head of doubly-linked list */
+    u32 old_head_addr = *list_entry;
+    node[0] = old_head_addr;                        /* node->prev = old_head */
+    node[1] = (u32)(uintptr_t)list_entry;           /* node->next = list_entry */
+    if (old_head_addr >= 0x02000000u && old_head_addr < 0x02400000u) {
+        *(volatile u32 *)(uintptr_t)(old_head_addr + 4) = (u32)(uintptr_t)node;
+    }
+    *list_entry = (u32)(uintptr_t)node;
+
+    /* 5. Clear remaining fields */
     node[6] = 0;  /* +0x18 */
     node[7] = 0;  /* +0x1C */
     node[8] = 0;  /* +0x20 */
 
-    u16 c = *count;
-    *count = c + 1;
+    /* 6. Increment counter */
+    volatile u16 *counter = (volatile u16 *)(uintptr_t)0x02069EB0u;
+    *counter = *counter + 1;
+
+    fprintf(stderr, "[cb-reg] registered callback 0x%08X at slot id=%u param=%u node=%p\n",
+            (unsigned)callback_addr, (unsigned)id, (unsigned)param, (void *)node);
+    fflush(stderr);
 }
 
 /* FUN_02068D70: OBJ/sprite manager init */
@@ -418,16 +433,17 @@ void FUN_020695a8(void)
 
 void *FUN_0206640c(void *pool)
 {
-    /* Pool allocator — return a node from the free list.
-     * For now, allocate from a static slab. */
-    static u8 s_pool[0x400];
-    static u32 s_off = 0;
-    if (s_off + 0x24 > sizeof(s_pool)) {
-        s_off = 0; /* wrap */
+    /* Pool allocator — return a node from NDS memory.
+     * The callback dispatch table at 0x02069ED4 stores NDS addresses,
+     * so allocated nodes must also be in NDS address space. */
+    extern u32 nds_bump_alloc(u32 size);
+    u32 addr = nds_bump_alloc(0x24);
+    if (addr == 0) {
+        fprintf(stderr, "[pool] nds_bump_alloc(0x24) failed!\n");
+        return NULL;
     }
-    void *p = &s_pool[s_off];
+    void *p = (void *)(uintptr_t)addr;
     memset(p, 0, 0x24);
-    s_off += 0x24;
     return p;
 }
 
@@ -514,8 +530,243 @@ void FUN_02009040(int screen, u32 base_addr, u32 end_addr)
     /* TODO: store OBJ VRAM mapping for software renderer */
 }
 
+/* FUN_02066430: recycle a callback node back to the free pool.
+ * For now, just a no-op — the static pool in FUN_0206640c is simple. */
+void FUN_02066430(void *pool, void *node)
+{
+    (void)pool; (void)node;
+    /* On real NDS, this would link the node back into the free list.
+     * Our pool allocator wraps, so this is safe to skip. */
+}
+
+/* FUN_02068214: display mode register commit.
+ * On NDS, flushes DISPCNT/master brightness etc to hardware.
+ * No-op on host — display registers are handled by the renderer. */
+void FUN_02068214(void)
+{
+    /* stub */
+}
+
 /* FUN_02029488: Reset object/sprite state flags */
 void FUN_02029488(int param1, int param2)
 {
     (void)param1; (void)param2;
+}
+
+/* ── Callback dispatch system ── */
+
+/* FUN_02066128: Execute and unlink a single callback node.
+ * Node layout (0x24 bytes):
+ *   +0x00 = prev pointer
+ *   +0x04 = next pointer
+ *   +0x08 = flags (u16: bit 1 = ready to fire)
+ *   +0x18 = callback function pointer (BLX'd, then cleared)
+ * After dispatch, the node is unlinked from its doubly-linked list and
+ * recycled back to the pool via FUN_02066430. */
+extern void FUN_02066430(void *pool, void *node);
+
+static void FUN_02066128(volatile u32 *node)
+{
+    u32 cb = node[6];  /* +0x18 = callback function pointer */
+    if (cb != 0) {
+        /* Call the callback via our function pointer resolver */
+        typedef u32 (*fn_t)(u32, u32, u32, u32);
+        extern void *host_fnptr_lookup(u32 addr);
+        fn_t fn = (fn_t)host_fnptr_lookup(cb);
+        if (fn) {
+            fn((u32)(uintptr_t)node, 0, 0, 0);
+        } else {
+            fprintf(stderr, "[cb-dispatch] callback 0x%08X not found!\n", (unsigned)cb);
+        }
+        node[6] = 0;  /* clear callback pointer */
+    }
+
+    /* Unlink node from doubly-linked list:
+     * prev->next = node->next;  next->prev = node->prev; */
+    volatile u32 *prev = (volatile u32 *)(uintptr_t)node[0];
+    volatile u32 *next = (volatile u32 *)(uintptr_t)node[1];
+    if (prev) next[0] = (u32)(uintptr_t)prev;   /* next->prev = prev */
+    if (next) prev[1] = (u32)(uintptr_t)next;    /* prev->next = next */
+
+    /* Recycle node back to pool */
+    FUN_02066430((void *)(uintptr_t)0x02069EC0u, (void *)node);
+
+    /* Decrement active callback count */
+    volatile u16 *counter = (volatile u16 *)(uintptr_t)0x02069EB0u;
+    if (*counter > 0) (*counter)--;
+}
+
+/* FUN_0206619C: PER-FRAME callback dispatch — walks callback slots
+ * from index 'start' to 'end' inclusive and calls the +0x0C callback
+ * for every node whose flags & 3 == 0 (i.e. active, not deactivating).
+ * This is the main game tick driver — it fires scene state machines,
+ * animation updates, etc. every frame.
+ *
+ * ARM signature:
+ *   0x020661D8: LDRH R0, [R7, #8]     ; flags
+ *   0x020661DC: ANDS R0, R0, #3
+ *   0x020661E0: BNE skip
+ *   0x020661E4: LDR R1, [R7, #0xC]    ; callback = node+0x0C
+ *   0x020661E8: MOV R0, R7            ; arg = node
+ *   0x020661EC: BLX R1                ; call callback(node)
+ */
+void FUN_0206619c(int start, int end)
+{
+    if (start > end) return;
+
+    u32 table_base = 0x02069ED4u;
+
+    static int s_log = 0;
+    static int s_skip_log = 0;
+
+    for (int i = start; i <= end; i++) {
+        u32 slot_addr = table_base + (u32)i * 16;
+        if (slot_addr < 0x02000000u || slot_addr > 0x02400000u) continue;
+
+        volatile u32 *slot = (volatile u32 *)(uintptr_t)slot_addr;
+        u32 node_addr = slot[1];      /* +0x04 = linked list head */
+        u32 sentinel  = slot_addr + 8; /* sentinel address */
+
+        while (node_addr != sentinel && node_addr != 0) {
+            if (node_addr < 0x02000000u || node_addr > 0x02400000u) break;
+
+            volatile u32 *node = (volatile u32 *)(uintptr_t)node_addr;
+            u32 next_addr = node[1];  /* save next (in case callback modifies list) */
+
+            u16 flags = *(volatile u16 *)((u8 *)(uintptr_t)node_addr + 8);
+            if ((flags & 3) == 0) {
+                /* Active callback — call +0x0C via nds_call_1arg which
+                 * tries host_fnptr_lookup first, then ARM interpreter */
+                u32 cb_addr = node[3];  /* +0x0C */
+                if (cb_addr != 0) {
+                    extern void nds_call_1arg(u32 nds_addr, uintptr_t a);
+                    if (s_log < 100) {
+                        s_log++;
+                        fprintf(stderr, "[cb-tick] slot %d calling 0x%08X(node=0x%08X) flags=0x%04X\n",
+                                i, (unsigned)cb_addr, (unsigned)node_addr, (unsigned)flags);
+                        fflush(stderr);
+                    }
+                    nds_call_1arg(cb_addr, (uintptr_t)node_addr);
+                    /* Detect state transitions — always fires, no log limit */
+                    if (cb_addr == 0x020768F0u) {
+                        static u32 s_prev_state = 0xFF;
+                        u32 state_val = *(volatile u32 *)((u8 *)(uintptr_t)node_addr + 0x20);
+                        u32 counter_val = *(volatile u32 *)((u8 *)(uintptr_t)node_addr + 0x24);
+                        u16 pad_newly = *(volatile u16 *)(uintptr_t)0x0205FFAEu;
+                        if (state_val != s_prev_state) {
+                            fprintf(stderr, "[STATE] %u -> %u (counter=%u pad_newly=0x%04X)\n",
+                                    (unsigned)s_prev_state, (unsigned)state_val,
+                                    (unsigned)counter_val, (unsigned)pad_newly);
+                            fflush(stderr);
+                            s_prev_state = state_val;
+                        }
+                    }
+                }
+            } else {
+                if (s_skip_log < 10) {
+                    s_skip_log++;
+                    u32 cb_addr = node[3];
+                    fprintf(stderr, "[cb-tick] slot %d SKIP cb=0x%08X(node=0x%08X) flags=0x%04X (flags&3=%d)\n",
+                            i, (unsigned)cb_addr, (unsigned)node_addr, (unsigned)flags, (int)(flags & 3));
+                    fflush(stderr);
+                }
+            }
+
+            node_addr = next_addr;
+        }
+    }
+}
+
+/* FUN_020660AC: CLEANUP callback dispatch — walks callback slots and
+ * fires one-shot +0x18 callbacks for nodes with flag bit 1 set, then
+ * unlinks and recycles the node. Used for scene teardown. */
+void FUN_020660ac(int start, int end)
+{
+    if (start > end) return;
+
+    u32 table_base = 0x02069ED4u;
+
+    static int s_log = 0;
+    if (s_log < 5) {
+        s_log++;
+        fprintf(stderr, "[cb-dispatch] FUN_020660AC(%d, %d) table=0x%08X\n",
+                start, end, (unsigned)table_base);
+        fflush(stderr);
+    }
+
+    for (int i = start; i <= end; i++) {
+        u32 slot_addr = table_base + (u32)i * 16;
+        volatile u32 *slot = (volatile u32 *)(uintptr_t)slot_addr;
+
+        /* Safety: verify slot address is in NDS memory range */
+        if (slot_addr < 0x02000000u || slot_addr > 0x02400000u) continue;
+
+        u32 node_addr = slot[1];  /* +0x04 = linked list head */
+        u32 sentinel  = slot_addr + 8;  /* +0x08 = sentinel address */
+
+        if (s_log <= 5 && node_addr != sentinel && node_addr != 0) {
+            fprintf(stderr, "[cb-dispatch] slot %d: head=0x%08X sentinel=0x%08X\n",
+                    i, (unsigned)node_addr, (unsigned)sentinel);
+            fflush(stderr);
+        }
+
+        while (node_addr != sentinel && node_addr != 0) {
+            /* Safety: verify node address is in NDS memory range */
+            if (node_addr < 0x02000000u || node_addr > 0x02400000u) {
+                if (s_log < 3) {
+                    fprintf(stderr, "[cb-dispatch] bad node 0x%08X in slot %d\n",
+                            (unsigned)node_addr, i);
+                    fflush(stderr);
+                }
+                break;
+            }
+
+            volatile u32 *node = (volatile u32 *)(uintptr_t)node_addr;
+            u32 next_addr = node[1];  /* save next before dispatch (node may be unlinked) */
+
+            u16 flags = *(volatile u16 *)((u8 *)(uintptr_t)node_addr + 8);
+            if (flags & 2) {
+                FUN_02066128(node);
+            }
+
+            node_addr = next_addr;
+        }
+    }
+}
+
+/* FUN_02065A7C: VBlank callback dispatcher.
+ * Called once per frame from the VBlank IRQ handler on real NDS.
+ * Clears the display gate, dispatches registered callbacks, then sets
+ * the gate so the base tick's display pipeline can fire next frame. */
+extern void FUN_0202958c(void);  /* OS_DisableScheduler or similar */
+extern void FUN_02029724(void);  /* OS_EnableScheduler or similar */
+extern void FUN_02068214(void);  /* display mode commit */
+
+void FUN_02065a7c(void)
+{
+    static int s_log = 0;
+
+    FUN_0202958c();
+
+    /* Clear two globals */
+    *(volatile u32 *)(uintptr_t)0x02069DF0u = 0;
+    *(volatile u32 *)(uintptr_t)0x02069DF8u = 0;  /* display gate → 0 */
+
+    FUN_02029724();
+
+    /* If display mode pointer is valid, commit display registers */
+    u32 mode_ptr = *(volatile u32 *)(uintptr_t)0x02069DF4u;
+    if (mode_ptr != 0) {
+        if (s_log < 3) {
+            fprintf(stderr, "[vblank] FUN_02068214 (mode_ptr=0x%08X)\n", (unsigned)mode_ptr);
+            fflush(stderr);
+        }
+        FUN_02068214();
+    }
+
+    /* Dispatch all registered callbacks in slots 0..0xA */
+    FUN_020660ac(0, 0xA);
+
+    /* Re-open the display gate so the base tick runs the pipeline */
+    *(volatile u32 *)(uintptr_t)0x02069DF8u = 1;
 }

@@ -290,16 +290,16 @@ int game_thread_main(void* user) {
         host_link_stubs_init_map_control_data();
     }
 
-    /* HOST_PORT: install a fake sub-state so the outer-loop NULL guard
-     * (`*DAT_020055B4 != 0`) becomes true and the frame_count branch fires.
-     * Skip via MLPIT_NO_STATE_ENGAGE=1 to compare baseline behaviour.
-     * Set MLPIT_STATE_ENGAGE_REAL=1 to instead call the legitimate
-     * FUN_02005b70(NULL) initializer (allocates via OS_Alloc, sets flag
-     * bits from default config, calls FUN_020192f8 / FUN_02018ed0). */
+    /* HOST_PORT: initialize clGameMain via the real FUN_02005b70(NULL) path.
+     * This allocates the 0x58C-byte game state, copies default config, and
+     * calls FUN_020192f8 / FUN_02018ed0 (animation channel init).
+     * Skip via MLPIT_NO_STATE_ENGAGE=1 for debugging.
+     * Set MLPIT_STATE_ENGAGE_FAKE=1 to use the old fake engage path. */
     if (!getenv("MLPIT_NO_STATE_ENGAGE")) {
-        if (getenv("MLPIT_STATE_ENGAGE_REAL")) {
-            /* engage_real may NPE deep inside FUN_020192f8 (whose own
-             * statics are also zero today) — protect the call. */
+        if (getenv("MLPIT_STATE_ENGAGE_FAKE")) {
+            (void)game_state_host_engage();
+        } else {
+            /* Real engage: protected against faults in deep-call paths */
             g_in_protected = 1;
             int esig = setjmp(g_crash_jmp);
             if (esig == 0) {
@@ -307,13 +307,10 @@ int game_thread_main(void* user) {
                 nds_log("[game] engage_real returned cleanly\n");
             } else {
                 nds_log("[game] engage_real FAULTED (signal %d) - "
-                        "FUN_02005b70 deep-call statics still zero; "
                         "falling back to fake engage\n", esig);
                 (void)game_state_host_engage();
             }
             g_in_protected = 0;
-        } else {
-            (void)game_state_host_engage();
         }
     }
     nds_log("[game] host game state initialized\n");

@@ -1894,9 +1894,23 @@ void FUN_02018ed0(void)
   
   piVar3 = DAT_02018f0c;
   iVar2 = DAT_02018f08;
+
+#ifdef HOST_PORT
+  /* Skip if the pointers aren't set up or the clGameMain slot is empty.
+   * FUN_02016920 calls deep NDS filesystem functions that hang when the
+   * FS subsystem is not fully operational on the host. */
+  if (!piVar3 || !iVar2 || *piVar3 == 0) return;
+#endif
+
   iVar5 = 0;
   do {
+#ifdef HOST_PORT
+    u32 channel_id = *(u32 *)(iVar2 + iVar5 * 4);
+    if (channel_id == 0) { uVar4 = 0; }
+    else { uVar4 = FUN_02016920(channel_id); }
+#else
     uVar4 = FUN_02016920(*(u32 *)(iVar2 + iVar5 * 4));
+#endif
     iVar1 = iVar5 * 4;
     iVar5 = iVar5 + 1;
     *(u32 *)(*piVar3 + iVar1 + 0x520) = uVar4;

@@ -82,8 +82,20 @@ static int  s_scroll_x         = 0;
 static int  s_scroll_y         = 0;
 static int  s_map_loaded       = 0;
 static int  s_current_map      = 0;
+static int  s_sprites_loaded   = 0;
+
+/* Player state */
+static int  s_player_x     = 128;  /* world position (pixels) */
+static int  s_player_y     = 128;
+static int  s_player_vy    = 0;    /* vertical velocity (subpixels, /16) */
+static int  s_player_on_ground = 1;
+static int  s_player_facing = 0;   /* 0=right, 1=left */
+
 #define GAMEPLAY_FADE_DURATION 30
-#define SCROLL_SPEED 2
+#define PLAYER_SPEED 2
+#define PLAYER_GRAVITY 1
+#define PLAYER_JUMP_VEL -48  /* subpixels/frame */
+#define PLAYER_MAX_FALL 64
 #define MAP_PX_W 512  /* 64 tiles * 8px */
 #define MAP_PX_H 512
 
@@ -263,7 +275,6 @@ static int load_fmap_all_layers(int grp_base, int desc_entry)
  * Tile data: 4bpp (32 bytes per 8x8 tile), AD-compressed.
  * Palette bank 1 = Mario (blue overalls, red hat)
  */
-static int s_sprites_loaded = 0;
 
 static int load_character_sprites(int sprite_idx)
 {
@@ -466,19 +477,45 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
         }
     }
 
-    /* Active gameplay: handle scrolling */
+    /* Active gameplay: player movement + camera follow */
     if (s_gameplay_state == 1 && s_map_loaded) {
         /* Read NDS keypad register (active low) */
         u16 keyinput = *(volatile u16 *)(uintptr_t)0x04000130u;
         u16 held = ~keyinput & 0x03FFu;
+        static u16 s_prev_held = 0;
+        u16 pressed_new = held & ~s_prev_held;
+        s_prev_held = held;
 
-        /* D-pad scroll */
-        if (held & 0x0010) s_scroll_y -= SCROLL_SPEED;  /* Up */
-        if (held & 0x0020) s_scroll_y += SCROLL_SPEED;  /* Down */
-        if (held & 0x0040) s_scroll_x -= SCROLL_SPEED;  /* Left */
-        if (held & 0x0080) s_scroll_x += SCROLL_SPEED;  /* Right */
+        /* Player horizontal movement */
+        if (held & 0x0040) { s_player_x -= PLAYER_SPEED; s_player_facing = 1; }
+        if (held & 0x0080) { s_player_x += PLAYER_SPEED; s_player_facing = 0; }
 
-        /* Wrap scroll within map bounds */
+        /* Jump (A button = Z key) */
+        if ((pressed_new & 0x0001) && s_player_on_ground) {
+            s_player_vy = PLAYER_JUMP_VEL;
+            s_player_on_ground = 0;
+        }
+
+        /* Gravity */
+        s_player_vy += PLAYER_GRAVITY;
+        if (s_player_vy > PLAYER_MAX_FALL) s_player_vy = PLAYER_MAX_FALL;
+        s_player_y += s_player_vy / 4;
+
+        /* Simple ground at y=160 (bottom of visible area relative to map) */
+        if (s_player_y >= 160) {
+            s_player_y = 160;
+            s_player_vy = 0;
+            s_player_on_ground = 1;
+        }
+
+        /* Wrap player within map bounds */
+        if (s_player_x < 0) s_player_x += MAP_PX_W;
+        if (s_player_x >= MAP_PX_W) s_player_x -= MAP_PX_W;
+        if (s_player_y < 0) s_player_y = 0;
+
+        /* Camera follows player (centered) */
+        s_scroll_x = s_player_x - 128;  /* center horizontally */
+        s_scroll_y = s_player_y - 80;   /* slightly above center */
         if (s_scroll_x < 0) s_scroll_x += MAP_PX_W;
         if (s_scroll_x >= MAP_PX_W) s_scroll_x -= MAP_PX_W;
         if (s_scroll_y < 0) s_scroll_y += MAP_PX_H;
@@ -491,18 +528,31 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
         *(volatile u16 *)(uintptr_t)REG_BG2HOFS = (u16)((s_scroll_x / 2) & 0x1FF);
         *(volatile u16 *)(uintptr_t)REG_BG2VOFS = (u16)((s_scroll_y / 2) & 0x1FF);
 
-        /* L/R buttons cycle through maps */
-        static u16 s_prev_held = 0;
-        u16 pressed_new = held & ~s_prev_held;
-        s_prev_held = held;
+        /* Update Mario sprite OAM position (screen-relative) */
+        if (s_sprites_loaded) {
+            int scr_x = s_player_x - s_scroll_x;
+            int scr_y = s_player_y - s_scroll_y;
+            if (scr_x < 0) scr_x += MAP_PX_W;
+            if (scr_y < 0) scr_y += MAP_PX_H;
+            /* Horizontal flip when facing left (attr1 bit 12) */
+            setup_player_oam(0, scr_x - 16, scr_y - 16, 0, 1, 32, 32);
+            /* OAM attr1 bit 12 = horizontal flip */
+            if (s_player_facing) {
+                void *oam = nds_vram_bank('E');
+                if (oam) {
+                    uint8_t *entry = (uint8_t *)oam + 0x800 + 0 * 8;
+                    entry[3] |= 0x10;  /* attr1 bit 12 = h_flip */
+                }
+            }
+        }
 
+        /* L/R buttons cycle through maps */
         if (pressed_new & 0x0200) {  /* R button = next map */
             static const int grp_base[] = {0, 4, 8, 12, 16, 25, 31, 35, 39, 85};
             static const int map_descs[] = {3, 7, 11, 15, 19, 28, 34, 38, 42, 88};
             s_current_map = (s_current_map + 1) % 10;
             if (load_fmap_all_layers(grp_base[s_current_map], map_descs[s_current_map])) {
-                s_scroll_x = 0;
-                s_scroll_y = 0;
+                s_player_x = 128; s_player_y = 128;
                 fprintf(stderr, "[gameplay] switched to map %d (desc=%d)\n",
                         s_current_map, map_descs[s_current_map]);
             }
@@ -512,8 +562,7 @@ static void host_gameplay_tick(uintptr_t node_addr, uintptr_t anchor_addr)
             static const int map_descs[] = {3, 7, 11, 15, 19, 28, 34, 38, 42, 88};
             s_current_map = (s_current_map + 9) % 10;
             if (load_fmap_all_layers(grp_base[s_current_map], map_descs[s_current_map])) {
-                s_scroll_x = 0;
-                s_scroll_y = 0;
+                s_player_x = 128; s_player_y = 128;
                 fprintf(stderr, "[gameplay] switched to map %d (desc=%d)\n",
                         s_current_map, map_descs[s_current_map]);
             }
